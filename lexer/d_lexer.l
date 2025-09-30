@@ -13,6 +13,9 @@ char comment_buf[8192];
 int comment_pos = 0;
 %}
 
+DIGIT [0-9]
+WORD [A-Za-z_]
+
 %x COMMENT STRING
 
 %%
@@ -52,11 +55,11 @@ int comment_pos = 0;
 "true"              { printf("Bool: true\n"); }
 "false"             { printf("Bool: false\n"); }
 
-(?:[1-9]\d*)|0      { printf("Int: %d\n", atoi(yytext)); }
+(?:[1-9]{DIGIT}*)|0      { printf("Int: %d\n", atoi(yytext)); }
 "0b" [01]+          { printf("Int: %s (binary)\n", yytext); }
 "0o" [0-7]+         { printf("Int: %s (octal)\n", yytext); }
 "0x" [0-9A-Fa-f]+   { printf("Int: %s (hex)\n", yytext); }
-(?:[1-9][\d_]*)|0   { printf("Int: %s (with separators)\n", yytext); }
+(?:[1-9][{DIGIT}_]*)|0   { printf("Int: %s (with separators)\n", yytext); }
 
 "\""                { BEGIN(STRING); }
 <STRING>[^\"\\\n]+  { printf("String part: %s\n", yytext); }
@@ -115,7 +118,12 @@ int yywrap(void) {
     return 1;
 }
 
-int main(void) {
+int main(int argc, char* argv[])
+{
+    if ( argc > 1 )
+            yyin = fopen( argv[1], "r" );
+    else
+            yyin = stdin;
+
     yylex();
-    return 0;
 }
