@@ -86,9 +86,6 @@ WORD [A-Za-z_]
 <STRING>\n          { printf("ERROR unterminated_string line %d\n", line); BEGIN(INITIAL); }
 <STRING>\"          { printf("String: %s\n", yytext); BEGIN(INITIAL); }
 
-[A-Z][A-Za-z0-9_]*  { printf("TypeID: %s\n", yytext); }
-[a-z][A-Za-z0-9_]*  { printf("ObjectID: %s\n", yytext); }
-
 "=="                { printf("Operator: %s\n", yytext); }
 "!="                { printf("Operator: %s\n", yytext); }
 "<"                 { printf("Operator: %s\n", yytext); }
