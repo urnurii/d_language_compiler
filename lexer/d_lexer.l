@@ -6,17 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 int line = 1;
+char tmp[8192];
+
 char string_buf[8192];
 int string_pos = 0;
-int comment_depth = 0;
-char comment_buf[8192];
-int comment_pos = 0;
 %}
 
 DIGIT [0-9]
 WORD [A-Za-z_]
 
-%x COMMENT STRING
+%x COMMENT STRING MULTILINE_COMMENT
 
 %%
 
@@ -105,12 +104,18 @@ WORD [A-Za-z_]
 ","                 { printf("Operator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
 
-"//"                { BEGIN(COMMENT); }
-<COMMENT>[^*]*      { /* Вложенные комментарии на одну строку игнорируются */ }
-<COMMENT>\n         { line++; BEGIN(INITIAL); }
-<COMMENT>.          { /* Игнорируем другие символы внутри комментария */ }
+"//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
+<COMMENT>.          { strcat(tmp, yytext); }
+<COMMENT>\n         { printf("Found comment: %s\n", tmp); line++; BEGIN(INITIAL); }
 
-.                   { printf("ERROR unexpected_symbol %s line %d\n", yytext, line); }
+"/*" { tmp[0] = '\0'; BEGIN(MULTILINE_COMMENT); }
+<MULTILINE_COMMENT>[^*\n]+ { strcat(tmp, yytext); }
+<MULTILINE_COMMENT>[^*\n]*\n { line++; strcat(tmp, yytext); }
+<MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
+<MULTILINE_COMMENT>"*"+\n { line++; strcat(tmp, yytext); }
+<MULTILINE_COMMENT>"*"+"/" { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
+
+<MULTILINE_COMMENT><<EOF>> { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
 
 %%
 
