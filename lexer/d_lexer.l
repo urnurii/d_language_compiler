@@ -74,16 +74,49 @@ DIGIT [0-9]
 [+-]?{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
 
 
-"\""                { BEGIN(STRING); }
-<STRING>[^\"\\\n]+  { printf("String part: %s\n", yytext); }
-<STRING>\\n         { printf("String part: \\n\n"); }
-<STRING>\\t         { printf("String part: \\t\n"); }
-<STRING>\\b         { printf("String part: \\b\n"); }
-<STRING>\\r         { printf("String part: \\r\n"); }
-<STRING>\\\\        { printf("String part: \\\n"); }
-<STRING>\\\"        { printf("String part: \\\"\n"); }
-<STRING>\n          { printf("ERROR unterminated_string line %d\n", line); BEGIN(INITIAL); }
-<STRING>\"          { printf("String: %s\n", yytext); BEGIN(INITIAL); }
+\' strcpy(tmp,""); BEGIN(CHAR);
+\" strcpy(tmp,""); BEGIN(STRING);
+<STRING>[^\\\n\"]+ strcat(tmp,yytext);
+<CHAR>[^\\\n\'] strcat(tmp,yytext);
+<STRING,CHAR>\\b strcat(tmp,"\b");
+<STRING,CHAR>\\f strcat(tmp,"\f");
+<STRING,CHAR>\\n strcat(tmp,"\n");
+<STRING,CHAR>\\r strcat(tmp,"\r");
+<STRING,CHAR>\\t strcat(tmp,"\t");
+<STRING,CHAR>\\v strcat(tmp,"\v");
+<STRING,CHAR>\\\' strcat(tmp,"\'");
+<STRING,CHAR>\\\" strcat(tmp,"\"");
+<STRING,CHAR>\\\\ strcat(tmp,"\\");
+<STRING,CHAR>\\\? strcat(tmp,"\?");
+<STRING,CHAR>\\x[0-9a-fA-F]{1,2} {
+    char dig[2];
+    char *a;
+    dig[0]=strtol(yytext+2, &a, 16);
+    dig[1]='\0';
+    strcat(tmp, dig);}
+<STRING,CHAR>\\[0-7]{1,3} {
+    char dig[2];
+    char *a;
+    dig[0]=strtol(yytext+1, &a, 8);
+    dig[1]='\0';
+strcat(tmp, dig);}
+<STRING,CHAR>\n { line++; }
+<STRING> %d { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %f { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %s { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %c { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING,CHAR><<EOF>> { printf("ERROR! haven't found closing quotes in row: %d\n", line); BEGIN(INITIAL); }
+<STRING>\" { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
+<CHAR>\' {
+    if(strlen(tmp) != 1)
+    {
+        printf("ERROR! char length != 1 in row: %d\n", line); BEGIN(INITIAL);
+    }
+    else
+    {
+        printf("Found Char literal: %s\n",tmp); BEGIN(INITIAL);
+    }
+}
 
 "=="                { printf("Operator: %s\n", yytext); }
 "!="                { printf("Operator: %s\n", yytext); }
