@@ -105,6 +105,7 @@ WORD [A-Za-z_]
 "||"                { printf("Operator: %s\n", yytext); }
 "!"                 { printf("Operator: %s\n", yytext); }
 ".."                { printf("Operator: %s\n", yytext); }
+"."                { printf("Operator: %s\n", yytext); }
 
 "("                 { printf("Operator: %s\n", yytext); }
 ")"                 { printf("Operator: %s\n", yytext); }
