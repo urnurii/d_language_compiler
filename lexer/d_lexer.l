@@ -13,7 +13,6 @@ int string_pos = 0;
 %}
 
 DIGIT [0-9]
-WORD [A-Za-z_]
 
 %x COMMENT STRING MULTILINE_COMMENT
 
@@ -105,7 +104,7 @@ WORD [A-Za-z_]
 "||"                { printf("Operator: %s\n", yytext); }
 "!"                 { printf("Operator: %s\n", yytext); }
 ".."                { printf("Operator: %s\n", yytext); }
-"."                { printf("Operator: %s\n", yytext); }
+"."                 { printf("Operator: %s\n", yytext); }
 
 "("                 { printf("Operator: %s\n", yytext); }
 ")"                 { printf("Operator: %s\n", yytext); }
@@ -129,6 +128,8 @@ WORD [A-Za-z_]
 <MULTILINE_COMMENT>"*"+"/" { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
 
 <MULTILINE_COMMENT><<EOF>> { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
+
+[A-Za-z_][A-Za-z0-9_]*     { printf("Found identifier: %s\n", yytext); }
 
 %%
 
