@@ -41,6 +41,18 @@ WORD [A-Za-z_]
 "new"               { printf("Keyword: %s\n", yytext); }
 "continue"          { printf("Keyword: %s\n", yytext); }
 "break"             { printf("Keyword: %s\n", yytext); }
+"class"             { printf("Keyword: %s\n", yytext); }
+"super"             { printf("Keyword: %s\n", yytext); }
+"override"          { printf("Keyword: %s\n", yytext); }
+"float"             { printf("Keyword: %s\n", yytext); }
+"double"            { printf("Keyword: %s\n", yytext); }
+"real"              { printf("Keyword: %s\n", yytext); }
+"private"           { printf("Keyword: %s\n", yytext); }
+"public"            { printf("Keyword: %s\n", yytext); }
+"protected"         { printf("Keyword: %s\n", yytext); }
+"auto"              { printf("Keyword: %s\n", yytext); }
+"this"              { printf("Keyword: %s\n", yytext); }
+"enum"              { printf("Keyword: %s\n", yytext); }
 
 "read"              { printf("Keyword: %s\n", yytext); }
 "readf"             { printf("Keyword: %s\n", yytext); }
@@ -56,10 +68,13 @@ WORD [A-Za-z_]
 "false"             { printf("Bool: false\n"); }
 
 (?:[1-9]{DIGIT}*)|0      { printf("Int: %d\n", atoi(yytext)); }
-"0b" [01]+          { printf("Int: %s (binary)\n", yytext); }
-"0o" [0-7]+         { printf("Int: %s (octal)\n", yytext); }
-"0x" [0-9A-Fa-f]+   { printf("Int: %s (hex)\n", yytext); }
+"0b" [01]+               { printf("Int: %s (binary)\n", yytext); }
+"0o" [0-7]+              { printf("Int: %s (octal)\n", yytext); }
+"0x" [0-9A-Fa-f]+        { printf("Int: %s (hex)\n", yytext); }
 (?:[1-9][{DIGIT}_]*)|0   { printf("Int: %s (with separators)\n", yytext); }
+
+[+-]?{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
+
 
 "\""                { BEGIN(STRING); }
 <STRING>[^\"\\\n]+  { printf("String part: %s\n", yytext); }
