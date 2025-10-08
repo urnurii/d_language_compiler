@@ -52,13 +52,6 @@ DIGIT [0-9]
 "this"              { printf("Keyword: %s\n", yytext); }
 "enum"              { printf("Keyword: %s\n", yytext); }
 
-"read"              { printf("Keyword: %s\n", yytext); }
-"readf"             { printf("Keyword: %s\n", yytext); }
-"readln"            { printf("Keyword: %s\n", yytext); }
-"write"             { printf("Keyword: %s\n", yytext); }
-"writef"            { printf("Keyword: %s\n", yytext); }
-"writeln"           { printf("Keyword: %s\n", yytext); }
-
 "null"              { printf("Null: null\n"); }
 "NaN"               { printf("NaN: NaN\n"); }
 
@@ -68,7 +61,7 @@ DIGIT [0-9]
 (?:[1-9]{DIGIT}*)|0      { printf("Int: %d\n", atoi(yytext)); }
 0[bB][01]+               { printf("Int: %s (binary)\n", yytext); }
 0[0-7]+                  { printf("Int: %s (octal)\n", yytext); }
-0[xX][0-9A-Fa-f]+        { printf("Int: %s (hex)\n", yytext); }
+0[xX][{DIGIT}A-Fa-f]+    { printf("Int: %s (hex)\n", yytext); }
 (?:[1-9][{DIGIT}_]*)|0   { printf("Int: %s (with separators)\n", yytext); }
 
 [+-]?{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
