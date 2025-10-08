@@ -70,6 +70,10 @@ DIGIT [0-9]
 \' strcpy(tmp,""); BEGIN(CHAR);
 \" strcpy(tmp,""); BEGIN(STRING);
 <STRING>[^\\\n\"]+ strcat(tmp,yytext);
+<STRING> %d { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %f { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %s { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> %c { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
 <CHAR>[^\\\n\'] strcat(tmp,yytext);
 <STRING,CHAR>\\b strcat(tmp,"\b");
 <STRING,CHAR>\\f strcat(tmp,"\f");
@@ -94,10 +98,6 @@ DIGIT [0-9]
     dig[1]='\0';
 strcat(tmp, dig);}
 <STRING,CHAR>\n { line++; }
-<STRING> %d { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %f { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %s { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %c { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
 <STRING,CHAR><<EOF>> { printf("ERROR! haven't found closing quotes in row: %d\n", line); BEGIN(INITIAL); }
 <STRING>\" { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
 <CHAR>\' {
