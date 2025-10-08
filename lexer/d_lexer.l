@@ -14,7 +14,7 @@ int string_pos = 0;
 
 DIGIT [0-9]
 
-%x COMMENT STRING MULTILINE_COMMENT
+%x COMMENT STRING CHAR MULTILINE_COMMENT
 
 %%
 
@@ -65,13 +65,14 @@ DIGIT [0-9]
 "true"              { printf("Bool: true\n"); }
 "false"             { printf("Bool: false\n"); }
 
-(?:[1-9]{DIGIT}*)|0      { printf("Int: %d\n", atoi(yytext)); }
-0[bB][01]+               { printf("Int: %s (binary)\n", yytext); }
-0[0-7]+                  { printf("Int: %s (octal)\n", yytext); }
-0[xX][0-9A-Fa-f]+        { printf("Int: %s (hex)\n", yytext); }
-(?:[1-9][{DIGIT}_]*)|0   { printf("Int: %s (with separators)\n", yytext); }
+0|[1-9]{DIGIT}*             { printf("Int: %d\n", atoi(yytext)); }
+0[bB][01]+                  { printf("Int: %s (binary)\n", yytext); }
+0[0-7]+                     { printf("Int: %s (octal)\n", yytext); }
+0[0-9]+                     { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
+0[xX][0-9A-Fa-f]+           { printf("Int: %s (hex)\n", yytext); }
+0|([1-9]{DIGIT}*(_{DIGIT}+)*)   { printf("Int: %s (with separators)\n", yytext); }
 
-[+-]?{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
+{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
 
 
 \' strcpy(tmp,""); BEGIN(CHAR);
@@ -163,6 +164,8 @@ strcat(tmp, dig);}
 <MULTILINE_COMMENT><<EOF>> { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
 
 [A-Za-z_][A-Za-z0-9_]*     { printf("Found identifier: %s\n", yytext); }
+
+.                          { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
 
 %%
 
