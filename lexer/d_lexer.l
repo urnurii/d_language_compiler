@@ -52,13 +52,6 @@ DIGIT [0-9]
 "this"              { printf("Keyword: %s\n", yytext); }
 "enum"              { printf("Keyword: %s\n", yytext); }
 
-"read"              { printf("Keyword: %s\n", yytext); }
-"readf"             { printf("Keyword: %s\n", yytext); }
-"readln"            { printf("Keyword: %s\n", yytext); }
-"write"             { printf("Keyword: %s\n", yytext); }
-"writef"            { printf("Keyword: %s\n", yytext); }
-"writeln"           { printf("Keyword: %s\n", yytext); }
-
 "null"              { printf("Null: null\n"); }
 "NaN"               { printf("NaN: NaN\n"); }
 
