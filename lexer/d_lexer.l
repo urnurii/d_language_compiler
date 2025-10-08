@@ -69,10 +69,10 @@ DIGIT [0-9]
 \' strcpy(tmp,""); BEGIN(CHAR);
 \" strcpy(tmp,""); BEGIN(STRING);
 <STRING>[^\\\n\"]+ strcat(tmp,yytext);
-<STRING> %%d { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %%f { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %%s { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
-<STRING> %%c { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> "%d" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> "%f" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> "%s" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
+<STRING> "%c" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext) }
 <CHAR>[^\\\n\'] strcat(tmp,yytext);
 <STRING,CHAR>\\b strcat(tmp,"\b");
 <STRING,CHAR>\\f strcat(tmp,"\f");
