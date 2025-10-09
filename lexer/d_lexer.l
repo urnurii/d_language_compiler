@@ -160,10 +160,6 @@ strcat(tmp, dig);}
 
 %%
 
-int yywrap(void) {
-    return 1;
-}
-
 int main(int argc, char* argv[])
 {
     if ( argc > 1 )

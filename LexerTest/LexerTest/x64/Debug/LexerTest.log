@@ -1,0 +1,8 @@
+﻿  lex.yy.c
+\d_lexer.l(90,12): warning C4244: =: преобразование "long" в "char", возможна потеря данных
+  (компиляция исходного файла "lex.yy.c")
+  
+\d_lexer.l(96,12): warning C4244: =: преобразование "long" в "char", возможна потеря данных
+  (компиляция исходного файла "lex.yy.c")
+  
+  LexerTest.vcxproj -> C:\My\VUZ\Kompil\LexerTest\x64\Debug\LexerTest.exe
