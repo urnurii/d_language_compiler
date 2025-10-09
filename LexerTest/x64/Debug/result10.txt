@@ -45,8 +45,7 @@ Operator: ]
 Found identifier: dynamicMatrix
 Separator: ;
 Found identifier: dynamicMatrix
-LEXICAL ERROR: Unknown character '~' at line 11
-Operator: =
+Operator: ~=
 Operator: [
 Int: 7
 Operator: ,
@@ -54,8 +53,7 @@ Int: 8
 Operator: ]
 Separator: ;
 Found identifier: dynamicMatrix
-LEXICAL ERROR: Unknown character '~' at line 12
-Operator: =
+Operator: ~=
 Operator: [
 Int: 9
 Operator: ,

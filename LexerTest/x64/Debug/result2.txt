@@ -82,13 +82,11 @@ Operator: =
 Int: 50
 Separator: ;
 Found identifier: arr
-LEXICAL ERROR: Unknown character '~' at line 15
-Operator: =
+Operator: ~=
 Int: 6
 Separator: ;
 Found identifier: words
-LEXICAL ERROR: Unknown character '~' at line 17
-Operator: =
+Operator: ~=
 Operator: [
 Found String literal: new
 Operator: ,

@@ -25,7 +25,7 @@ Operator: }
 Keyword: void
 Found identifier: increment
 Separator: (
-Found identifier: ref
+Keyword: ref
 Keyword: int
 Found identifier: x
 Separator: )
@@ -48,8 +48,7 @@ Keyword: int
 Found identifier: first
 Operator: ,
 Keyword: int
-Operator: ..
-Operator: .
+Operator: ...
 Found identifier: rest
 Separator: )
 Operator: {
