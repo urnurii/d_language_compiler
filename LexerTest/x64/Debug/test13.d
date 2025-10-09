@@ -4,21 +4,18 @@ class MyClass {
     int value;
     string name;
     
-    // Default constructor
     this() {
         this.value = 0;
         this.name = "default";
         writeln("Default constructor called");
     }
-    
-    // Parameterized constructor
+
     this(int v, string n) {
         this.value = v;
         this.name = n;
         writeln("Parameterized constructor called with ", v, ", ", n);
     }
     
-    // Destructor
     ~this() {
         writeln("Destructor called for ", name);
     }
