@@ -19,6 +19,7 @@
     char c = '\x41'; 
     char c = '\u0041'; 
     char c = '\''; 
+    char c = 'aa';
     char c = '';
     
     string s1 = "Hello\nWorld!";   
