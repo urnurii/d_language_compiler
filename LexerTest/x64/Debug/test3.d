@@ -1,28 +1,37 @@
-import std.stdio;
-
-void main() {
-    // Integer literals
-    int decimal = 123;
-    int binary = 0b101010;
-    int octal = 0o52;
-    int hex = 0x2A;
-    int withUnderscore = 1_000_000;
+    int a = 10;
+    int a = 0xA;
+    int a = 0b1010;
+    int a = 0XA;
+    int a = 0B1010;
+    int a = 012;
+    int a = 1_000;
+    int a = 1_000_;
+    int a = _1_000;
+    int a = -42;
+    int a = +42;
+    int a = 0;
+    int a = 0392;
+   
+    char c = 'A';
+    char c = 'z';
+    char c = '\n';
+    char c = '\t';
+    char c = '\x41'; 
+    char c = '\u0041'; 
+    char c = '\''; 
+    char c = '';
     
-    // String literals
-    string normal = "Hello, World!";
-    string multiline = `This is a
-multi-line
-string.`;
-    
-    // Escape sequences
-    string escapes = "Line1\nLine2\tTabbed\\Backslash\"Quote";
-    
-    writeln("Decimal: ", decimal);
-    writeln("Binary: ", binary);
-    writeln("Octal: ", octal);
-    writeln("Hex: ", hex);
-    writeln("With underscore: ", withUnderscore);
-    writeln("Normal string: ", normal);
-    writeln("Multiline: ", multiline);
-    writeln("Escapes: ", escapes);
-}
+    string s1 = "Hello\nWorld!";   
+    string s2 = "Tab\tSpace";       
+    string s3 = "Backslash\\Escape"; 
+    string s4 = "Single quote: \'";  
+    string s5 = "Double quote: \"\""; 
+    string s6 = "Unicode: \u0041";   
+    string s7 = "Hex: \x41";    
+    string s8 = "Line1\nLine2";    
+    string s9 = "Carriage\rReturn"; 
+    string s10 = "Form\fFeed";      
+    string s11 = "Vertical\vTab"; 
+    string s12 = "Slash\\\\Slash";
+    string s13 = "Hello, D!";
+    string s14 = "";
