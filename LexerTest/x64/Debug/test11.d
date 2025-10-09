@@ -19,15 +19,4 @@ void main() {
     bool notResult3 = !(x == 0);
     
     bool combined = (a && !b) || (x > 0);
-    
-    writeln("a && b: ", andResult1);
-    writeln("a && true: ", andResult2);
-    writeln("(x>0) && (y==0): ", andResult3);
-    writeln("a || b: ", orResult1);
-    writeln("false || b: ", orResult2);
-    writeln("(x==0) || (y==0): ", orResult3);
-    writeln("!a: ", notResult1);
-    writeln("!b: ", notResult2);
-    writeln("!(x==0): ", notResult3);
-    writeln("Combined: ", combined);
 }

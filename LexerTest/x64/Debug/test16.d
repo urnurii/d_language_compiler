@@ -16,12 +16,4 @@ void main() {
     string intFormat = format("Decimal: %d", 255);
     string floatFormat = format("Float: %f", 123.456);
     
-    writeln(message1);
-    writeln(message2);
-    writeln(details);
-    writeln(intFormat);
-    writeln(floatFormat);
-
-    writefln("Formatted output: %s is %d years old", name, age);
-    writefln("Floating point: %.3f", 3.14159);
 }
