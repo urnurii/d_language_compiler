@@ -59,14 +59,6 @@ DIGIT [0-9]
 "true"              { printf("Bool: true\n"); }
 "false"             { printf("Bool: false\n"); }
 
-0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)  { printf("Int: %d\n", atoi(yytext)); }
-0[bB][01]+                         { printf("Int: %s (binary)\n", yytext); }
-0[0-7]+                            { printf("Int: %s (octal)\n", yytext); }
-0[0-9]+                            { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
-0[xX][0-9A-Fa-f]+                  { printf("Int: %s (hex)\n", yytext); }
-
-{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
-
 \' strcpy(tmp,""); BEGIN(CHAR);
 \" strcpy(tmp,""); BEGIN(STRING);
 <STRING>[^\\\n\"]+ strcat(tmp,yytext);
@@ -130,9 +122,10 @@ strcat(tmp, dig);}
 "&&"                { printf("Operator: %s\n", yytext); }
 "||"                { printf("Operator: %s\n", yytext); }
 "!"                 { printf("Operator: %s\n", yytext); }
-"."                 { printf("Operator: %s\n", yytext); }
-".."                { printf("Operator: %s\n", yytext); }
 "..."               { printf("Operator: %s\n", yytext); }
+".."                { printf("Operator: %s\n", yytext); }
+"."                 { printf("Operator: %s\n", yytext); }
+"~"                 { printf("Operator: %s\n", yytext); }
 
 "("                 { printf("Separator: %s\n", yytext); }
 ")"                 { printf("Separator: %s\n", yytext); }
@@ -141,8 +134,15 @@ strcat(tmp, dig);}
 "["                 { printf("Operator: %s\n", yytext); }
 "]"                 { printf("Operator: %s\n", yytext); }
 ";"                 { printf("Separator: %s\n", yytext); }
-","                 { printf("Operator: %s\n", yytext); }
+","                 { printf("Separator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
+
+0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)  { printf("Int: %d\n", atoi(yytext)); }
+0[bB][01]+                         { printf("Int: %s (binary)\n", yytext); }
+0[0-7]+                            { printf("Int: %s (octal)\n", yytext); }
+0[0-9]+                            { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
+0[xX][0-9A-Fa-f]+                  { printf("Int: %s (hex)\n", yytext); }
+{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
 
 "//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
 <COMMENT>.          { strcat(tmp, yytext); }
