@@ -50,6 +50,7 @@ DIGIT [0-9]
 "protected"         { printf("Keyword: %s\n", yytext); }
 "auto"              { printf("Keyword: %s\n", yytext); }
 "this"              { printf("Keyword: %s\n", yytext); }
+"ref"               { printf("Keyword: %s\n", yytext); }
 "enum"              { printf("Keyword: %s\n", yytext); }
 
 "null"              { printf("Null: null\n"); }
