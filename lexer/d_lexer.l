@@ -129,8 +129,9 @@ strcat(tmp, dig);}
 "&&"                { printf("Operator: %s\n", yytext); }
 "||"                { printf("Operator: %s\n", yytext); }
 "!"                 { printf("Operator: %s\n", yytext); }
-".."                { printf("Operator: %s\n", yytext); }
 "."                 { printf("Operator: %s\n", yytext); }
+".."                { printf("Operator: %s\n", yytext); }
+"..."               { printf("Operator: %s\n", yytext); }
 
 "("                 { printf("Separator: %s\n", yytext); }
 ")"                 { printf("Separator: %s\n", yytext); }
