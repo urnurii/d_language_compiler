@@ -1,0 +1,58 @@
+Keyword: class
+Found identifier: Animal
+Operator: {
+Keyword: int
+Found identifier: age
+Separator: ;
+Keyword: void
+Found identifier: speak
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Operator: }
+Keyword: class
+Found identifier: Dog
+Operator: :
+Found identifier: Animal
+Operator: {
+Keyword: override
+Keyword: void
+Found identifier: speak
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: callSuper
+Separator: (
+Separator: )
+Operator: {
+Keyword: super
+Operator: .
+Found identifier: speak
+Separator: (
+Separator: )
+Separator: ;
+Operator: }
+Operator: }
+Found identifier: Animal
+Found identifier: animal
+Operator: =
+Keyword: new
+Found identifier: Animal
+Separator: (
+Separator: )
+Separator: ;
+Found identifier: animal
+Operator: .
+Found identifier: age
+Operator: =
+Int: 3
+Separator: ;
+Found identifier: animal
+Operator: .
+Found identifier: speak
+Separator: (
+Separator: )
+Separator: ;

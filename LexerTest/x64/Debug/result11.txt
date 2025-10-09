@@ -1,0 +1,127 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Keyword: bool
+Found identifier: a
+Operator: =
+Bool: true
+Separator: ;
+Keyword: bool
+Found identifier: b
+Operator: =
+Bool: false
+Separator: ;
+Keyword: int
+Found identifier: x
+Operator: =
+Int: 5
+Separator: ;
+Keyword: int
+Found identifier: y
+Operator: =
+Int: 0
+Separator: ;
+Keyword: bool
+Found identifier: andResult1
+Operator: =
+Found identifier: a
+Operator: &&
+Found identifier: b
+Separator: ;
+Keyword: bool
+Found identifier: andResult2
+Operator: =
+Found identifier: a
+Operator: &&
+Bool: true
+Separator: ;
+Keyword: bool
+Found identifier: andResult3
+Operator: =
+Separator: (
+Found identifier: x
+Operator: >
+Int: 0
+Separator: )
+Operator: &&
+Separator: (
+Found identifier: y
+Operator: ==
+Int: 0
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: orResult1
+Operator: =
+Found identifier: a
+Operator: ||
+Found identifier: b
+Separator: ;
+Keyword: bool
+Found identifier: orResult2
+Operator: =
+Bool: false
+Operator: ||
+Found identifier: b
+Separator: ;
+Keyword: bool
+Found identifier: orResult3
+Operator: =
+Separator: (
+Found identifier: x
+Operator: ==
+Int: 0
+Separator: )
+Operator: ||
+Separator: (
+Found identifier: y
+Operator: ==
+Int: 0
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: notResult1
+Operator: =
+Operator: !
+Found identifier: a
+Separator: ;
+Keyword: bool
+Found identifier: notResult2
+Operator: =
+Operator: !
+Found identifier: b
+Separator: ;
+Keyword: bool
+Found identifier: notResult3
+Operator: =
+Operator: !
+Separator: (
+Found identifier: x
+Operator: ==
+Int: 0
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: combined
+Operator: =
+Separator: (
+Found identifier: a
+Operator: &&
+Operator: !
+Found identifier: b
+Separator: )
+Operator: ||
+Separator: (
+Found identifier: x
+Operator: >
+Int: 0
+Separator: )
+Separator: ;
+Operator: }

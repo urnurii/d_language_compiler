@@ -1,0 +1,104 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Keyword: int
+Operator: [
+Int: 2
+Operator: ]
+Operator: [
+Int: 3
+Operator: ]
+Found identifier: matrix
+Operator: =
+Operator: [
+Operator: [
+Int: 1
+Operator: ,
+Int: 2
+Operator: ]
+Operator: ,
+Operator: [
+Int: 3
+Operator: ,
+Int: 4
+Operator: ]
+Operator: ,
+Operator: [
+Int: 5
+Operator: ,
+Int: 6
+Operator: ]
+Operator: ]
+Separator: ;
+Keyword: int
+Operator: [
+Operator: ]
+Operator: [
+Operator: ]
+Found identifier: dynamicMatrix
+Separator: ;
+Found identifier: dynamicMatrix
+LEXICAL ERROR: Unknown character '~' at line 11
+Operator: =
+Operator: [
+Int: 7
+Operator: ,
+Int: 8
+Operator: ]
+Separator: ;
+Found identifier: dynamicMatrix
+LEXICAL ERROR: Unknown character '~' at line 12
+Operator: =
+Operator: [
+Int: 9
+Operator: ,
+Int: 10
+Operator: ,
+Int: 11
+Operator: ]
+Separator: ;
+Keyword: int
+Found identifier: element
+Operator: =
+Found identifier: matrix
+Operator: [
+Int: 1
+Operator: ]
+Operator: [
+Int: 1
+Operator: ]
+Separator: ;
+Keyword: int
+Found identifier: dynElement
+Operator: =
+Found identifier: dynamicMatrix
+Operator: [
+Int: 0
+Operator: ]
+Operator: [
+Int: 1
+Operator: ]
+Separator: ;
+Keyword: int
+Operator: [
+Operator: ]
+Found identifier: rowSlice
+Operator: =
+Found identifier: matrix
+Operator: [
+Float: 0.
+Operator: .
+Int: 2
+Operator: ]
+Operator: [
+Int: 0
+Operator: ]
+Separator: ;
+Operator: }

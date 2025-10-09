@@ -1,0 +1,84 @@
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 10
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: A
+Separator: ;
+Keyword: string
+Found identifier: s1
+Operator: =
+Found String literal: Hello, D!
+Separator: ;
+Keyword: bool
+Found identifier: b
+Operator: =
+Bool: true
+Separator: ;
+Found identifier: b
+Operator: =
+Bool: false
+Separator: ;
+Found identifier: a
+Operator: =
+Int: 15
+Separator: ;
+Found identifier: b
+Operator: +=
+Int: 3
+Separator: ;
+Found identifier: a
+Operator: -=
+Int: 10
+Separator: ;
+Found identifier: b
+Operator: *=
+Int: 2
+Separator: ;
+Found identifier: a
+Operator: /=
+Int: 5
+Separator: ;
+Found identifier: a
+Operator: ==
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: !=
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: <
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: <=
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: >
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: >=
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: +
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: -
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: *
+Found identifier: b
+Separator: ;
+Found identifier: a
+Operator: /
+Found identifier: b
+Separator: ;

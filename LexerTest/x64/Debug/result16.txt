@@ -1,0 +1,96 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: format
+Separator: ;
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Keyword: int
+Found identifier: age
+Operator: =
+Int: 25
+Separator: ;
+Keyword: string
+Found identifier: name
+Operator: =
+Found String literal: Daniil
+Separator: ;
+Keyword: double
+Found identifier: salary
+Operator: =
+Float: 1234.56
+Separator: ;
+Keyword: char
+Found identifier: grade
+Operator: =
+Found Char literal: A
+Separator: ;
+Keyword: string
+Found identifier: message1
+Operator: =
+Found identifier: format
+Separator: (
+Found String literal: Name: %s, Age: %d
+Operator: ,
+Found identifier: name
+Operator: ,
+Found identifier: age
+Separator: )
+Separator: ;
+Keyword: string
+Found identifier: message2
+Operator: =
+Found identifier: format
+Separator: (
+Found String literal: Salary: %.2f, Grade: %c
+Operator: ,
+Found identifier: salary
+Operator: ,
+Found identifier: grade
+Separator: )
+Separator: ;
+Keyword: string
+Found identifier: details
+Operator: =
+Found identifier: format
+Separator: (
+Found String literal: Employee: %s, Age: %d, Salary: $%.2f, Grade: %c
+Operator: ,
+Found identifier: name
+Operator: ,
+Found identifier: age
+Operator: ,
+Found identifier: salary
+Operator: ,
+Found identifier: grade
+Separator: )
+Separator: ;
+Keyword: string
+Found identifier: intFormat
+Operator: =
+Found identifier: format
+Separator: (
+Found String literal: Decimal: %d
+Operator: ,
+Int: 255
+Separator: )
+Separator: ;
+Keyword: string
+Found identifier: floatFormat
+Operator: =
+Found identifier: format
+Separator: (
+Found String literal: Float: %f
+Operator: ,
+Float: 123.456
+Separator: )
+Separator: ;
+Operator: }

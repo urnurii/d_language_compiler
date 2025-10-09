@@ -1,0 +1,71 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: int
+Found identifier: n
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: string
+Found identifier: s
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: double
+Found identifier: d
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: int
+Found identifier: a
+Operator: ,
+Keyword: int
+Found identifier: b
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: string
+Found identifier: s
+Operator: ,
+Keyword: int
+Found identifier: n
+Separator: )
+Operator: {
+Operator: }
+Keyword: class
+Found identifier: Printer
+Operator: {
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: int
+Found identifier: n
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: print
+Separator: (
+Keyword: string
+Found identifier: s
+Separator: )
+Operator: {
+Operator: }
+Operator: }

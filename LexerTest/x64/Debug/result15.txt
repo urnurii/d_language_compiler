@@ -1,0 +1,90 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: enum
+Found identifier: Color
+Operator: {
+Found identifier: RED
+Operator: ,
+Found identifier: GREEN
+Operator: ,
+Found identifier: BLUE
+Operator: }
+Keyword: enum
+Found identifier: Status
+Operator: {
+Found identifier: PENDING
+Operator: =
+Int: 1
+Operator: ,
+Found identifier: APPROVED
+Operator: =
+Int: 2
+Operator: ,
+Found identifier: REJECTED
+Operator: =
+Int: 3
+Operator: }
+Keyword: enum
+Operator: {
+Found identifier: SUCCESS
+Operator: =
+Int: 0
+Operator: ,
+Found identifier: FAILURE
+Operator: =
+Int: 1
+Operator: }
+Keyword: enum
+Found identifier: Weekday
+Operator: :
+Found identifier: byte
+Operator: {
+Found identifier: MON
+Operator: ,
+Found identifier: TUE
+Operator: ,
+Found identifier: WED
+Operator: ,
+Found identifier: THU
+Operator: ,
+Found identifier: FRI
+Operator: ,
+Found identifier: SAT
+Operator: ,
+Found identifier: SUN
+Operator: }
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Found identifier: Color
+Found identifier: favorite
+Operator: =
+Found identifier: Color
+Operator: .
+Found identifier: GREEN
+Separator: ;
+Found identifier: Status
+Found identifier: current
+Operator: =
+Found identifier: Status
+Operator: .
+Found identifier: APPROVED
+Separator: ;
+Keyword: int
+Found identifier: result
+Operator: =
+Found identifier: SUCCESS
+Separator: ;
+Found identifier: Weekday
+Found identifier: today
+Operator: =
+Found identifier: Weekday
+Operator: .
+Found identifier: MON
+Separator: ;
+Operator: }

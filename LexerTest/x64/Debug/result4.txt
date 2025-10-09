@@ -1,0 +1,107 @@
+Keyword: if
+Separator: (
+Found identifier: a
+Operator: >
+Int: 5
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: if
+Separator: (
+Found identifier: a
+Operator: >
+Found identifier: b
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: else
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: if
+Separator: (
+Found identifier: a
+Operator: >
+Int: 15
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: else
+Keyword: if
+Separator: (
+Found identifier: a
+Operator: >
+Int: 10
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: else
+Keyword: if
+Separator: (
+Found identifier: a
+Operator: >
+Int: 5
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: else
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: switch
+Separator: (
+Found identifier: x
+Separator: )
+Operator: {
+Keyword: case
+Int: 1
+Operator: :
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Keyword: break
+Separator: ;
+Keyword: case
+Int: 2
+Operator: :
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Keyword: break
+Separator: ;
+Keyword: default
+Operator: :
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Keyword: break
+Separator: ;

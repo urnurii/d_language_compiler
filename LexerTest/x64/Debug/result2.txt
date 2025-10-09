@@ -1,0 +1,97 @@
+Keyword: int
+Operator: [
+Int: 3
+Operator: ]
+Found identifier: staticArr
+Operator: =
+Operator: [
+Int: 1
+Operator: ,
+Int: 2
+Operator: ,
+Int: 3
+Operator: ]
+Separator: ;
+Keyword: int
+Operator: [
+Operator: ]
+Found identifier: dynamicArr
+Operator: =
+Operator: [
+Int: 4
+Operator: ,
+Int: 5
+Operator: ,
+Int: 6
+Operator: ,
+Int: 7
+Operator: ]
+Separator: ;
+Keyword: int
+Operator: [
+Operator: ]
+Found identifier: emptyArr
+Operator: =
+Operator: [
+Operator: ]
+Separator: ;
+Keyword: string
+Operator: [
+Operator: ]
+Found identifier: words
+Operator: =
+Operator: [
+Found String literal: hello
+Operator: ,
+Found String literal: world
+Operator: ]
+Separator: ;
+Keyword: int
+Found identifier: firstElement
+Operator: =
+Found identifier: staticArr
+Operator: [
+Int: 0
+Operator: ]
+Separator: ;
+Keyword: int
+Found identifier: lastElement
+Operator: =
+Found identifier: dynamicArr
+Operator: [
+Int: 3
+Operator: ]
+Separator: ;
+Keyword: int
+Operator: [
+Operator: ]
+Found identifier: slice
+Operator: =
+Found identifier: dynamicArr
+Operator: [
+Float: 1.
+Operator: .
+Int: 3
+Operator: ]
+Separator: ;
+Found identifier: slice
+Operator: [
+Int: 0
+Operator: ]
+Operator: =
+Int: 50
+Separator: ;
+Found identifier: arr
+LEXICAL ERROR: Unknown character '~' at line 15
+Operator: =
+Int: 6
+Separator: ;
+Found identifier: words
+LEXICAL ERROR: Unknown character '~' at line 17
+Operator: =
+Operator: [
+Found String literal: new
+Operator: ,
+Found String literal: words
+Operator: ]
+Separator: ;

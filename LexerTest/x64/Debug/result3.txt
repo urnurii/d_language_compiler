@@ -1,0 +1,186 @@
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 10
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 0xA (hex)
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 0b1010 (binary)
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 0XA (hex)
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 0B1010 (binary)
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 012 (octal)
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 1
+Found identifier: _
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Found identifier: _1_000
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Operator: -
+Int: 42
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Operator: +
+Int: 42
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 0
+Separator: ;
+Keyword: int
+Found identifier: a
+Operator: =
+ERROR! Incorrect octal number: 0392 in row: 13
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: A
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: z
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: 
+
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: 	
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: A
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+\ERROR! char length != 1 in row: 20
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+Found Char literal: '
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+ERROR! char length != 1 in row: 22
+Separator: ;
+Keyword: char
+Found identifier: c
+Operator: =
+ERROR! char length != 1 in row: 23
+Separator: ;
+Keyword: string
+Found identifier: s1
+Operator: =
+Found String literal: Hello
+World!
+Separator: ;
+Keyword: string
+Found identifier: s2
+Operator: =
+Found String literal: Tab	Space
+Separator: ;
+Keyword: string
+Found identifier: s3
+Operator: =
+Found String literal: Backslash\Escape
+Separator: ;
+Keyword: string
+Found identifier: s4
+Operator: =
+Found String literal: Single quote: '
+Separator: ;
+Keyword: string
+Found identifier: s5
+Operator: =
+Found String literal: Double quote: ""
+Separator: ;
+Keyword: string
+Found identifier: s6
+Operator: =
+\Found String literal: Unicode: u0041
+Separator: ;
+Keyword: string
+Found identifier: s7
+Operator: =
+Found String literal: Hex: A
+Separator: ;
+Keyword: string
+Found identifier: s8
+Operator: =
+Found String literal: Line1
+Line2
+Separator: ;
+Keyword: string
+Found identifier: s9
+Operator: =
+Found String literal: CarriageReturn
+Separator: ;
+Keyword: string
+Found identifier: s10
+Operator: =
+Found String literal: FormFeed
+Separator: ;
+Keyword: string
+Found identifier: s11
+Operator: =
+Found String literal: VerticalTab
+Separator: ;
+Keyword: string
+Found identifier: s12
+Operator: =
+Found String literal: Slash\\Slash
+Separator: ;
+Keyword: string
+Found identifier: s13
+Operator: =
+Found String literal: Hello, D!
+Separator: ;
+Keyword: string
+Found identifier: s14
+Operator: =
+Found String literal: 
+Separator: ;

@@ -1,0 +1,94 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: math
+Operator: :
+Found identifier: abs
+Separator: ;
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Keyword: float
+Found identifier: f
+Operator: =
+Float: 3.14f
+Separator: ;
+Keyword: double
+Found identifier: d
+Operator: =
+Float: 2.718281828459045
+Separator: ;
+Keyword: real
+Found identifier: r
+Operator: =
+Float: 1.618033988749895
+Separator: ;
+Keyword: float
+Found identifier: sum
+Operator: =
+Found identifier: f
+Operator: +
+Float: 1.0f
+Separator: ;
+Keyword: double
+Found identifier: diff
+Operator: =
+Found identifier: d
+Operator: -
+Float: 1.0
+Separator: ;
+Keyword: real
+Found identifier: prod
+Operator: =
+Found identifier: r
+Operator: *
+Float: 2.0
+Separator: ;
+Keyword: double
+Found identifier: quot
+Operator: =
+Found identifier: d
+Operator: /
+Float: 2.0
+Separator: ;
+Keyword: float
+Found identifier: a
+Operator: =
+Float: 0.1f
+Operator: +
+Float: 0.2f
+Separator: ;
+Keyword: float
+Found identifier: b
+Operator: =
+Float: 0.3f
+Separator: ;
+Keyword: if
+Separator: (
+Found identifier: abs
+Separator: (
+Found identifier: a
+Operator: -
+Found identifier: b
+Separator: )
+Operator: <
+Float: 1e-6
+Separator: )
+Operator: {
+Operator: }
+Found identifier: f
+Operator: +=
+Float: 1.5f
+Separator: ;
+Found identifier: d
+Operator: *=
+Float: 2.0
+Separator: ;
+Operator: }

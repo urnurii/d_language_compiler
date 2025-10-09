@@ -1,0 +1,20 @@
+Found identifier: write
+Separator: (
+Separator: )
+Separator: ;
+Found identifier: writef
+Separator: (
+Separator: )
+Separator: ;
+Found identifier: readln
+Separator: (
+Separator: )
+Separator: ;
+Found identifier: readf
+Separator: (
+Separator: )
+Separator: ;
+Found identifier: writeln
+Separator: (
+Separator: )
+Separator: ;

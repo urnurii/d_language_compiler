@@ -1,0 +1,66 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: class
+Found identifier: MyClass
+Operator: {
+Keyword: int
+Found identifier: value
+Separator: ;
+Keyword: string
+Found identifier: name
+Separator: ;
+Keyword: this
+Separator: (
+Separator: )
+Operator: {
+Keyword: this
+Operator: .
+Found identifier: value
+Operator: =
+Int: 0
+Separator: ;
+Keyword: this
+Operator: .
+Found identifier: name
+Operator: =
+Found String literal: default
+Separator: ;
+Operator: }
+Keyword: this
+Separator: (
+Keyword: int
+Found identifier: v
+Operator: ,
+Keyword: string
+Found identifier: n
+Separator: )
+Operator: {
+Keyword: this
+Operator: .
+Found identifier: value
+Operator: =
+Found identifier: v
+Separator: ;
+Keyword: this
+Operator: .
+Found identifier: name
+Operator: =
+Found identifier: n
+Separator: ;
+Operator: }
+LEXICAL ERROR: Unknown character '~' at line 18
+Keyword: this
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: display
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Operator: }

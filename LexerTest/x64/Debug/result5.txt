@@ -1,0 +1,80 @@
+Keyword: while
+Separator: (
+Found identifier: i
+Operator: <
+Int: 3
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: do
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: while
+Separator: (
+Found identifier: j
+Operator: <
+Int: 3
+Separator: )
+Separator: ;
+Keyword: for
+Separator: (
+Keyword: int
+Found identifier: k
+Operator: =
+Int: 0
+Separator: ;
+Found identifier: k
+Operator: <
+Int: 3
+Separator: ;
+Found identifier: k
+Operator: +
+Operator: +
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: foreach
+Separator: (
+Found identifier: element
+Separator: ;
+Found identifier: arr
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }
+Keyword: for
+Separator: (
+Keyword: int
+Found identifier: m
+Operator: =
+Int: 0
+Separator: ;
+Found identifier: m
+Operator: <
+Int: 5
+Separator: ;
+Found identifier: m
+Operator: +
+Operator: +
+Separator: )
+Operator: {
+Found identifier: a
+Operator: =
+Int: 1
+Separator: ;
+Operator: }

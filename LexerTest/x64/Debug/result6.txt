@@ -1,0 +1,101 @@
+Keyword: int
+Found identifier: add
+Separator: (
+Keyword: int
+Found identifier: a
+Operator: ,
+Keyword: int
+Found identifier: b
+Separator: )
+Operator: {
+Keyword: return
+Found identifier: a
+Operator: +
+Found identifier: b
+Separator: ;
+Operator: }
+Keyword: void
+Found identifier: printMessage
+Separator: (
+Keyword: string
+Found identifier: msg
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: increment
+Separator: (
+Found identifier: ref
+Keyword: int
+Found identifier: x
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: greet
+Separator: (
+Keyword: string
+Found identifier: name
+Operator: =
+Found String literal: Guest
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: printNumbers
+Separator: (
+Keyword: int
+Found identifier: first
+Operator: ,
+Keyword: int
+Operator: ..
+Operator: .
+Found identifier: rest
+Separator: )
+Operator: {
+Operator: }
+Keyword: void
+Found identifier: outer
+Separator: (
+Separator: )
+Operator: {
+Keyword: void
+Found identifier: inner
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Operator: }
+Keyword: int
+Found identifier: factorial
+Separator: (
+Keyword: int
+Found identifier: n
+Separator: )
+Operator: {
+Keyword: if
+Separator: (
+Found identifier: n
+Operator: ==
+Int: 0
+Separator: )
+Keyword: return
+Int: 1
+Separator: ;
+Keyword: return
+Found identifier: n
+Operator: *
+Found identifier: factorial
+Separator: (
+Found identifier: n
+Operator: -
+Int: 1
+Separator: )
+Separator: ;
+Operator: }
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Operator: {
+Operator: }

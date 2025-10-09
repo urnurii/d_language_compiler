@@ -1,0 +1,76 @@
+Found identifier: import
+Found identifier: std
+Operator: .
+Found identifier: stdio
+Separator: ;
+Keyword: class
+Found identifier: AccessExample
+Operator: {
+Keyword: public
+Keyword: string
+Found identifier: publicField
+Operator: =
+Found String literal: public
+Separator: ;
+Keyword: private
+Keyword: string
+Found identifier: privateField
+Operator: =
+Found String literal: private
+Separator: ;
+Keyword: protected
+Keyword: string
+Found identifier: protectedField
+Operator: =
+Found String literal: protected
+Separator: ;
+Keyword: public
+Keyword: void
+Found identifier: publicMethod
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Keyword: private
+Keyword: void
+Found identifier: privateMethod
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Keyword: protected
+Keyword: void
+Found identifier: protectedMethod
+Separator: (
+Separator: )
+Operator: {
+Operator: }
+Keyword: public
+Keyword: void
+Found identifier: accessPrivate
+Separator: (
+Separator: )
+Operator: {
+Found identifier: privateMethod
+Separator: (
+Separator: )
+Separator: ;
+Operator: }
+Operator: }
+Keyword: class
+Found identifier: Derived
+Operator: :
+Found identifier: AccessExample
+Operator: {
+Keyword: public
+Keyword: void
+Found identifier: testProtected
+Separator: (
+Separator: )
+Operator: {
+Found identifier: protectedMethod
+Separator: (
+Separator: )
+Separator: ;
+Operator: }
+Operator: }

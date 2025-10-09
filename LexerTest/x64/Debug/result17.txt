@@ -1,0 +1,29 @@
+Found comment:  This is a single-line comment
+Keyword: int
+Found identifier: a
+Operator: =
+Int: 10
+Separator: ;
+Found comment:  Initializing the variable
+Found multiline comment:  This is a multi-line comment 
+Found multiline comment:  Start of the multi-line comment
+   This continues on a new line
+   and spans several more lines
+   Until the end of the comment 
+Found multiline comment: 
+    This is a multi-line comment that continues
+    over multiple lines to check the lexer processing
+
+Found multiline comment:  This is a* multi-line comment with a *** inside 
+Found multiline comment:  This comment contains the sequence * and / for testing 
+Found comment:  This /* This is a multi-line comment */ after it
+Found multiline comment:  This is a multi-line // comment 
+Found multiline comment:  Escaped character: \t 
+Found multiline comment:  This /* This is a multi-line comment 
+Found identifier: comment
+Operator: *
+Operator: /
+ERROR! Multiline comment "
+    This is a multi-line comment that won't be closed
+    We need to make sure
+int a = 10;" isn't closed in row: 21
