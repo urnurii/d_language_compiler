@@ -1,6 +1,5 @@
 import std.stdio;
 
-// Overloaded functions
 void print(int n) {
     writeln("Integer: ", n);
 }
@@ -32,14 +31,13 @@ class Printer {
 }
 
 void main() {
-    // Function overloading
+
     print(10);
     print("Hello");
     print(3.14);
     print(5, 10);
     print("Number", 42);
-    
-    // Method overloading
+
     auto printer = new Printer();
     printer.print(100);
     printer.print("World");

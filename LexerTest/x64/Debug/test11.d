@@ -6,22 +6,18 @@ void main() {
     int x = 5;
     int y = 0;
     
-    // Logical AND
-    bool andResult1 = a && b;     // false
-    bool andResult2 = a && true;  // true
-    bool andResult3 = (x > 0) && (y == 0); // true
+    bool andResult1 = a && b;
+    bool andResult2 = a && true;
+    bool andResult3 = (x > 0) && (y == 0);
+
+    bool orResult1 = a || b;
+    bool orResult2 = false || b;
+    bool orResult3 = (x == 0) || (y == 0);
     
-    // Logical OR
-    bool orResult1 = a || b;      // true
-    bool orResult2 = false || b;  // false
-    bool orResult3 = (x == 0) || (y == 0); // true
+    bool notResult1 = !a;
+    bool notResult2 = !b;
+    bool notResult3 = !(x == 0);
     
-    // Logical NOT
-    bool notResult1 = !a;         // false
-    bool notResult2 = !b;         // true
-    bool notResult3 = !(x == 0);  // true
-    
-    // Combined operations
     bool combined = (a && !b) || (x > 0);
     
     writeln("a && b: ", andResult1);

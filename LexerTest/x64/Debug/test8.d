@@ -15,12 +15,12 @@ class Dog : Animal {
     }
     
     void callSuper() {
-        super.speak(); // Call parent method
+        super.speak();
     }
 }
 
 void main() {
-    // Create objects
+
     auto animal = new Animal();
     animal.name = "Generic Animal";
     animal.age = 3;
@@ -29,12 +29,10 @@ void main() {
     dog.name = "Buddy";
     dog.age = 5;
     
-    // Method calls
     animal.speak();
     dog.speak();
     dog.callSuper();
-    
-    // Access fields
+
     writeln("Animal age: ", animal.age);
     writeln("Dog name: ", dog.name);
 }

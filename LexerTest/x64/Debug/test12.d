@@ -17,7 +17,6 @@ class AccessExample {
         writeln("Protected method called");
     }
     
-    // Method to access private members
     public void accessPrivate() {
         writeln("Accessing private field: ", privateField);
         privateMethod();
@@ -33,17 +32,11 @@ class Derived : AccessExample {
 
 void main() {
     auto obj = new AccessExample();
-    
-    // Public access
+
     obj.publicField = "modified public";
     obj.publicMethod();
     obj.accessPrivate();
-    
-    // Private access (would cause error if uncommented)
-    // obj.privateField = "error"; // Compilation error
-    // obj.privateMethod();        // Compilation error
-    
-    // Protected access test
+
     auto derived = new Derived();
     derived.testProtected();
     
