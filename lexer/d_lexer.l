@@ -11,6 +11,7 @@ void handle_octal_escape( char* buffer, char* yytext );
 void finish_char(char* buffer);
 void strip_underscores(char* buf, const char* src);
 int get_int(const char* yytext);
+float get_float(const chat* yytext);
 %}
 
 DIGIT [0-9]
@@ -26,6 +27,7 @@ DIGIT [0-9]
     int string_pos = 0;
     int comment_pos = 0;
     int value_int;
+    float value_float;
 %}
 
 [ \t\r]+            ;
@@ -130,11 +132,11 @@ DIGIT [0-9]
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); }
 0[xX][0-9a-fA-F]+                                                           { printf("Int: %s (hex)\n", yytext); }
 0[xX][0-9a-fA-F]{1,4}(_[0-9a-fA-F]{4})*                                     { printf("Int: %s (hex with separators)\n", yytext); }
-{DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                             { printf("Float: %s\n", yytext); }
-(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); }
-(?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); }
-(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])?                                   { printf("Float: %s\n", yytext); }
-(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])  q                                                                           { printf("Float: %s\n", yytext); }
+{DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                                                                         { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
+(?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])?                                   { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])                                                                              { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }                                                                              { printf("Float: %s\n", yytext); }
 
 
 "//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
@@ -196,6 +198,13 @@ int get_int(const char* yytext)
     char clean[64];
     strip_underscores(clean, yytext);
     return strtol(clean, NULL, 0);
+}
+
+float get_float(const char* yytext)
+{
+    char clean[64];
+    strip_underscores(clean, yytext);
+    return strtof(clean, NULL);
 }
 
 int main(int argc, char* argv[])
