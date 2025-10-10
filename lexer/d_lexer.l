@@ -9,6 +9,8 @@
 void handle_hex_escape( char* buffer, char* yytext );
 void handle_octal_escape( char* buffer, char* yytext );
 void finish_char(char* buffer);
+void strip_underscores(char* buf, const char* src);
+int get_int(const char* yytext);
 %}
 
 DIGIT [0-9]
@@ -23,6 +25,7 @@ DIGIT [0-9]
     char string_buf[8192];
     int string_pos = 0;
     int comment_pos = 0;
+    int value_int;
 %}
 
 [ \t\r]+            ;
@@ -121,8 +124,7 @@ DIGIT [0-9]
 ","                 { printf("Separator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
 
-0|[1-9]{DIGIT}*                                                             { printf("Int: %d\n", atoi(yytext)); }
-0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { printf("Int: %s (with separators)\n", yytext); }
+0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                { value_int = get_int(yytext); printf("Int: %d\n", value_int); }
 0[bB][01]+                                                                  { printf("Int: %s (binary)\n", yytext); }
 0[bB][01]{1,4}(_[01]{4})*                                                   { printf("Int: %s (binary with separators)\n", yytext); }
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); }
@@ -172,6 +174,24 @@ void finish_char(char* buffer) {
     } else {
         printf("Found Char literal: %s\n", buffer);
     }
+}
+
+void strip_underscores(char* buf, const char* src)
+{
+    char* d = buf;
+    for (const char* s = src; *s; s++)
+    {
+        if (*s != '_')
+            *d++ = *s;
+    }
+    *d = '\0';
+}
+
+int get_int(const char* yytext)
+{
+    char clean[64];
+    strip_underscores(clean, yytext);
+    return strtol(clean, NULL, 0);
 }
 
 int main(int argc, char* argv[])
