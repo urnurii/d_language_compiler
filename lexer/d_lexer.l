@@ -129,6 +129,10 @@ DIGIT [0-9]
 0[xX][0-9a-fA-F]+                                                           { printf("Int: %s (hex)\n", yytext); }
 0[xX][0-9a-fA-F]{1,4}(_[0-9a-fA-F]{4})*                                     { printf("Int: %s (hex with separators)\n", yytext); }
 {DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                             { printf("Float: %s\n", yytext); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); }
+(?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])?                                   { printf("Float: %s\n", yytext); }
+(?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])  q                                                                           { printf("Float: %s\n", yytext); }
 
 
 "//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
