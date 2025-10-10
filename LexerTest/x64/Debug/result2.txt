@@ -6,9 +6,9 @@ Found identifier: staticArr
 Operator: =
 Operator: [
 Int: 1
-Operator: ,
+Separator: ,
 Int: 2
-Operator: ,
+Separator: ,
 Int: 3
 Operator: ]
 Separator: ;
@@ -19,11 +19,11 @@ Found identifier: dynamicArr
 Operator: =
 Operator: [
 Int: 4
-Operator: ,
+Separator: ,
 Int: 5
-Operator: ,
+Separator: ,
 Int: 6
-Operator: ,
+Separator: ,
 Int: 7
 Operator: ]
 Separator: ;
@@ -42,7 +42,7 @@ Found identifier: words
 Operator: =
 Operator: [
 Found String literal: hello
-Operator: ,
+Separator: ,
 Found String literal: world
 Operator: ]
 Separator: ;
@@ -69,9 +69,16 @@ Found identifier: slice
 Operator: =
 Found identifier: dynamicArr
 Operator: [
-Float: 1.
-Operator: .
+Int: 1
+Operator: ..
 Int: 3
+Operator: ]
+Separator: ;
+Found identifier: dynamicArr2
+Operator: [
+Int: 100
+Operator: ..
+Int: 300
 Operator: ]
 Separator: ;
 Found identifier: slice
@@ -89,7 +96,7 @@ Found identifier: words
 Operator: ~=
 Operator: [
 Found String literal: new
-Operator: ,
+Separator: ,
 Found String literal: words
 Operator: ]
 Separator: ;

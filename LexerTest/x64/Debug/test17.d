@@ -10,11 +10,13 @@ int a = 10;  // Initializing the variable
     over multiple lines to check the lexer processing
 */
 /* This is a* multi-line comment with a *** inside */
+/* This ***
+ in end */
 /* This comment contains the sequence * and / for testing */
 // This /* This is a multi-line comment */ after it
 /* This is a multi-line // comment */
 /* Escaped character: \t */
-/* This /* This is a multi-line comment */ comment */
+
 /*
     This is a multi-line comment that won't be closed
     We need to make sure

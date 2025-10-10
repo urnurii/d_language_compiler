@@ -39,9 +39,9 @@ Operator: =
 Found identifier: format
 Separator: (
 Found String literal: Name: %s, Age: %d
-Operator: ,
+Separator: ,
 Found identifier: name
-Operator: ,
+Separator: ,
 Found identifier: age
 Separator: )
 Separator: ;
@@ -51,9 +51,9 @@ Operator: =
 Found identifier: format
 Separator: (
 Found String literal: Salary: %.2f, Grade: %c
-Operator: ,
+Separator: ,
 Found identifier: salary
-Operator: ,
+Separator: ,
 Found identifier: grade
 Separator: )
 Separator: ;
@@ -63,13 +63,13 @@ Operator: =
 Found identifier: format
 Separator: (
 Found String literal: Employee: %s, Age: %d, Salary: $%.2f, Grade: %c
-Operator: ,
+Separator: ,
 Found identifier: name
-Operator: ,
+Separator: ,
 Found identifier: age
-Operator: ,
+Separator: ,
 Found identifier: salary
-Operator: ,
+Separator: ,
 Found identifier: grade
 Separator: )
 Separator: ;
@@ -79,7 +79,7 @@ Operator: =
 Found identifier: format
 Separator: (
 Found String literal: Decimal: %d
-Operator: ,
+Separator: ,
 Int: 255
 Separator: )
 Separator: ;
@@ -89,7 +89,7 @@ Operator: =
 Found identifier: format
 Separator: (
 Found String literal: Float: %f
-Operator: ,
+Separator: ,
 Float: 123.456
 Separator: )
 Separator: ;

@@ -32,7 +32,7 @@ Found identifier: print
 Separator: (
 Keyword: int
 Found identifier: a
-Operator: ,
+Separator: ,
 Keyword: int
 Found identifier: b
 Separator: )
@@ -43,7 +43,7 @@ Found identifier: print
 Separator: (
 Keyword: string
 Found identifier: s
-Operator: ,
+Separator: ,
 Keyword: int
 Found identifier: n
 Separator: )

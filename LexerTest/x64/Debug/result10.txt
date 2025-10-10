@@ -20,19 +20,19 @@ Operator: =
 Operator: [
 Operator: [
 Int: 1
-Operator: ,
+Separator: ,
 Int: 2
 Operator: ]
-Operator: ,
+Separator: ,
 Operator: [
 Int: 3
-Operator: ,
+Separator: ,
 Int: 4
 Operator: ]
-Operator: ,
+Separator: ,
 Operator: [
 Int: 5
-Operator: ,
+Separator: ,
 Int: 6
 Operator: ]
 Operator: ]
@@ -48,7 +48,7 @@ Found identifier: dynamicMatrix
 Operator: ~=
 Operator: [
 Int: 7
-Operator: ,
+Separator: ,
 Int: 8
 Operator: ]
 Separator: ;
@@ -56,9 +56,9 @@ Found identifier: dynamicMatrix
 Operator: ~=
 Operator: [
 Int: 9
-Operator: ,
+Separator: ,
 Int: 10
-Operator: ,
+Separator: ,
 Int: 11
 Operator: ]
 Separator: ;
@@ -91,8 +91,8 @@ Found identifier: rowSlice
 Operator: =
 Found identifier: matrix
 Operator: [
-Float: 0.
-Operator: .
+Int: 0
+Operator: ..
 Int: 2
 Operator: ]
 Operator: [

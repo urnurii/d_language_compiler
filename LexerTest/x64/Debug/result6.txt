@@ -3,7 +3,7 @@ Found identifier: add
 Separator: (
 Keyword: int
 Found identifier: a
-Operator: ,
+Separator: ,
 Keyword: int
 Found identifier: b
 Separator: )
@@ -46,7 +46,7 @@ Found identifier: printNumbers
 Separator: (
 Keyword: int
 Found identifier: first
-Operator: ,
+Separator: ,
 Keyword: int
 Operator: ...
 Found identifier: rest

@@ -61,11 +61,11 @@ DIGIT [0-9]
 
 \' strcpy(tmp,""); BEGIN(CHAR);
 \" strcpy(tmp,""); BEGIN(STRING);
+<STRING>"%d" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
+<STRING>"%f" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
+<STRING>"%s" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
+<STRING>"%c" { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
 <STRING>[^\\\n\"]+ strcat(tmp,yytext);
-<STRING>"%d" strcat(tmp,yytext);
-<STRING>"%f" strcat(tmp,yytext);
-<STRING>"%s" strcat(tmp,yytext);
-<STRING>"%c" strcat(tmp,yytext);
 <CHAR>[^\\\n\'] strcat(tmp,yytext);
 <STRING,CHAR>\\b strcat(tmp,"\b");
 <STRING,CHAR>\\f strcat(tmp,"\f");
@@ -137,12 +137,13 @@ strcat(tmp, dig);}
 ","                 { printf("Separator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
 
-0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)  { printf("Int: %d\n", atoi(yytext)); }
+0|[1-9]{DIGIT}*                    { printf("Int: %d\n", atoi(yytext)); }
+0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)  { printf("Int: %s (with separators)\n", yytext); }
 0[bB][01]+                         { printf("Int: %s (binary)\n", yytext); }
 0[0-7]+                            { printf("Int: %s (octal)\n", yytext); }
 0[0-9]+                            { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
 0[xX][0-9A-Fa-f]+                  { printf("Int: %s (hex)\n", yytext); }
-{DIGIT}+([.]{DIGIT}*)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
+{DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]? { printf("Float: %s\n", yytext); }
 
 "//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
 <COMMENT>.          { strcat(tmp, yytext); }

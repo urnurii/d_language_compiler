@@ -10,6 +10,8 @@
     
     int[] slice = dynamicArr[1..3];
     
+    dynamicArr2[100..300];
+
     slice[0] = 50;
 
     arr ~= 6;

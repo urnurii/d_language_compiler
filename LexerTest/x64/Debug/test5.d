@@ -7,7 +7,7 @@
         a = 1;
     } while (j < 3);
     
-    for (int k = 0; k < 3; k++) {
+    for (int k = 0; k < 3; k+=1) {
         a = 1;
     }
 
@@ -15,6 +15,6 @@
         a = 1;
     }
     
-    for (int m = 0; m < 5; m++) {
+    for (int m = 0; m < 5; m+=1) {
         a = 1;
     }

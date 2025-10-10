@@ -33,7 +33,7 @@ Keyword: this
 Separator: (
 Keyword: int
 Found identifier: v
-Operator: ,
+Separator: ,
 Keyword: string
 Found identifier: n
 Separator: )
@@ -51,7 +51,7 @@ Operator: =
 Found identifier: n
 Separator: ;
 Operator: }
-LEXICAL ERROR: Unknown character '~' at line 18
+Operator: ~
 Keyword: this
 Separator: (
 Separator: )

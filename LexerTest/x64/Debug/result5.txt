@@ -36,8 +36,8 @@ Operator: <
 Int: 3
 Separator: ;
 Found identifier: k
-Operator: +
-Operator: +
+Operator: +=
+Int: 1
 Separator: )
 Operator: {
 Found identifier: a
@@ -69,8 +69,8 @@ Operator: <
 Int: 5
 Separator: ;
 Found identifier: m
-Operator: +
-Operator: +
+Operator: +=
+Int: 1
 Separator: )
 Operator: {
 Found identifier: a

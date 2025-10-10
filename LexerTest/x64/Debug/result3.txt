@@ -1,116 +1,111 @@
 Keyword: int
-Found identifier: a
+Found identifier: a1
 Operator: =
 Int: 10
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a2
 Operator: =
 Int: 0xA (hex)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a3
 Operator: =
 Int: 0b1010 (binary)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a4
 Operator: =
 Int: 0XA (hex)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a5
 Operator: =
 Int: 0B1010 (binary)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a6
 Operator: =
 Int: 012 (octal)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a7
 Operator: =
-Int: 1
+Int: 1_000 (with separators)
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a8
 Operator: =
-Int: 1
+Int: 1_000 (with separators)
 Found identifier: _
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a9
 Operator: =
 Found identifier: _1_000
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a10
 Operator: =
 Operator: -
 Int: 42
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a11
 Operator: =
 Operator: +
 Int: 42
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a12
 Operator: =
 Int: 0
 Separator: ;
 Keyword: int
-Found identifier: a
+Found identifier: a13
 Operator: =
 ERROR! Incorrect octal number: 0392 in row: 13
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c1
 Operator: =
 Found Char literal: A
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c2
 Operator: =
 Found Char literal: z
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c3
 Operator: =
 Found Char literal: 
 
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c4
 Operator: =
 Found Char literal: 	
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c5
 Operator: =
 Found Char literal: A
 Separator: ;
 Keyword: char
-Found identifier: c
-Operator: =
-\ERROR! char length != 1 in row: 20
-Separator: ;
-Keyword: char
-Found identifier: c
+Found identifier: c7
 Operator: =
 Found Char literal: '
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c8
 Operator: =
-ERROR! char length != 1 in row: 22
+ERROR! char length != 1 in row: 21
 Separator: ;
 Keyword: char
-Found identifier: c
+Found identifier: c9
 Operator: =
-ERROR! char length != 1 in row: 23
+ERROR! char length != 1 in row: 22
 Separator: ;
 Keyword: string
 Found identifier: s1
@@ -137,11 +132,6 @@ Keyword: string
 Found identifier: s5
 Operator: =
 Found String literal: Double quote: ""
-Separator: ;
-Keyword: string
-Found identifier: s6
-Operator: =
-\Found String literal: Unicode: u0041
 Separator: ;
 Keyword: string
 Found identifier: s7
