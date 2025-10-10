@@ -5,11 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-int line = 1;
-char tmp[8192];
-
-char string_buf[8192];
-int string_pos = 0;
 %}
 
 DIGIT [0-9]
@@ -17,6 +12,13 @@ DIGIT [0-9]
 %x COMMENT STRING CHAR MULTILINE_COMMENT
 
 %%
+
+%{
+    int line = 1;
+    char tmp[8192];
+    char string_buf[8192];
+    int string_pos = 0;
+%}
 
 [ \t\r]+            ;
 \n                  { line++; }
@@ -59,40 +61,35 @@ DIGIT [0-9]
 "true"              { printf("Bool: true\n"); }
 "false"             { printf("Bool: false\n"); }
 
-\' strcpy(tmp,""); BEGIN(CHAR);
-\" strcpy(tmp,""); BEGIN(STRING);
-<STRING>%d { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
-<STRING>%f { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
-<STRING>%s { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
-<STRING>%c { printf("Format specifier: %s\n", yytext); strcat(tmp,yytext); }
-<STRING>% strcat(tmp,yytext);
-<STRING>[^%\\\n\"]+ strcat(tmp,yytext);
-<CHAR>[^\\\n\'] strcat(tmp,yytext);
-<STRING,CHAR>\\b strcat(tmp,"\b");
-<STRING,CHAR>\\f strcat(tmp,"\f");
-<STRING,CHAR>\\n strcat(tmp,"\n");
-<STRING,CHAR>\\r strcat(tmp,"\r");
-<STRING,CHAR>\\t strcat(tmp,"\t");
-<STRING,CHAR>\\v strcat(tmp,"\v");
-<STRING,CHAR>\\\' strcat(tmp,"\'");
-<STRING,CHAR>\\\" strcat(tmp,"\"");
-<STRING,CHAR>\\\\ strcat(tmp,"\\");
-<STRING,CHAR>\\\? strcat(tmp,"\?");
+\'                               { strcpy(tmp,""); BEGIN(CHAR); }
+\"                               { strcpy(tmp,""); string_pos = line; BEGIN(STRING); }
+<STRING>[^\\\n\"]+               { strcat(tmp,yytext); }
+<CHAR>[^\\\n\']                  { strcat(tmp,yytext); }
+<STRING,CHAR>\\b                 { strcat(tmp,"\b"); }
+<STRING,CHAR>\\f                 { strcat(tmp,"\f"); } 
+<STRING,CHAR>\\n                 { strcat(tmp,"\n"); }
+<STRING,CHAR>\\r                 { strcat(tmp,"\r"); }
+<STRING,CHAR>\\t                 { strcat(tmp,"\t"); }
+<STRING,CHAR>\\v                 { strcat(tmp,"\v"); }
+<STRING,CHAR>\\\'                { strcat(tmp,"\'"); }
+<STRING,CHAR>\\\"                { strcat(tmp,"\""); }
+<STRING,CHAR>\\\\                { strcat(tmp,"\\"); }
+<STRING,CHAR>\\\?                { strcat(tmp,"\?"); }
 <STRING,CHAR>\\x[0-9a-fA-F]{1,2} {
     char dig[2];
     char *a;
     dig[0]=strtol(yytext+2, &a, 16);
     dig[1]='\0';
-    strcat(tmp, dig);}
-<STRING,CHAR>\\[0-7]{1,3} {
+    strcat(tmp, dig); }
+<STRING,CHAR>\\[0-7]{1,3}        {
     char dig[2];
     char *a;
     dig[0]=strtol(yytext+1, &a, 8);
     dig[1]='\0';
-strcat(tmp, dig);}
-<STRING,CHAR>\n { line++; }
-<STRING,CHAR><<EOF>> { printf("ERROR! haven't found closing quotes in row: %d\n", line); BEGIN(INITIAL); }
-<STRING>\" { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
+    strcat(tmp, dig); }
+<STRING,CHAR>\n                  { line++; }
+<STRING,CHAR><<EOF>>             { printf("ERROR! Haven't found closing quotes in string with position: %d\n", string_pos); BEGIN(INITIAL); }
+<STRING>\"                       { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
 <CHAR>\' {
     if(strlen(tmp) != 1)
     {
@@ -150,18 +147,18 @@ strcat(tmp, dig);}
 <COMMENT>.          { strcat(tmp, yytext); }
 <COMMENT>\n         { printf("Found comment: %s\n", tmp); line++; BEGIN(INITIAL); }
 
-"/*" { tmp[0] = '\0'; BEGIN(MULTILINE_COMMENT); }
-<MULTILINE_COMMENT>[^*\n]+ { strcat(tmp, yytext); }
+"/*"                         { tmp[0] = '\0'; BEGIN(MULTILINE_COMMENT); }
+<MULTILINE_COMMENT>[^*\n]+   { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>[^*\n]*\n { line++; strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
-<MULTILINE_COMMENT>"*"+\n { line++; strcat(tmp, yytext); }
-<MULTILINE_COMMENT>"*"+"/" { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
+<MULTILINE_COMMENT>"*"+\n    { line++; strcat(tmp, yytext); }
+<MULTILINE_COMMENT>"*"+"/"   { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
 
-<MULTILINE_COMMENT><<EOF>> { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
+<MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
 
-[A-Za-z_][A-Za-z0-9_]*     { printf("Found identifier: %s\n", yytext); }
+[A-Za-z_][A-Za-z0-9_]*       { printf("Found identifier: %s\n", yytext); }
 
-.                          { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
+.                            { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
 
 %%
 
