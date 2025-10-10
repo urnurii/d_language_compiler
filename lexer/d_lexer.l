@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+void handle_hex_escape( char* buffer, char* yytext );
+void handle_octal_escape( char* buffer, char* yytext );
+void finish_char(char* buffer);
 %}
 
 DIGIT [0-9]
@@ -18,6 +22,7 @@ DIGIT [0-9]
     char tmp[8192];
     char string_buf[8192];
     int string_pos = 0;
+    int comment_pos = 0;
 %}
 
 [ \t\r]+            ;
@@ -75,31 +80,12 @@ DIGIT [0-9]
 <STRING,CHAR>\\\"                { strcat(tmp,"\""); }
 <STRING,CHAR>\\\\                { strcat(tmp,"\\"); }
 <STRING,CHAR>\\\?                { strcat(tmp,"\?"); }
-<STRING,CHAR>\\x[0-9a-fA-F]{1,2} {
-    char dig[2];
-    char *a;
-    dig[0]=strtol(yytext+2, &a, 16);
-    dig[1]='\0';
-    strcat(tmp, dig); }
-<STRING,CHAR>\\[0-7]{1,3}        {
-    char dig[2];
-    char *a;
-    dig[0]=strtol(yytext+1, &a, 8);
-    dig[1]='\0';
-    strcat(tmp, dig); }
+<STRING,CHAR>\\x[0-9a-fA-F]{1,2} { handle_hex_escape( tmp, yytext ); }
+<STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( char* tmp, char* yytext ) }
 <STRING,CHAR>\n                  { line++; }
 <STRING,CHAR><<EOF>>             { printf("ERROR! Haven't found closing quotes in string with position: %d\n", string_pos); BEGIN(INITIAL); }
 <STRING>\"                       { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
-<CHAR>\' {
-    if(strlen(tmp) != 1)
-    {
-        printf("ERROR! char length != 1 in row: %d\n", line); BEGIN(INITIAL);
-    }
-    else
-    {
-        printf("Found Char literal: %s\n",tmp); BEGIN(INITIAL);
-    }
-}
+<CHAR>\'                         { finish_char(tmp); BEGIN(INITIAL); }
 
 "=="                { printf("Operator: %s\n", yytext); }
 "!="                { printf("Operator: %s\n", yytext); }
@@ -149,20 +135,44 @@ DIGIT [0-9]
 <COMMENT>.          { strcat(tmp, yytext); }
 <COMMENT>\n         { printf("Found comment: %s\n", tmp); line++; BEGIN(INITIAL); }
 
-"/*"                         { tmp[0] = '\0'; BEGIN(MULTILINE_COMMENT); }
+"/*"                         { tmp[0] = '\0'; comment_pos = line; BEGIN(MULTILINE_COMMENT); }
 <MULTILINE_COMMENT>[^*\n]+   { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>[^*\n]*\n { line++; strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+\n    { line++; strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+"/"   { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
 
-<MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment \"%s\" isn't closed in row: %d\n", tmp, line); BEGIN(INITIAL); }
+<MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment with position %d: \n\"%s\" \nisn't closed!\n", tmp, line); BEGIN(INITIAL); }
 
 [A-Za-z_][A-Za-z0-9_]*       { printf("Found identifier: %s\n", yytext); }
 
 .                            { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
 
 %%
+
+void handle_hex_escape( char* buffer, char* yytext ) {
+    char dig[2];
+    char *a;
+    dig[0] = (char)strtol(yytext+2, &a, 16);
+    dig[1] = '\0';
+    strcat(tmp, dig);
+}
+
+void handle_octal_escape( char* buffer, char* yytext ) {
+    char dig[2];
+    char *a;
+    dig[0] = (char)strtol(yytext+1, &a, 8);
+    dig[1] = '\0';
+    strcat(tmp, dig);
+}
+
+void finish_char(char* buffer) {
+    if(strlen(buffer) != 1) {
+        printf("ERROR! char length != 1 in row: %d\n", line);
+    } else {
+        printf("Found Char literal: %s\n", buffer);
+    }
+}
 
 int main(int argc, char* argv[])
 {
