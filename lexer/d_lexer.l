@@ -135,11 +135,10 @@ DIGIT [0-9]
 ":"                 { printf("Operator: %s\n", yytext); }
 
 0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { printf("Int: %s\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
-0[bB][01]+                                                                  { printf("Int: %s (binary)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
-0[bB][01]{1,4}(_[01]{4})*                                                   { printf("Int: %s (binary with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[bB][01]+(_[01]+)*                                                         { printf("Int: %s (binary with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
-0[xX][0-9a-fA-F]+                                                           { printf("Int: %s (hex)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
-0[xX][0-9a-fA-F]{1,4}(_[0-9a-fA-F]{4})*                                     { printf("Int: %s (hex with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[xX][0-9a-fA-F]+(_[0-9a-fA-F]+)*                                           { printf("Int: %s (hex with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+
 {DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                                                                         { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
