@@ -209,12 +209,23 @@ int get_int(const char* yytext)
     return (int)val;
 }
 
+
 float get_float(const char* yytext)
 {
     char clean[64];
     strip_underscores(clean, yytext);
-    return strtof(clean, NULL);
+    errno = 0;
+    char* endptr;
+    float val = strtof(clean, &endptr);
+    
+    if ((errno == ERANGE && val == HUGE_VALF) || val > FLT_MAX) {
+        printf("Warning: Float value exceeds range, truncated to FLT_MAX.\n");
+        return FLT_MAX;
+    }
+
+    return val;
 }
+
 
 int main(int argc, char* argv[])
 {
