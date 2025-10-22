@@ -12,14 +12,14 @@
 
 void handle_hex_escape( char* buffer, char* yytext );
 void handle_octal_escape( char* buffer, char* yytext );
-void finish_char(char* buffer);
+void finish_char(char* buffer, int line);
 void strip_underscores(char* buf, const char* src);
 long parse_binary(const char* yytext);
 long parse_octal(const char* yytext);
 long parse_hexadecimal(const char* yytext);
 long parse_decimal(const char* yytext);
 int get_int(const char* yytext);
-float get_float(const chat* yytext);
+float get_float(const char* yytext);
 %}
 
 DIGIT [0-9]
@@ -94,11 +94,11 @@ DIGIT [0-9]
 <STRING,CHAR>\\\\                { strcat(tmp,"\\"); }
 <STRING,CHAR>\\\?                { strcat(tmp,"\?"); }
 <STRING,CHAR>\\x[0-9a-fA-F]{1,2} { handle_hex_escape( tmp, yytext ); }
-<STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( char* tmp, char* yytext ) }
+<STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( tmp, yytext ); }
 <STRING,CHAR>\n                  { line++; }
 <STRING,CHAR><<EOF>>             { printf("ERROR! Haven't found closing quotes in string with position: %d\n", string_pos); BEGIN(INITIAL); }
 <STRING>\"                       { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
-<CHAR>\'                         { finish_char(tmp); BEGIN(INITIAL); }
+<CHAR>\'                         { finish_char(tmp, line); BEGIN(INITIAL); }
 
 "=="                { printf("Operator: %s\n", yytext); }
 "!="                { printf("Operator: %s\n", yytext); }
@@ -171,7 +171,7 @@ void handle_hex_escape( char* buffer, char* yytext ) {
     char *a;
     dig[0] = (char)strtol(yytext+2, &a, 16);
     dig[1] = '\0';
-    strcat(tmp, dig);
+    strcat(buffer, dig);
 }
 
 void handle_octal_escape( char* buffer, char* yytext ) {
@@ -179,10 +179,10 @@ void handle_octal_escape( char* buffer, char* yytext ) {
     char *a;
     dig[0] = (char)strtol(yytext+1, &a, 8);
     dig[1] = '\0';
-    strcat(tmp, dig);
+    strcat(buffer, dig);
 }
 
-void finish_char(char* buffer) {
+void finish_char(char* buffer, int line) {
     if(strlen(buffer) != 1) {
         printf("ERROR! char length != 1 in row: %d\n", line);
     } else {
