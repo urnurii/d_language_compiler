@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 void handle_hex_escape( char* buffer, char* yytext );
 void handle_octal_escape( char* buffer, char* yytext );
@@ -126,7 +127,7 @@ DIGIT [0-9]
 ","                 { printf("Separator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
 
-0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                { value_int = get_int(yytext); printf("Int: %d\n", value_int); }
+0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { value_int = get_int(yytext); printf("Int: %d\n", value_int); }
 0[bB][01]+                                                                  { printf("Int: %s (binary)\n", yytext); }
 0[bB][01]{1,4}(_[01]{4})*                                                   { printf("Int: %s (binary with separators)\n", yytext); }
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); }
@@ -197,7 +198,15 @@ int get_int(const char* yytext)
 {
     char clean[64];
     strip_underscores(clean, yytext);
-    return strtol(clean, NULL, 0);
+    char* endptr;
+    long val = strtol(clean, &endptr, 10);
+
+    if (val > INT_MAX) {
+        printf("Warning: Number exceeds int range, truncated to INT_MAX.\n");
+        return INT_MAX;
+    } 
+
+    return (int)val;
 }
 
 float get_float(const char* yytext)
