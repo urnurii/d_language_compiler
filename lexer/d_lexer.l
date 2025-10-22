@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <math.h>
+#include <float.h>
+#include <errno.h>
 
 void handle_hex_escape( char* buffer, char* yytext );
 void handle_octal_escape( char* buffer, char* yytext );
@@ -217,7 +220,7 @@ float get_float(const char* yytext)
     errno = 0;
     char* endptr;
     float val = strtof(clean, &endptr);
-    
+
     if ((errno == ERANGE && val == HUGE_VALF) || val > FLT_MAX) {
         printf("Warning: Float value exceeds range, truncated to FLT_MAX.\n");
         return FLT_MAX;
