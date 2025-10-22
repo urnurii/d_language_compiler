@@ -11,6 +11,10 @@ void handle_hex_escape( char* buffer, char* yytext );
 void handle_octal_escape( char* buffer, char* yytext );
 void finish_char(char* buffer);
 void strip_underscores(char* buf, const char* src);
+long parse_binary(const char* yytext);
+long parse_octal(const char* yytext);
+long parse_hexadecimal(const char* yytext);
+long parse_decimal(const char* yytext);
 int get_int(const char* yytext);
 float get_float(const chat* yytext);
 %}
@@ -127,12 +131,12 @@ DIGIT [0-9]
 ","                 { printf("Separator: %s\n", yytext); }
 ":"                 { printf("Operator: %s\n", yytext); }
 
-0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { value_int = get_int(yytext); printf("Int: %d\n", value_int); }
-0[bB][01]+                                                                  { printf("Int: %s (binary)\n", yytext); }
-0[bB][01]{1,4}(_[01]{4})*                                                   { printf("Int: %s (binary with separators)\n", yytext); }
-0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); }
-0[xX][0-9a-fA-F]+                                                           { printf("Int: %s (hex)\n", yytext); }
-0[xX][0-9a-fA-F]{1,4}(_[0-9a-fA-F]{4})*                                     { printf("Int: %s (hex with separators)\n", yytext); }
+0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { printf("Int: %s\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[bB][01]+                                                                  { printf("Int: %s (binary)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[bB][01]{1,4}(_[01]{4})*                                                   { printf("Int: %s (binary with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[xX][0-9a-fA-F]+                                                           { printf("Int: %s (hex)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[xX][0-9a-fA-F]{1,4}(_[0-9a-fA-F]{4})*                                     { printf("Int: %s (hex with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 {DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                                                                         { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
@@ -194,17 +198,71 @@ void strip_underscores(char* buf, const char* src)
     *d = '\0';
 }
 
+long parse_binary(const char* yytext)
+{
+    for (int i = 2; yytext[i] != '\0'; i++) {
+        if (yytext[i] != '0' && yytext[i] != '1') {
+            fprintf(stderr, "Error: Invalid binary digit '%c' in '%s'\n", yytext[i], yytext);
+            return 0;
+        }
+    }
+    return strtol(yytext + 2, NULL, 2);
+}
+
+long parse_octal(const char* yytext)
+{
+    for (int i = 1; yytext[i] != '\0'; i++) {
+        if (yytext[i] < '0' || yytext[i] > '7') {
+            fprintf(stderr, "Error: Invalid octal digit '%c' in '%s'\n", yytext[i], yytext);
+            return 0;
+        }
+    }
+    return strtol(yytext, NULL, 8);
+}
+
+long parse_hexadecimal(const char* yytext)
+{
+    for (int i = 2; yytext[i] != '\0'; i++) {
+        if (!isxdigit(yytext[i])) {
+            fprintf(stderr, "Error: Invalid hex digit '%c' in '%s'\n", yytext[i], yytext);
+            return 0;
+        }
+    }
+    return strtol(yytext + 2, NULL, 16);
+}
+
+long parse_decimal(const char* yytext)
+{
+    for (int i = 0; yytext[i] != '\0'; i++) {
+        if (!isdigit(yytext[i])) {
+            fprintf(stderr, "Error: Invalid digit '%c' in '%s'\n", yytext[i], yytext);
+            return 0;
+        }
+    }
+    return strtol(yytext, NULL, 10);
+}
+
 int get_int(const char* yytext)
 {
     char clean[64];
     strip_underscores(clean, yytext);
-    char* endptr;
-    long val = strtol(clean, &endptr, 10);
+    long val;
+
+    if (strncmp(clean, "0b", 2) == 0 || strncmp(clean, "0B", 2) == 0) {
+        val = parse_binary(clean);
+    }
+    else if (strncmp(clean, "0x", 2) == 0 || strncmp(clean, "0X", 2) == 0) {
+        val =  parse_hexadecimal(clean);
+    }
+    else if (clean[0] == '0') {
+        val =  parse_octal(clean);
+    }
+    else val =  parse_decimal(clean);
 
     if (val > INT_MAX) {
         printf("Warning: Number exceeds int range, truncated to INT_MAX.\n");
         return INT_MAX;
-    } 
+    }
 
     return (int)val;
 }
