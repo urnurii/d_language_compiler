@@ -5,7 +5,7 @@ Found identifier: stdio
 Separator: ;
 Keyword: class
 Found identifier: MyClass
-Operator: {
+Separator: {
 Keyword: int
 Found identifier: value
 Separator: ;
@@ -15,12 +15,13 @@ Separator: ;
 Keyword: this
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: this
 Operator: .
 Found identifier: value
 Operator: =
 Int: 0
+Parsed Int: 0
 Separator: ;
 Keyword: this
 Operator: .
@@ -28,7 +29,7 @@ Found identifier: name
 Operator: =
 Found String literal: default
 Separator: ;
-Operator: }
+Separator: }
 Keyword: this
 Separator: (
 Keyword: int
@@ -37,7 +38,7 @@ Separator: ,
 Keyword: string
 Found identifier: n
 Separator: )
-Operator: {
+Separator: {
 Keyword: this
 Operator: .
 Found identifier: value
@@ -50,17 +51,17 @@ Found identifier: name
 Operator: =
 Found identifier: n
 Separator: ;
-Operator: }
+Separator: }
 Operator: ~
 Keyword: this
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: display
 Separator: (
 Separator: )
-Operator: {
-Operator: }
-Operator: }
+Separator: {
+Separator: }
+Separator: }

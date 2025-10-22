@@ -2,6 +2,7 @@ Keyword: int
 Found identifier: a
 Operator: =
 Int: 10
+Parsed Int: 10
 Separator: ;
 Keyword: int
 LEXICAL ERROR: Unknown character 'Î' at line 4

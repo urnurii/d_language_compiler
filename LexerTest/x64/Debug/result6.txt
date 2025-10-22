@@ -7,21 +7,21 @@ Separator: ,
 Keyword: int
 Found identifier: b
 Separator: )
-Operator: {
+Separator: {
 Keyword: return
 Found identifier: a
 Operator: +
 Found identifier: b
 Separator: ;
-Operator: }
+Separator: }
 Keyword: void
 Found identifier: printMessage
 Separator: (
 Keyword: string
 Found identifier: msg
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: increment
 Separator: (
@@ -29,8 +29,8 @@ Keyword: ref
 Keyword: int
 Found identifier: x
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: greet
 Separator: (
@@ -39,8 +39,8 @@ Found identifier: name
 Operator: =
 Found String literal: Guest
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: printNumbers
 Separator: (
@@ -51,35 +51,37 @@ Keyword: int
 Operator: ...
 Found identifier: rest
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: outer
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: void
 Found identifier: inner
 Separator: (
 Separator: )
-Operator: {
-Operator: }
-Operator: }
+Separator: {
+Separator: }
+Separator: }
 Keyword: int
 Found identifier: factorial
 Separator: (
 Keyword: int
 Found identifier: n
 Separator: )
-Operator: {
+Separator: {
 Keyword: if
 Separator: (
 Found identifier: n
 Operator: ==
 Int: 0
+Parsed Int: 0
 Separator: )
 Keyword: return
 Int: 1
+Parsed Int: 1
 Separator: ;
 Keyword: return
 Found identifier: n
@@ -89,12 +91,13 @@ Separator: (
 Found identifier: n
 Operator: -
 Int: 1
+Parsed Int: 1
 Separator: )
 Separator: ;
-Operator: }
+Separator: }
 Keyword: void
 Found identifier: main
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }

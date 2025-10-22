@@ -1,0 +1,219 @@
+Keyword: void
+Found identifier: main
+Separator: (
+Separator: )
+Separator: {
+Keyword: int
+Found identifier: i0
+Operator: =
+Int: 0
+Parsed Int: 0
+Separator: ;
+Keyword: int
+Found identifier: i1
+Operator: =
+Int: 1
+Parsed Int: 1
+Separator: ;
+Keyword: int
+Found identifier: i2
+Operator: =
+Operator: -
+Int: 1
+Parsed Int: 1
+Separator: ;
+Keyword: int
+Found identifier: i3
+Operator: =
+Int: 2147483647
+Parsed Int: 2147483647
+Separator: ;
+Keyword: int
+Found identifier: i4
+Operator: =
+Operator: -
+Int: 2147483648
+Parsed Int: 2147483647
+Separator: ;
+Keyword: int
+Found identifier: i5
+Operator: =
+Int: 0b1010 (binary)
+Parsed Int: 10
+Separator: ;
+Keyword: int
+Found identifier: i6
+Operator: =
+Int: 0b1101_0011 (binary with separators)
+Parsed Int: 211
+Separator: ;
+Keyword: int
+Found identifier: i7
+Operator: =
+Int: 0755 (octal)
+Parsed Int: 493
+Separator: ;
+Keyword: int
+Found identifier: i8
+Operator: =
+Int: 0xFF (hex)
+Parsed Int: 255
+Separator: ;
+Keyword: int
+Found identifier: i9
+Operator: =
+Int: 0xAB (hex)
+Parsed Int: 171
+Found identifier: _CD_EF
+Separator: ;
+Keyword: float
+Found identifier: f0
+Operator: =
+Float: 0.0f
+Parsed Float: 0.000000
+Separator: ;
+Keyword: float
+Found identifier: f1
+Operator: =
+Float: 1.23f
+Parsed Float: 1.230000
+Separator: ;
+Keyword: float
+Found identifier: f2
+Operator: =
+Operator: -
+Float: 4.56f
+Parsed Float: 4.560000
+Separator: ;
+Keyword: float
+Found identifier: f3
+Operator: =
+Float: 123456.789f
+Parsed Float: 123456.789062
+Separator: ;
+Keyword: float
+Found identifier: f4
+Operator: =
+Float: .5f
+Parsed Float: 0.500000
+Separator: ;
+Keyword: float
+Found identifier: f5
+Operator: =
+Float: 6.022e23f
+Parsed Float: 602200013124147498450944.000000
+Separator: ;
+Keyword: float
+Found identifier: f6
+Operator: =
+Operator: -
+Float: 1.602e-19f
+Parsed Float: 0.000000
+Separator: ;
+Keyword: float
+Found identifier: f7
+Operator: =
+Float: 1_234.567_89f
+Parsed Float: 1234.567871
+Separator: ;
+Keyword: float
+Found identifier: f8
+Operator: =
+Float: 1.0e+38f
+Parsed Float: 99999996802856924650656260769173209088.000000
+Separator: ;
+Keyword: float
+Found identifier: f9
+Operator: =
+Float: 1.0e-38f
+Parsed Float: 0.000000
+Separator: ;
+Keyword: double
+Found identifier: d0
+Operator: =
+Float: 0.0
+Parsed Float: 0.000000
+Separator: ;
+Keyword: double
+Found identifier: d1
+Operator: =
+Float: 3.141592653589793
+Parsed Float: 3.141593
+Separator: ;
+Keyword: double
+Found identifier: d2
+Operator: =
+Operator: -
+Float: 2.718281828459045
+Parsed Float: 2.718282
+Separator: ;
+Keyword: double
+Found identifier: d3
+Operator: =
+Float: 1.2345_6789
+Parsed Float: 1.234568
+Separator: ;
+Keyword: double
+Found identifier: d4
+Operator: =
+Float: .125
+Parsed Float: 0.125000
+Separator: ;
+Keyword: double
+Found identifier: d5
+Operator: =
+Float: 1.0e308
+Warning: Float value exceeds range, truncated to FLT_MAX.
+Parsed Float: 340282346638528859811704183484516925440.000000
+Separator: ;
+Keyword: double
+Found identifier: d6
+Operator: =
+Float: 1.0e-308
+Parsed Float: 0.000000
+Separator: ;
+Keyword: real
+Found identifier: r0
+Operator: =
+Float: 0.0L
+Parsed Float: 0.000000
+Separator: ;
+Keyword: real
+Found identifier: r1
+Operator: =
+Float: 2.99792458e8L
+Parsed Float: 299792448.000000
+Separator: ;
+Keyword: real
+Found identifier: r2
+Operator: =
+Operator: -
+Float: 6.62607015e-34L
+Parsed Float: 0.000000
+Separator: ;
+Keyword: real
+Found identifier: r3
+Operator: =
+Float: 1.234_567L
+Parsed Float: 1.234567
+Separator: ;
+Keyword: real
+Found identifier: r4
+Operator: =
+Float: .000001L
+Parsed Float: 0.000001
+Separator: ;
+Keyword: real
+Found identifier: r5
+Operator: =
+Float: 1.0e4932L
+Warning: Float value exceeds range, truncated to FLT_MAX.
+Parsed Float: 340282346638528859811704183484516925440.000000
+Separator: ;
+Keyword: real
+Found identifier: r6
+Operator: =
+Float: 1.0e-4932L
+Parsed Float: 0.000000
+Separator: ;
+Separator: }

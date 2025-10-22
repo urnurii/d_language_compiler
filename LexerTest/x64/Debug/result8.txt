@@ -1,6 +1,6 @@
 Keyword: class
 Found identifier: Animal
-Operator: {
+Separator: {
 Keyword: int
 Found identifier: age
 Separator: ;
@@ -8,34 +8,34 @@ Keyword: void
 Found identifier: speak
 Separator: (
 Separator: )
-Operator: {
-Operator: }
-Operator: }
+Separator: {
+Separator: }
+Separator: }
 Keyword: class
 Found identifier: Dog
 Operator: :
 Found identifier: Animal
-Operator: {
+Separator: {
 Keyword: override
 Keyword: void
 Found identifier: speak
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: callSuper
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: super
 Operator: .
 Found identifier: speak
 Separator: (
 Separator: )
 Separator: ;
-Operator: }
-Operator: }
+Separator: }
+Separator: }
 Found identifier: Animal
 Found identifier: animal
 Operator: =
@@ -49,6 +49,7 @@ Operator: .
 Found identifier: age
 Operator: =
 Int: 3
+Parsed Int: 3
 Separator: ;
 Found identifier: animal
 Operator: .

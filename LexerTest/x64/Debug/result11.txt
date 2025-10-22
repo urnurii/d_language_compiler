@@ -7,7 +7,7 @@ Keyword: void
 Found identifier: main
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: bool
 Found identifier: a
 Operator: =
@@ -22,11 +22,13 @@ Keyword: int
 Found identifier: x
 Operator: =
 Int: 5
+Parsed Int: 5
 Separator: ;
 Keyword: int
 Found identifier: y
 Operator: =
 Int: 0
+Parsed Int: 0
 Separator: ;
 Keyword: bool
 Found identifier: andResult1
@@ -49,12 +51,14 @@ Separator: (
 Found identifier: x
 Operator: >
 Int: 0
+Parsed Int: 0
 Separator: )
 Operator: &&
 Separator: (
 Found identifier: y
 Operator: ==
 Int: 0
+Parsed Int: 0
 Separator: )
 Separator: ;
 Keyword: bool
@@ -78,12 +82,14 @@ Separator: (
 Found identifier: x
 Operator: ==
 Int: 0
+Parsed Int: 0
 Separator: )
 Operator: ||
 Separator: (
 Found identifier: y
 Operator: ==
 Int: 0
+Parsed Int: 0
 Separator: )
 Separator: ;
 Keyword: bool
@@ -106,6 +112,7 @@ Separator: (
 Found identifier: x
 Operator: ==
 Int: 0
+Parsed Int: 0
 Separator: )
 Separator: ;
 Keyword: bool
@@ -122,6 +129,7 @@ Separator: (
 Found identifier: x
 Operator: >
 Int: 0
+Parsed Int: 0
 Separator: )
 Separator: ;
-Operator: }
+Separator: }

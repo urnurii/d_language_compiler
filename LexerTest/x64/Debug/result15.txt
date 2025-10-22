@@ -5,43 +5,48 @@ Found identifier: stdio
 Separator: ;
 Keyword: enum
 Found identifier: Color
-Operator: {
+Separator: {
 Found identifier: RED
 Separator: ,
 Found identifier: GREEN
 Separator: ,
 Found identifier: BLUE
-Operator: }
+Separator: }
 Keyword: enum
 Found identifier: Status
-Operator: {
+Separator: {
 Found identifier: PENDING
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ,
 Found identifier: APPROVED
 Operator: =
 Int: 2
+Parsed Int: 2
 Separator: ,
 Found identifier: REJECTED
 Operator: =
 Int: 3
-Operator: }
+Parsed Int: 3
+Separator: }
 Keyword: enum
-Operator: {
+Separator: {
 Found identifier: SUCCESS
 Operator: =
 Int: 0
+Parsed Int: 0
 Separator: ,
 Found identifier: FAILURE
 Operator: =
 Int: 1
-Operator: }
+Parsed Int: 1
+Separator: }
 Keyword: enum
 Found identifier: Weekday
 Operator: :
 Found identifier: byte
-Operator: {
+Separator: {
 Found identifier: MON
 Separator: ,
 Found identifier: TUE
@@ -55,12 +60,12 @@ Separator: ,
 Found identifier: SAT
 Separator: ,
 Found identifier: SUN
-Operator: }
+Separator: }
 Keyword: void
 Found identifier: main
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Found identifier: Color
 Found identifier: favorite
 Operator: =
@@ -87,4 +92,4 @@ Found identifier: Weekday
 Operator: .
 Found identifier: MON
 Separator: ;
-Operator: }
+Separator: }

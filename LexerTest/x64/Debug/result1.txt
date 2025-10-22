@@ -2,6 +2,7 @@ Keyword: int
 Found identifier: a
 Operator: =
 Int: 10
+Parsed Int: 10
 Separator: ;
 Keyword: char
 Found identifier: c
@@ -25,22 +26,27 @@ Separator: ;
 Found identifier: a
 Operator: =
 Int: 15
+Parsed Int: 15
 Separator: ;
 Found identifier: b
 Operator: +=
 Int: 3
+Parsed Int: 3
 Separator: ;
 Found identifier: a
 Operator: -=
 Int: 10
+Parsed Int: 10
 Separator: ;
 Found identifier: b
 Operator: *=
 Int: 2
+Parsed Int: 2
 Separator: ;
 Found identifier: a
 Operator: /=
 Int: 5
+Parsed Int: 5
 Separator: ;
 Found identifier: a
 Operator: ==

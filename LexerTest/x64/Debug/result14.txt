@@ -9,24 +9,24 @@ Separator: (
 Keyword: int
 Found identifier: n
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: print
 Separator: (
 Keyword: string
 Found identifier: s
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: print
 Separator: (
 Keyword: double
 Found identifier: d
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: print
 Separator: (
@@ -36,8 +36,8 @@ Separator: ,
 Keyword: int
 Found identifier: b
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: print
 Separator: (
@@ -47,25 +47,25 @@ Separator: ,
 Keyword: int
 Found identifier: n
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: class
 Found identifier: Printer
-Operator: {
+Separator: {
 Keyword: void
 Found identifier: print
 Separator: (
 Keyword: int
 Found identifier: n
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: void
 Found identifier: print
 Separator: (
 Keyword: string
 Found identifier: s
 Separator: )
-Operator: {
-Operator: }
-Operator: }
+Separator: {
+Separator: }
+Separator: }

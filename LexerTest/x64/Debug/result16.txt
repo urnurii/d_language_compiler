@@ -12,11 +12,12 @@ Keyword: void
 Found identifier: main
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: int
 Found identifier: age
 Operator: =
 Int: 25
+Parsed Int: 25
 Separator: ;
 Keyword: string
 Found identifier: name
@@ -27,6 +28,7 @@ Keyword: double
 Found identifier: salary
 Operator: =
 Float: 1234.56
+Parsed Float: 1234.560059
 Separator: ;
 Keyword: char
 Found identifier: grade
@@ -38,8 +40,6 @@ Found identifier: message1
 Operator: =
 Found identifier: format
 Separator: (
-Format specifier: %s
-Format specifier: %d
 Found String literal: Name: %s, Age: %d
 Separator: ,
 Found identifier: name
@@ -52,7 +52,6 @@ Found identifier: message2
 Operator: =
 Found identifier: format
 Separator: (
-Format specifier: %c
 Found String literal: Salary: %.2f, Grade: %c
 Separator: ,
 Found identifier: salary
@@ -65,9 +64,6 @@ Found identifier: details
 Operator: =
 Found identifier: format
 Separator: (
-Format specifier: %s
-Format specifier: %d
-Format specifier: %c
 Found String literal: Employee: %s, Age: %d, Salary: $%.2f, Grade: %c
 Separator: ,
 Found identifier: name
@@ -84,10 +80,10 @@ Found identifier: intFormat
 Operator: =
 Found identifier: format
 Separator: (
-Format specifier: %d
 Found String literal: Decimal: %d
 Separator: ,
 Int: 255
+Parsed Int: 255
 Separator: )
 Separator: ;
 Keyword: string
@@ -95,10 +91,10 @@ Found identifier: floatFormat
 Operator: =
 Found identifier: format
 Separator: (
-Format specifier: %f
 Found String literal: Float: %f
 Separator: ,
 Float: 123.456
+Parsed Float: 123.456001
 Separator: )
 Separator: ;
-Operator: }
+Separator: }

@@ -1,15 +1,19 @@
 Keyword: int
 Operator: [
 Int: 3
+Parsed Int: 3
 Operator: ]
 Found identifier: staticArr
 Operator: =
 Operator: [
 Int: 1
+Parsed Int: 1
 Separator: ,
 Int: 2
+Parsed Int: 2
 Separator: ,
 Int: 3
+Parsed Int: 3
 Operator: ]
 Separator: ;
 Keyword: int
@@ -19,12 +23,16 @@ Found identifier: dynamicArr
 Operator: =
 Operator: [
 Int: 4
+Parsed Int: 4
 Separator: ,
 Int: 5
+Parsed Int: 5
 Separator: ,
 Int: 6
+Parsed Int: 6
 Separator: ,
 Int: 7
+Parsed Int: 7
 Operator: ]
 Separator: ;
 Keyword: int
@@ -52,6 +60,7 @@ Operator: =
 Found identifier: staticArr
 Operator: [
 Int: 0
+Parsed Int: 0
 Operator: ]
 Separator: ;
 Keyword: int
@@ -60,6 +69,7 @@ Operator: =
 Found identifier: dynamicArr
 Operator: [
 Int: 3
+Parsed Int: 3
 Operator: ]
 Separator: ;
 Keyword: int
@@ -70,27 +80,34 @@ Operator: =
 Found identifier: dynamicArr
 Operator: [
 Int: 1
+Parsed Int: 1
 Operator: ..
 Int: 3
+Parsed Int: 3
 Operator: ]
 Separator: ;
 Found identifier: dynamicArr2
 Operator: [
 Int: 100
+Parsed Int: 100
 Operator: ..
 Int: 300
+Parsed Int: 300
 Operator: ]
 Separator: ;
 Found identifier: slice
 Operator: [
 Int: 0
+Parsed Int: 0
 Operator: ]
 Operator: =
 Int: 50
+Parsed Int: 50
 Separator: ;
 Found identifier: arr
 Operator: ~=
 Int: 6
+Parsed Int: 6
 Separator: ;
 Found identifier: words
 Operator: ~=

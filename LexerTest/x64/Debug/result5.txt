@@ -3,25 +3,29 @@ Separator: (
 Found identifier: i
 Operator: <
 Int: 3
+Parsed Int: 3
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: do
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: while
 Separator: (
 Found identifier: j
 Operator: <
 Int: 3
+Parsed Int: 3
 Separator: )
 Separator: ;
 Keyword: for
@@ -30,51 +34,60 @@ Keyword: int
 Found identifier: k
 Operator: =
 Int: 0
+Parsed Int: 0
 Separator: ;
 Found identifier: k
 Operator: <
 Int: 3
+Parsed Int: 3
 Separator: ;
 Found identifier: k
 Operator: +=
 Int: 1
+Parsed Int: 1
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: foreach
 Separator: (
 Found identifier: element
 Separator: ;
 Found identifier: arr
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: for
 Separator: (
 Keyword: int
 Found identifier: m
 Operator: =
 Int: 0
+Parsed Int: 0
 Separator: ;
 Found identifier: m
 Operator: <
 Int: 5
+Parsed Int: 5
 Separator: ;
 Found identifier: m
 Operator: +=
 Int: 1
+Parsed Int: 1
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }

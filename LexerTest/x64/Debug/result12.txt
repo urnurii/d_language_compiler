@@ -5,7 +5,7 @@ Found identifier: stdio
 Separator: ;
 Keyword: class
 Found identifier: AccessExample
-Operator: {
+Separator: {
 Keyword: public
 Keyword: string
 Found identifier: publicField
@@ -29,48 +29,48 @@ Keyword: void
 Found identifier: publicMethod
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: private
 Keyword: void
 Found identifier: privateMethod
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: protected
 Keyword: void
 Found identifier: protectedMethod
 Separator: (
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Keyword: public
 Keyword: void
 Found identifier: accessPrivate
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Found identifier: privateMethod
 Separator: (
 Separator: )
 Separator: ;
-Operator: }
-Operator: }
+Separator: }
+Separator: }
 Keyword: class
 Found identifier: Derived
 Operator: :
 Found identifier: AccessExample
-Operator: {
+Separator: {
 Keyword: public
 Keyword: void
 Found identifier: testProtected
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Found identifier: protectedMethod
 Separator: (
 Separator: )
 Separator: ;
-Operator: }
-Operator: }
+Separator: }
+Separator: }

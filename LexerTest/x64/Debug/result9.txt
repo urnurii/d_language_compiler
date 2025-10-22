@@ -14,21 +14,24 @@ Keyword: void
 Found identifier: main
 Separator: (
 Separator: )
-Operator: {
+Separator: {
 Keyword: float
 Found identifier: f
 Operator: =
 Float: 3.14f
+Parsed Float: 3.140000
 Separator: ;
 Keyword: double
 Found identifier: d
 Operator: =
 Float: 2.718281828459045
+Parsed Float: 2.718282
 Separator: ;
 Keyword: real
 Found identifier: r
 Operator: =
 Float: 1.618033988749895
+Parsed Float: 1.618034
 Separator: ;
 Keyword: float
 Found identifier: sum
@@ -36,6 +39,7 @@ Operator: =
 Found identifier: f
 Operator: +
 Float: 1.0f
+Parsed Float: 1.000000
 Separator: ;
 Keyword: double
 Found identifier: diff
@@ -43,6 +47,7 @@ Operator: =
 Found identifier: d
 Operator: -
 Float: 1.0
+Parsed Float: 1.000000
 Separator: ;
 Keyword: real
 Found identifier: prod
@@ -50,6 +55,7 @@ Operator: =
 Found identifier: r
 Operator: *
 Float: 2.0
+Parsed Float: 2.000000
 Separator: ;
 Keyword: double
 Found identifier: quot
@@ -57,18 +63,22 @@ Operator: =
 Found identifier: d
 Operator: /
 Float: 2.0
+Parsed Float: 2.000000
 Separator: ;
 Keyword: float
 Found identifier: a
 Operator: =
 Float: 0.1f
+Parsed Float: 0.100000
 Operator: +
 Float: 0.2f
+Parsed Float: 0.200000
 Separator: ;
 Keyword: float
 Found identifier: b
 Operator: =
 Float: 0.3f
+Parsed Float: 0.300000
 Separator: ;
 Keyword: if
 Separator: (
@@ -80,15 +90,18 @@ Found identifier: b
 Separator: )
 Operator: <
 Float: 1e-6
+Parsed Float: 0.000001
 Separator: )
-Operator: {
-Operator: }
+Separator: {
+Separator: }
 Found identifier: f
 Operator: +=
 Float: 1.5f
+Parsed Float: 1.500000
 Separator: ;
 Found identifier: d
 Operator: *=
 Float: 2.0
+Parsed Float: 2.000000
 Separator: ;
-Operator: }
+Separator: }

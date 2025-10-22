@@ -3,97 +3,112 @@ Separator: (
 Found identifier: a
 Operator: >
 Int: 5
+Parsed Int: 5
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: if
 Separator: (
 Found identifier: a
 Operator: >
 Found identifier: b
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: else
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: if
 Separator: (
 Found identifier: a
 Operator: >
 Int: 15
+Parsed Int: 15
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: else
 Keyword: if
 Separator: (
 Found identifier: a
 Operator: >
 Int: 10
+Parsed Int: 10
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: else
 Keyword: if
 Separator: (
 Found identifier: a
 Operator: >
 Int: 5
+Parsed Int: 5
 Separator: )
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: else
-Operator: {
+Separator: {
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
-Operator: }
+Separator: }
 Keyword: switch
 Separator: (
 Found identifier: x
 Separator: )
-Operator: {
+Separator: {
 Keyword: case
 Int: 1
+Parsed Int: 1
 Operator: :
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
 Keyword: break
 Separator: ;
 Keyword: case
 Int: 2
+Parsed Int: 2
 Operator: :
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
 Keyword: break
 Separator: ;
@@ -102,6 +117,7 @@ Operator: :
 Found identifier: a
 Operator: =
 Int: 1
+Parsed Int: 1
 Separator: ;
 Keyword: break
 Separator: ;
