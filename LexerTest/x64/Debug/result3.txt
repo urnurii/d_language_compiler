@@ -7,25 +7,25 @@ Separator: ;
 Keyword: int
 Found identifier: a2
 Operator: =
-Int: 0xA (hex)
+Int: 0xA (hex with separators)
 Parsed Int: 10
 Separator: ;
 Keyword: int
 Found identifier: a3
 Operator: =
-Int: 0b1010 (binary)
+Int: 0b1010 (binary with separators)
 Parsed Int: 10
 Separator: ;
 Keyword: int
 Found identifier: a4
 Operator: =
-Int: 0XA (hex)
+Int: 0XA (hex with separators)
 Parsed Int: 10
 Separator: ;
 Keyword: int
 Found identifier: a5
 Operator: =
-Int: 0B1010 (binary)
+Int: 0B1010 (binary with separators)
 Parsed Int: 10
 Separator: ;
 Keyword: int
@@ -75,8 +75,7 @@ Separator: ;
 Keyword: int
 Found identifier: a13
 Operator: =
-Float: 0392
-Parsed Float: 392.000000
+ERROR! Incorrect octal number: 0392 in row: 13
 Separator: ;
 Keyword: char
 Found identifier: c1

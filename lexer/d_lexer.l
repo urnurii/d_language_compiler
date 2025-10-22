@@ -31,7 +31,6 @@ DIGIT [0-9]
 %{
     int line = 1;
     char tmp[8192];
-    char string_buf[8192];
     int string_pos = 0;
     int comment_pos = 0;
     int value_int;
@@ -137,6 +136,7 @@ DIGIT [0-9]
 0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { printf("Int: %s\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 0[bB][01]+(_[01]+)*                                                         { printf("Int: %s (binary with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
+0[0-9]+                                                                     { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
 0[xX][0-9a-fA-F]+(_[0-9a-fA-F]+)*                                           { printf("Int: %s (hex with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 
 {DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                                                                         { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
@@ -157,7 +157,7 @@ DIGIT [0-9]
 <MULTILINE_COMMENT>"*"+\n    { line++; strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+"/"   { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
 
-<MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment with position %d: \n\"%s\" \nisn't closed!\n", tmp, line); BEGIN(INITIAL); }
+<MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment with position %d: \n\"%s\" \nisn't closed!\n", line, tmp); BEGIN(INITIAL); }
 
 [A-Za-z_][A-Za-z0-9_]*       { printf("Found identifier: %s\n", yytext); }
 

@@ -38,7 +38,7 @@ Separator: ;
 Keyword: int
 Found identifier: i5
 Operator: =
-Int: 0b1010 (binary)
+Int: 0b1010 (binary with separators)
 Parsed Int: 10
 Separator: ;
 Keyword: int
@@ -56,15 +56,14 @@ Separator: ;
 Keyword: int
 Found identifier: i8
 Operator: =
-Int: 0xFF (hex)
+Int: 0xFF (hex with separators)
 Parsed Int: 255
 Separator: ;
 Keyword: int
 Found identifier: i9
 Operator: =
-Int: 0xAB (hex)
-Parsed Int: 171
-Found identifier: _CD_EF
+Int: 0xAB_CD_EF (hex with separators)
+Parsed Int: 11259375
 Separator: ;
 Keyword: float
 Found identifier: f0
