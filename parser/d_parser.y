@@ -12,9 +12,10 @@ void yyerror(char const* s) {
 }
 
 %}
+
 // Секция объявлений
 
-%union {
+%union {a
     int int_lit;
     char *identifier;
     char *str_lit;
@@ -22,6 +23,7 @@ void yyerror(char const* s) {
     bool bool_lit;
 }
 
+// Ключевые слова языка
 %token  MODULE
 %token  IMPORT
 %token  CONST
@@ -51,6 +53,7 @@ void yyerror(char const* s) {
 %token  AUTO
 %token  REF
 
+// Типы данных
 %token  INT
 %token  FLOAT
 %token  DOUBLE
@@ -60,13 +63,30 @@ void yyerror(char const* s) {
 %token  STRING
 %token  VOID
 
+// Токены с семантическими значениями
 %token  <int_lit>      INT_LIT
 %token  <float_lit>    FLOAT_LIT
 %token  <bool_lit>     BOOL_LIT
 %token  <identifier>   ID
 %token  <str_lit>      STRING_LIT
 
-%right  '=' '+=' '-=' '*=' '/=' '~='
+// Операторы (многосимвольные - как отдельные токены)
+%token  PLUS_ASSIGN
+%token  MINUS_ASSIGN
+%token  MUL_ASSIGN
+%token  DIV_ASSIGN
+%token  TILDE_ASSIGN
+%token  EQ
+%token  NE
+%token  LE
+%token  GE
+%token  AND_OP
+%token  OR_OP
+%token  INC
+%token  DEC
+
+// Приоритеты и ассоциативность
+%right  '=' PLUS_ASSIGN MINUS_ASSIGN MUL_ASSIGN DIV_ASSIGN TILDE_ASSIGN
 %left   OR_OP
 %left   AND_OP
 %left   EQ NE '<' LE '>' GE
@@ -78,253 +98,350 @@ void yyerror(char const* s) {
 
 %%
 
-program                : module_clause ';' e_import_decl_list ';' e_top_level_decl_list
-                      ;
+// Секция правил грамматики
 
-module_clause          : MODULE ID
-                      ;
+program
+    : module_clause ';' e_import_decl_list ';' e_top_level_decl_list
+    ;
 
-e_import_decl_list     : import_decl_list
-                      |
-                      ;
+module_clause
+    : MODULE ID
+    ;
 
-import_decl_list       : import_decl_list import_decl ';'
-                      | import_decl ';'
-                      ;
+e_import_decl_list
+    : import_decl_list
+    |
+    ;
 
-import_decl            : IMPORT import_spec
-                      | IMPORT '(' e_import_spec_list ')'
-                      ;
+import_decl_list
+    : import_decl_list import_decl ';'
+    | import_decl ';'
+    ;
 
-e_import_spec_list     : import_spec_list
-                      |
-                      ;
+import_decl
+    : IMPORT import_spec
+    | IMPORT '(' e_import_spec_list ')'
+    ;
 
-import_spec_list       : import_spec_list import_spec ';'
-                      | import_spec ';'
-                      ;
+e_import_spec_list
+    : import_spec_list
+    |
+    ;
 
-import_spec            : STRING_LIT
-                      | '.' STRING_LIT
-                      | STRING_LIT STRING_LIT
-                      ;
+import_spec_list
+    : import_spec_list import_spec ';'
+    | import_spec ';'
+    ;
 
-e_top_level_decl_list  : top_level_decl_list
-                      |
-                      ;
+import_spec
+    : STRING_LIT
+    | '.' STRING_LIT
+    | STRING_LIT STRING_LIT
+    ;
 
-top_level_decl_list    : top_level_decl_list top_level_decl ';'
-                      | top_level_decl ';'
-                      ;
+e_top_level_decl_list
+    : top_level_decl_list
+    |
+    ;
 
-top_level_decl         : decl
-                      | func_decl
-                      | class_decl
-                      | enum_decl
-                      ;
+top_level_decl_list
+    : top_level_decl_list top_level_decl ';'
+    | top_level_decl ';'
+    ;
 
-decl                   : const_decl
-                      | var_decl
-                      ;
+top_level_decl
+    : decl
+    | func_decl
+    | class_decl
+    | enum_decl
+    ;
 
-func_decl              : FUNC ID signature
-                      | FUNC ID signature block
-                      ;
+decl
+    : const_decl
+    | var_decl
+    ;
 
-signature              : params results
-                      | params
-                      ;
+func_decl
+    : FUNC ID signature
+    | FUNC ID signature block
+    ;
 
-params                 : '(' param_list ')'
-                      ;
+signature
+    : params results
+    | params
+    ;
 
-param_list             : param_list ',' param_decl
-                      | param_decl
-                      ;
+params
+    : '(' param_list ')'
+    | '(' ')'
+    ;
 
-param_decl             : id_list type
-                      | type
-                      ;
+param_list
+    : param_list ',' param_decl
+    | param_decl
+    ;
 
-results                : params
-                      | type
-                      ;
+param_decl
+    : id_list type
+    | type
+    ;
 
-block                  : '{' stmt_list '}'
-                      ;
+results
+    : params
+    | type
+    ;
 
-stmt_list              : stmt_list stmt ';'
-                      | stmt ';'
-                      ;
+block
+    : '{' stmt_list '}'
+    | '{' '}'
+    ;
 
-stmt                   : decl
-                      | simple_stmt
-                      | return_stmt
-                      | BREAK
-                      | CONTINUE
-                      | block
-                      | if_stmt
-                      | switch_stmt
-                      | for_stmt
-                      | while_stmt
-                      | do_while_stmt
-                      | foreach_stmt
-                      ;
+stmt_list
+    : stmt_list stmt ';'
+    | stmt ';'
+    ;
 
-simple_stmt            : expr
-                      | expr INC
-                      | expr DEC
-                      | expr_list '=' expr_list
-                      | id_list '+=' expr_list
-                      | id_list '-=' expr_list
-                      | id_list '*=' expr_list
-                      | id_list '/=' expr_list
-                      | id_list '~=' expr_list
-                      ;
+stmt
+    : decl
+    | simple_stmt
+    | return_stmt
+    | BREAK
+    | CONTINUE
+    | block
+    | if_stmt
+    | switch_stmt
+    | for_stmt
+    | while_stmt
+    | do_while_stmt
+    | foreach_stmt
+    ;
 
-return_stmt            : RETURN
-                      | RETURN expr_list
-                      ;
+simple_stmt
+    : expr
+    | expr INC
+    | expr DEC
+    | expr_list '=' expr_list
+    | id_list PLUS_ASSIGN expr_list
+    | id_list MINUS_ASSIGN expr_list
+    | id_list MUL_ASSIGN expr_list
+    | id_list DIV_ASSIGN expr_list
+    | id_list TILDE_ASSIGN expr_list
+    ;
 
-const_decl             : CONST const_spec
-                      | '(' const_spec_list ')'
-                      ;
+return_stmt
+    : RETURN
+    | RETURN expr_list
+    ;
 
-const_spec_list        : const_spec_list const_spec ';'
-                      | const_spec ';'
-                      ;
+const_decl
+    : CONST const_spec
+    | CONST '(' const_spec_list ')'
+    ;
 
-const_spec             : id_list
-                      | id_list '=' expr_list
-                      | id_list type '=' expr_list
-                      ;
+const_spec_list
+    : const_spec_list ';' const_spec
+    | const_spec ';'
+    ;
 
-var_decl               : VAR var_spec
-                      | VAR '(' var_spec_list ')'
-                      ;
+const_spec
+    : id_list
+    | id_list '=' expr_list
+    | id_list type '=' expr_list
+    ;
 
-var_spec_list          : var_spec_list ';' var_spec
-                      | var_spec ';'
-                      ;
+var_decl
+    : VAR var_spec
+    | VAR '(' var_spec_list ')'
+    ;
 
-var_spec               : id_list type
-                      | id_list type '=' expr_list
-                      | id_list '=' expr_list
-                      ;
+var_spec_list
+    : var_spec_list ';' var_spec
+    | var_spec ';'
+    ;
 
-id_list                : id_list ',' ID
-                      | ID
-                      ;
+var_spec
+    : id_list type
+    | id_list type '=' expr_list
+    | id_list '=' expr_list
+    ;
 
-type                   : type_name
-                      | type_name '[' type_list ']'
-                      | type_lit
-                      ;
+id_list
+    : id_list ',' ID
+    | ID
+    ;
 
-type_name              : INT
-                      | FLOAT
-                      | DOUBLE
-                      | REAL
-                      | BOOL
-                      | CHAR
-                      | STRING
-                      | VOID
-                      | ID
-                      ;
+type
+    : type_name
+    | type_name '[' type_list ']'
+    | type_lit
+    ;
 
-type_list              : type_list ',' type
-                      | type
-                      ;
+type_name
+    : INT
+    | FLOAT
+    | DOUBLE
+    | REAL
+    | BOOL
+    | CHAR
+    | STRING
+    | VOID
+    | ID
+    ;
 
-type_lit               : array_type
-                      | func_type
-                      | slice_type
-                      ;
+type_list
+    : type_list ',' type
+    | type
+    ;
 
-array_type             : '[' expr ']' type
-                      ;
+type_lit
+    : array_type
+    | func_type
+    | slice_type
+    ;
 
-func_type              : FUNC signature
-                      ;
+array_type
+    : '[' expr ']' type
+    ;
 
-slice_type             : '[' ']' type
-                      ;
+func_type
+    : FUNC signature
+    ;
 
-expr_list              : expr_list ',' expr
-                      | expr
-                      ;
+slice_type
+    : '[' ']' type
+    ;
 
-expr                   : primary_expr
-                      | INT_LIT
-                      | FLOAT_LIT
-                      | STRING_LIT
-                      | BOOL_LIT
-                      | expr '+' expr
-                      | expr '-' expr
-                      | expr '*' expr
-                      | expr '/' expr
-                      | expr EQ expr
-                      | expr NE expr
-                      | expr '<' expr
-                      | expr '>' expr
-                      | expr LE expr
-                      | expr GE expr
-                      | expr AND_OP expr
-                      | expr OR_OP expr
-                      | '!' expr
-                      | '-' expr %prec UMINUS
-                      ;
+expr_list
+    : expr_list ',' expr
+    | expr
+    ;
 
-primary_expr           : operand
-                      | primary_expr '[' expr ']'
-                      | primary_expr '[' ':' ']'
-                      | primary_expr '[' expr ':' ']'
-                      | primary_expr '[' ':' expr ']'
-                      | primary_expr '[' expr ':' expr ']'
-                      | primary_expr '[' ':' expr ':' expr ']'
-                      | primary_expr '[' expr ':' expr ':' expr ']'
-                      ;
+expr
+    : primary_expr
+    | INT_LIT
+    | FLOAT_LIT
+    | STRING_LIT
+    | BOOL_LIT
+    | expr '+' expr
+    | expr '-' expr
+    | expr '*' expr
+    | expr '/' expr
+    | expr EQ expr
+    | expr NE expr
+    | expr '<' expr
+    | expr '>' expr
+    | expr LE expr
+    | expr GE expr
+    | expr AND_OP expr
+    | expr OR_OP expr
+    | '!' expr
+    | '-' expr %prec UMINUS
+    ;
 
-operand                : operand_name
-                      | operand_name '[' type_list ']'
-                      | '(' expr ')'
-                      ;
+primary_expr
+    : operand
+    | primary_expr '[' expr ']'
+    | primary_expr '[' ':' ']'
+    | primary_expr '[' expr ':' ']'
+    | primary_expr '[' ':' expr ']'
+    | primary_expr '[' expr ':' expr ']'
+    | primary_expr '[' ':' expr ':' expr ']'
+    | primary_expr '[' expr ':' expr ':' expr ']'
+    ;
 
-operand_name           : ID
-                      | THIS
-                      | SUPER
-                      ;
+operand
+    : operand_name
+    | operand_name '[' type_list ']'
+    | '(' expr ')'
+    ;
 
-class_decl             : CLASS ID class_inherit_opt '{' class_body_opt '}'
-                      ;
-class_inherit_opt      : ':' ID
-                      |
-                      ;
-class_body_opt         : class_body
-                      |
-                      ;
-class_body             : class_body class_member
-                      | class_member
-                      ;
-class_member           : decl ';'
-                      | func_decl
-                      ;
+operand_name
+    : ID
+    | THIS
+    | SUPER
+    ;
 
-enum_decl              : ENUM ID '{' enum_member_list '}'
-                      ;
-enum_member_list       : enum_member_list ',' enum_member
-                      | enum_member
-                      ;
-enum_member            : ID
-                      | ID '=' expr
-                      ;
+if_stmt
+    : IF '(' expr ')' block
+    | IF '(' expr ')' block ELSE block
+    | IF '(' expr ')' block ELSE if_stmt
+    ;
 
-while_stmt             : WHILE '(' expr ')' block
-                      ;
-do_while_stmt          : DO block WHILE '(' expr ')' ';'
-                      ;
-foreach_stmt           : FOREACH '(' ID ':' expr ')' block
-                      ;
+switch_stmt
+    : SWITCH '(' expr ')' '{' case_list '}'
+    | SWITCH '{' case_list '}'
+    ;
+
+case_list
+    : case_list case_item
+    | case_item
+    ;
+
+case_item
+    : CASE expr ':' stmt_list
+    | DEFAULT ':' stmt_list
+    ;
+
+for_stmt
+    : FOR '(' simple_stmt ';' expr ';' simple_stmt ')' block
+    | FOR '(' ';' expr ';' ')' block
+    | FOR '(' ';' ';' ')' block
+    | FOR expr block
+    ;
+
+while_stmt
+    : WHILE '(' expr ')' block
+    ;
+
+do_while_stmt
+    : DO block WHILE '(' expr ')' ';'
+    ;
+
+foreach_stmt
+    : FOREACH '(' ID ':' expr ')' block
+    | FOREACH '(' type ID ':' expr ')' block
+    ;
+
+class_decl
+    : CLASS ID class_inherit_opt '{' class_body_opt '}'
+    ;
+
+class_inherit_opt
+    : ':' ID
+    |
+    ;
+
+class_body_opt
+    : class_body
+    |
+    ;
+
+class_body
+    : class_body class_member
+    | class_member
+    ;
+
+class_member
+    : decl ';'
+    | func_decl
+    | OVERRIDE func_decl
+    ;
+
+enum_decl
+    : ENUM ID '{' enum_member_list '}'
+    | ENUM ID '{' enum_member_list ',' '}'
+    ;
+
+enum_member_list
+    : enum_member_list ',' enum_member
+    | enum_member
+    ;
+
+enum_member
+    : ID
+    | ID '=' expr
+    ;
 
 %%
+
 // Секция пользовательского кода
