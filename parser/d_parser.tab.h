@@ -107,8 +107,7 @@ extern int yydebug;
     AND_OP = 308,                  /* AND_OP  */
     OR_OP = 309,                   /* OR_OP  */
     INC = 310,                     /* INC  */
-    DEC = 311,                     /* DEC  */
-    UMINUS = 312                   /* UMINUS  */
+    DEC = 311                      /* DEC  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -117,7 +116,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 18 "d_parser.y"
+#line 24 "d_parser.y"
 
     int int_lit;
     char *identifier;
@@ -125,7 +124,7 @@ union YYSTYPE
     float float_lit;
     bool bool_lit;
 
-#line 129 "d_parser.tab.h"
+#line 128 "d_parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
