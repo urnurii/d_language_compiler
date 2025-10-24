@@ -2,8 +2,17 @@
     int a = 10;
    
     char c = 'A';
+
+    char c2 = 'AE';
+
+    char c3 = 'A
+';
     
     string s1 = "Hello, D!";
+
+    string s1 = "Hello, 
+
+language!";
 
     bool b = true;
     b = false;

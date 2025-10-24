@@ -9,10 +9,28 @@ Found identifier: c
 Operator: =
 Found Char literal: A
 Separator: ;
+Keyword: char
+Found identifier: c2
+Operator: =
+ERROR! char length != 1 in row: 6
+Separator: ;
+Keyword: char
+Found identifier: c3
+Operator: =
+ERROR! line break found in char literal in row: 8
+Found Char literal: A
+Separator: ;
 Keyword: string
 Found identifier: s1
 Operator: =
 Found String literal: Hello, D!
+Separator: ;
+Keyword: string
+Found identifier: s1
+Operator: =
+Found String literal: Hello, 
+
+language!
 Separator: ;
 Keyword: bool
 Found identifier: b

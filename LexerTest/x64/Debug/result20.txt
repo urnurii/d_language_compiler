@@ -1,0 +1,761 @@
+Found comment:  Однострочный комментарий с разными символами !@#$%
+Found multiline comment:  Многострочный комментарий
+   может содержать * символы
+   и переносы строк 
+Found comment:  Тестирование ключевых слов
+Keyword: int
+Found identifier: main
+Separator: (
+Separator: )
+Separator: {
+Found comment:  Все типы данных
+Keyword: int
+Found identifier: x
+Separator: ;
+Keyword: char
+Found identifier: c
+Separator: ;
+Keyword: string
+Found identifier: s
+Separator: ;
+Keyword: bool
+Found identifier: flag
+Separator: ;
+Keyword: float
+Found identifier: f
+Separator: ;
+Keyword: double
+Found identifier: d
+Separator: ;
+Keyword: real
+Found identifier: r
+Separator: ;
+Found comment:  Модификаторы доступа и другие ключевые слова
+Keyword: public
+Keyword: class
+Found identifier: MyClass
+Separator: {
+Keyword: private
+Keyword: int
+Found identifier: value
+Separator: ;
+Keyword: protected
+Keyword: string
+Found identifier: name
+Separator: ;
+Keyword: public
+Keyword: override
+Keyword: void
+Found identifier: method
+Separator: (
+Separator: )
+Separator: {
+Keyword: auto
+Found identifier: temp
+Operator: =
+Keyword: new
+Found identifier: MyClass
+Separator: (
+Separator: )
+Separator: ;
+Keyword: this
+Operator: .
+Found identifier: value
+Operator: =
+Int: 42
+Parsed Int: 42
+Separator: ;
+Keyword: super
+Operator: .
+Found identifier: method
+Separator: (
+Separator: )
+Separator: ;
+Separator: }
+Separator: }
+Keyword: enum
+Found identifier: Color
+Separator: {
+Found identifier: RED
+Separator: ,
+Found identifier: GREEN
+Separator: ,
+Found identifier: BLUE
+Separator: }
+Found comment:  Управляющие конструкции
+Keyword: if
+Separator: (
+Bool: true
+Separator: )
+Separator: {
+Keyword: return
+Int: 0
+Parsed Int: 0
+Separator: ;
+Separator: }
+Keyword: else
+Separator: {
+Keyword: while
+Separator: (
+Bool: false
+Separator: )
+Separator: {
+Keyword: break
+Separator: ;
+Separator: }
+Keyword: for
+Separator: (
+Keyword: int
+Found identifier: i
+Operator: =
+Int: 0
+Parsed Int: 0
+Separator: ;
+Found identifier: i
+Operator: <
+Int: 10
+Parsed Int: 10
+Separator: ;
+Found identifier: i
+Operator: +
+Operator: +
+Separator: )
+Separator: {
+Keyword: continue
+Separator: ;
+Separator: }
+Keyword: foreach
+Separator: (
+Found identifier: item
+Separator: ;
+Found identifier: collection
+Separator: )
+Separator: {
+Found comment:  тело цикла
+Separator: }
+Keyword: do
+Separator: {
+Found comment:  что-то делаем
+Separator: }
+Keyword: while
+Separator: (
+Found identifier: condition
+Separator: )
+Separator: ;
+Keyword: switch
+Separator: (
+Found identifier: value
+Separator: )
+Separator: {
+Keyword: case
+Int: 1
+Parsed Int: 1
+Operator: :
+Keyword: break
+Separator: ;
+Keyword: default
+Operator: :
+Keyword: break
+Separator: ;
+Separator: }
+Separator: }
+Found comment:  Спецзначения
+Keyword: void
+Operator: *
+Found identifier: ptr
+Operator: =
+Null: null
+Separator: ;
+Keyword: double
+Found identifier: nan
+Operator: =
+NaN: NaN
+Separator: ;
+Keyword: bool
+Found identifier: t
+Operator: =
+Bool: true
+Separator: ;
+Keyword: bool
+Found identifier: f
+Operator: =
+Bool: false
+Separator: ;
+Found comment:  ТЕСТ ЦЕЛЫХ ЧИСЕЛ - спорные случаи
+Found comment:  Обычные десятичные
+Keyword: int
+Found identifier: dec1
+Operator: =
+Int: 0
+Parsed Int: 0
+Separator: ;
+Found comment:  ноль
+Keyword: int
+Found identifier: dec2
+Operator: =
+Int: 123
+Parsed Int: 123
+Separator: ;
+Found comment:  обычное число
+Keyword: int
+Found identifier: dec3
+Operator: =
+Int: 1_000_000
+Parsed Int: 1000000
+Separator: ;
+Found comment:  с разделителями
+Found comment:  Двоичные
+Keyword: int
+Found identifier: bin1
+Operator: =
+Int: 0b1010 (binary with separators)
+Parsed Int: 10
+Separator: ;
+Found comment:  двоичное
+Keyword: int
+Found identifier: bin2
+Operator: =
+Int: 0B1111_0000 (binary with separators)
+Parsed Int: 240
+Separator: ;
+Found comment:  двоичное с разделителями (если поддерживается)
+Found comment:  Восьмеричные - СПОРНЫЕ СЛУЧАИ
+Keyword: int
+Found identifier: oct1
+Operator: =
+Int: 0777 (octal)
+Parsed Int: 511
+Separator: ;
+Found comment:  корректное восьмеричное
+Keyword: int
+Found identifier: oct2
+Operator: =
+Int: 0123 (octal)
+Parsed Int: 83
+Separator: ;
+Found comment:  корректное восьмеричное
+Keyword: int
+Found identifier: oct3
+Operator: =
+ERROR! Incorrect octal number: 0899 in row: 79
+Separator: ;
+Found comment:  ОШИБКА! содержит недопустимые цифры 8,9
+Found comment:  Шестнадцатеричные
+Keyword: int
+Found identifier: hex1
+Operator: =
+Int: 0xFF (hex with separators)
+Parsed Int: 255
+Separator: ;
+Found comment:  шестнадцатеричное
+Keyword: int
+Found identifier: hex2
+Operator: =
+Int: 0xDEAD_BEEF (hex with separators)
+Parsed Int: 2147483647
+Separator: ;
+Found comment:  с разделителями (если поддерживается)
+Keyword: int
+Found identifier: hex3
+Operator: =
+Int: 0X123abc (hex with separators)
+Parsed Int: 1194684
+Separator: ;
+Found comment:  смешанный регистр
+Found comment:  ТЕСТ ЧИСЕЛ С ПЛАВАЮЩЕЙ ТОЧКОЙ
+Found comment:  Обычные формы
+Keyword: float
+Found identifier: f1
+Operator: =
+Float: 3.14
+Parsed Float: 3.140000
+Separator: ;
+Found comment:  обычная дробь
+Keyword: float
+Found identifier: f2
+Operator: =
+Int: 123
+Parsed Int: 123
+Operator: .
+Separator: ;
+Found comment:  без дробной части
+Keyword: float
+Found identifier: f3
+Operator: =
+Float: .5
+Parsed Float: 0.500000
+Separator: ;
+Found comment:  СПОРНЫЙ! начинается с точки
+Keyword: float
+Found identifier: f4
+Operator: =
+Float: 1.5f
+Parsed Float: 1.500000
+Separator: ;
+Found comment:  с суффиксом f
+Keyword: float
+Found identifier: f5
+Operator: =
+Float: 2.0F
+Parsed Float: 2.000000
+Separator: ;
+Found comment:  с суффиксом F
+Found comment:  Экспоненциальная запись
+Keyword: double
+Found identifier: e1
+Operator: =
+Float: 1e10
+Parsed Float: 10000000000.000000
+Separator: ;
+Found comment:  простая экспонента
+Keyword: double
+Found identifier: e2
+Operator: =
+Float: 2.5e-3
+Parsed Float: 0.002500
+Separator: ;
+Found comment:  отрицательная экспонента
+Keyword: double
+Found identifier: e3
+Operator: =
+Float: 1E+5
+Parsed Float: 100000.000000
+Separator: ;
+Found comment:  положительная экспонента
+Keyword: double
+Found identifier: e4
+Operator: =
+Float: 6.02e23f
+Parsed Float: 602000017271895229464576.000000
+Separator: ;
+Found comment:  с суффиксом
+Found comment:  ТЕСТ СИМВОЛЬНЫХ И СТРОКОВЫХ ЛИТЕРАЛОВ
+Found comment:  Обычные символы
+Keyword: char
+Found identifier: ch1
+Operator: =
+Found Char literal: a
+Separator: ;
+Keyword: char
+Found identifier: ch2
+Operator: =
+Found Char literal: Z
+Separator: ;
+Keyword: char
+Found identifier: ch3
+Operator: =
+Found Char literal: 0
+Separator: ;
+Found comment:  Спецсимволы
+Keyword: char
+Found identifier: esc1
+Operator: =
+Found Char literal: 
+
+Separator: ;
+Found comment:  перенос строки
+Keyword: char
+Found identifier: esc2
+Operator: =
+Found Char literal: 	
+Separator: ;
+Found comment:  табуляция
+Keyword: char
+Found identifier: esc3
+Operator: =
+Found Char literal: \
+Separator: ;
+Found comment:  обратный слеш
+Keyword: char
+Found identifier: esc4
+Operator: =
+Found Char literal: '
+Separator: ;
+Found comment:  апостроф
+Keyword: char
+Found identifier: esc5
+Operator: =
+Found Char literal: "
+Separator: ;
+Found comment:  кавычка
+Keyword: char
+Found identifier: esc6
+Operator: =
+Found Char literal: 
+Separator: ;
+Found comment:  backspace
+Keyword: char
+Found identifier: esc7
+Operator: =
+Found Char literal: 
+Separator: ;
+Found comment:  form feed
+Keyword: char
+Found identifier: esc8
+Operator: =
+Found Char literal: 
+Separator: ;
+Found comment:  возврат каретки
+Keyword: char
+Found identifier: esc9
+Operator: =
+Found Char literal: 
+Separator: ;
+Found comment:  вертикальная табуляция
+Keyword: char
+Found identifier: esc10
+Operator: =
+Found Char literal: ?
+Separator: ;
+Found comment:  знак вопроса
+Found comment:  Восьмеричные и шестнадцатеричные коды
+Keyword: char
+Found identifier: oct_char
+Operator: =
+Found Char literal: A
+Separator: ;
+Found comment:  восьмеричный код (A)
+Keyword: char
+Found identifier: hex_char
+Operator: =
+Found Char literal: A
+Separator: ;
+Found comment:  шестнадцатеричный код (A)
+Found comment:  СПОРНЫЕ символы - проверка обработки ошибок
+Keyword: char
+Found identifier: error1
+Operator: =
+ERROR! char length != 1 in row: 125
+Separator: ;
+Found comment:  ОШИБКА! более одного символа
+Keyword: char
+Found identifier: error2
+Operator: =
+ERROR! char length != 1 in row: 126
+Separator: ;
+Found comment:  ОШИБКА! пустой символ
+Found comment:  Строки
+Keyword: string
+Found identifier: str1
+Operator: =
+Found String literal: Hello World
+Separator: ;
+Keyword: string
+Found identifier: str2
+Operator: =
+Found String literal: String with
+escapes	andspecial\chars
+Separator: ;
+Keyword: string
+Found identifier: str3
+Operator: =
+Found String literal: Hex: Hello
+Separator: ;
+Found comment:  Hello в hex
+Keyword: string
+Found identifier: str4
+Operator: =
+Found String literal: Octal: Hello
+Separator: ;
+Found comment:  Hello в восьмеричном
+Found comment:  Строки с форматированием
+Keyword: string
+Found identifier: fmt1
+Operator: =
+Found String literal: Number: %d
+Separator: ;
+Keyword: string
+Found identifier: fmt2
+Operator: =
+Found String literal: Float: %f
+Separator: ;
+Keyword: string
+Found identifier: fmt3
+Operator: =
+Found String literal: String: %s
+Separator: ;
+Keyword: string
+Found identifier: fmt4
+Operator: =
+Found String literal: Char: %c
+Separator: ;
+Found comment:  СПОРНЫЕ строки
+Keyword: string
+Found identifier: empty
+Operator: =
+Found String literal: 
+Separator: ;
+Found comment:  пустая строка
+Keyword: string
+Found identifier: quote
+Operator: =
+Found String literal: String with " quote inside
+Separator: ;
+Found comment:  ТЕСТ ОПЕРАТОРОВ
+Found comment:  Арифметические
+Keyword: int
+Found identifier: result
+Operator: =
+Found identifier: a
+Operator: +
+Found identifier: b
+Operator: -
+Found identifier: c
+Operator: *
+Found identifier: d
+Operator: /
+Found identifier: e
+Separator: ;
+Found comment:  Присваивания
+Found identifier: x
+Operator: =
+Int: 5
+Parsed Int: 5
+Separator: ;
+Found identifier: x
+Operator: +=
+Int: 10
+Parsed Int: 10
+Separator: ;
+Found identifier: x
+Operator: -=
+Int: 3
+Parsed Int: 3
+Separator: ;
+Found identifier: x
+Operator: *=
+Int: 2
+Parsed Int: 2
+Separator: ;
+Found identifier: x
+Operator: /=
+Int: 4
+Parsed Int: 4
+Separator: ;
+Found comment:  Сравнения
+Keyword: bool
+Found identifier: cmp1
+Operator: =
+Separator: (
+Found identifier: a
+Operator: ==
+Found identifier: b
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: cmp2
+Operator: =
+Separator: (
+Found identifier: a
+Operator: !=
+Found identifier: b
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: cmp3
+Operator: =
+Separator: (
+Found identifier: a
+Operator: <
+Found identifier: b
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: cmp4
+Operator: =
+Separator: (
+Found identifier: a
+Operator: <=
+Found identifier: b
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: cmp5
+Operator: =
+Separator: (
+Found identifier: a
+Operator: >
+Found identifier: b
+Separator: )
+Separator: ;
+Keyword: bool
+Found identifier: cmp6
+Operator: =
+Separator: (
+Found identifier: a
+Operator: >=
+Found identifier: b
+Separator: )
+Separator: ;
+Found comment:  Логические
+Keyword: bool
+Found identifier: logic1
+Operator: =
+Found identifier: flag1
+Operator: &&
+Found identifier: flag2
+Separator: ;
+Keyword: bool
+Found identifier: logic2
+Operator: =
+Found identifier: flag1
+Operator: ||
+Found identifier: flag2
+Separator: ;
+Keyword: bool
+Found identifier: logic3
+Operator: =
+Operator: !
+Found identifier: flag1
+Separator: ;
+Found comment:  Доступ к членам и диапазоны
+Found identifier: obj
+Operator: .
+Found identifier: member
+Operator: =
+Found identifier: value
+Separator: ;
+Keyword: int
+Found identifier: range
+Operator: =
+Int: 1
+Parsed Int: 1
+Operator: ..
+Int: 10
+Parsed Int: 10
+Separator: ;
+Found comment:  СПОРНЫЙ! диапазон
+Found comment:  РАЗДЕЛИТЕЛИ И СКОБКИ
+Found identifier: array
+Operator: [
+Found identifier: index
+Operator: ]
+Operator: =
+Separator: {
+Found identifier: element1
+Separator: ,
+Found identifier: element2
+Separator: }
+Separator: ;
+Found identifier: function
+Separator: (
+Found identifier: param1
+Separator: ,
+Found identifier: param2
+Separator: )
+Separator: ;
+Found identifier: label
+Operator: :
+Found identifier: statement
+Separator: ;
+Found comment:  ТЕСТ ИДЕНТИФИКАТОРОВ
+Found comment:  Обычные идентификаторы
+Keyword: int
+Found identifier: variable
+Separator: ;
+Keyword: int
+Found identifier: _private
+Separator: ;
+Keyword: int
+Found identifier: snake_case_name
+Separator: ;
+Keyword: int
+Found identifier: camelCaseName
+Separator: ;
+Keyword: int
+Found identifier: name123
+Separator: ;
+Keyword: int
+Found identifier: _123invalid
+Separator: ;
+Found comment:  начинается с подчеркивания - валидно
+Found comment:  СПОРНЫЕ идентификаторы
+Keyword: int
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+LEXICAL ERROR: Unknown character '�' at line 190
+Separator: ;
+Found comment:  Unicode символы - зависит от реализации
+Keyword: int
+LEXICAL ERROR: Unknown character '�' at line 191
+LEXICAL ERROR: Unknown character '�' at line 191
+Found identifier: _
+LEXICAL ERROR: Unknown character '�' at line 191
+LEXICAL ERROR: Unknown character '�' at line 191
+Found identifier: _
+LEXICAL ERROR: Unknown character '�' at line 191
+LEXICAL ERROR: Unknown character '�' at line 191
+Separator: ;
+Found comment:  греческие буквы
+Found comment:  Граничные случаи для проверки приоритета правил
+Keyword: int
+Found identifier: ifvar
+Separator: ;
+Found comment:  содержит "if" но не является ключевым словом
+Keyword: int
+Found identifier: class_name
+Separator: ;
+Found comment:  содержит "class"
+Keyword: int
+Found identifier: string_value
+Separator: ;
+Found comment:  содержит "string"
+Found comment:  Тест комбинированных токенов
+Keyword: if
+Separator: (
+Found identifier: x
+Operator: >=
+Int: 0
+Parsed Int: 0
+Operator: &&
+Found identifier: y
+Operator: <=
+Int: 100
+Parsed Int: 100
+Operator: ||
+Found identifier: z
+Operator: !=
+Null: null
+Separator: )
+Separator: {
+Found comment:  слитные операторы
+Found comment:  проверка разбиения
+Separator: }
+Found comment:  Числа рядом с операторами - спорные случаи
+Found identifier: result
+Operator: =
+Float: 5.0
+Parsed Float: 5.000000
+Operator: +
+Float: 3.14
+Parsed Float: 3.140000
+Operator: -
+Float: 2.7
+Parsed Float: 2.700000
+Operator: *
+Float: 1.5
+Parsed Float: 1.500000
+Operator: /
+Float: 0.5
+Parsed Float: 0.500000
+Separator: ;
+Found comment:  слитно
+Keyword: return
+Int: 0
+Parsed Int: 0
+Separator: ;
+Separator: }
+Found comment:  Тест незакрытых конструкций для проверки обработки ошибок
+ERROR! Multiline comment with position 213: 
+" Этот комментарий не закрыт...
+string unclosed = "This string is not closed...
+char bad_char = 'multiple chars';
+" 
+isn't closed!

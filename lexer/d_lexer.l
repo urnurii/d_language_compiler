@@ -81,7 +81,7 @@ DIGIT [0-9]
 \'                               { strcpy(tmp,""); BEGIN(CHAR); }
 \"                               { strcpy(tmp,""); string_pos = line; BEGIN(STRING); }
 <STRING>[^\\\n\"]+               { strcat(tmp,yytext); }
-<CHAR>[^\\\n\']                  { strcat(tmp,yytext); }
+<CHAR>[^\\\n\']+                 { strcat(tmp,yytext); }
 <STRING,CHAR>\\b                 { strcat(tmp,"\b"); }
 <STRING,CHAR>\\f                 { strcat(tmp,"\f"); } 
 <STRING,CHAR>\\n                 { strcat(tmp,"\n"); }
@@ -94,7 +94,8 @@ DIGIT [0-9]
 <STRING,CHAR>\\\?                { strcat(tmp,"\?"); }
 <STRING,CHAR>\\x[0-9a-fA-F]{1,2} { handle_hex_escape( tmp, yytext ); }
 <STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( tmp, yytext ); }
-<STRING,CHAR>\n                  { line++; }
+<STRING>\n                       { line++; strcat(tmp,"\n"); }
+<CHAR>\n                         { printf("ERROR! line break found in char literal in row: %d\n", line); line++; }
 <STRING,CHAR><<EOF>>             { printf("ERROR! Haven't found closing quotes in string with position: %d\n", string_pos); BEGIN(INITIAL); }
 <STRING>\"                       { printf("Found String literal: %s\n",tmp); BEGIN(INITIAL); }
 <CHAR>\'                         { finish_char(tmp, line); BEGIN(INITIAL); }
@@ -153,15 +154,15 @@ DIGIT [0-9]
 "/*"                         { tmp[0] = '\0'; comment_pos = line; BEGIN(MULTILINE_COMMENT); }
 <MULTILINE_COMMENT>[^*\n]+   { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>[^*\n]*\n { line++; strcat(tmp, yytext); }
-<MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+\n    { line++; strcat(tmp, yytext); }
+<MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+"/"   { printf("Found multiline comment: %s\n", tmp); BEGIN(INITIAL); }
 
 <MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment with position %d: \n\"%s\" \nisn't closed!\n", line, tmp); BEGIN(INITIAL); }
 
 [A-Za-z_][A-Za-z0-9_]*       { printf("Found identifier: %s\n", yytext); }
 
-.                            { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
+<*>.                         { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
 
 %%
 
