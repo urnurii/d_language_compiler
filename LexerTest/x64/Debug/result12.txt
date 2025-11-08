@@ -1,10 +1,16 @@
+
+=== FOUND CLASSES (2 total) ===
+  1. AccessExample
+  2. Derived
+================================
+
 Found identifier: import
 Found identifier: std
 Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: class
-Found identifier: AccessExample
+CLASSNAME: AccessExample
 Separator: {
 Keyword: public
 Keyword: string
@@ -58,9 +64,9 @@ Separator: ;
 Separator: }
 Separator: }
 Keyword: class
-Found identifier: Derived
+CLASSNAME: Derived
 Operator: :
-Found identifier: AccessExample
+CLASSNAME: AccessExample
 Separator: {
 Keyword: public
 Keyword: void

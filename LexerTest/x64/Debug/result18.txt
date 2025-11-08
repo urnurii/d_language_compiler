@@ -1,3 +1,7 @@
+
+=== FOUND CLASSES (0 total) ===
+================================
+
 Keyword: int
 Found identifier: a
 Operator: =

@@ -1,10 +1,15 @@
+
+=== FOUND CLASSES (1 total) ===
+  1. MyClass
+================================
+
 Found identifier: import
 Found identifier: std
 Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: class
-Found identifier: MyClass
+CLASSNAME: MyClass
 Separator: {
 Keyword: int
 Found identifier: value

@@ -11,6 +11,16 @@
 #include <errno.h>
 #include <ctype.h>
 
+#define MAX_CLASSES 1000
+#define MAX_CLASS_NAME 256
+
+typedef struct {
+    char names[MAX_CLASSES][MAX_CLASS_NAME];
+    int count;
+} ClassTable;
+
+ClassTable classTable = { .count = 0 };
+
 void add_class_name(const char* name);
 int is_class_name(const char* name);
 void reset_class_table();
@@ -44,7 +54,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
     float value_float;
 %}
 
-<FIRST_PASS>"class"[ \t]+{IDENTIFIER}[ \t\n]*(\{|:) {
+<FIRST_PASS>"class"[ \t]+{IDENTIFIER}[ \t]*(\{|:) {
     char class_name[256];
     sscanf(yytext, "class %s", class_name);
     char* end = strchr(class_name, '{');
@@ -78,7 +88,6 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "new"               { printf("Keyword: %s\n", yytext); }
 "continue"          { printf("Keyword: %s\n", yytext); }
 "break"             { printf("Keyword: %s\n", yytext); }
-"class"             { printf("Keyword: %s\n", yytext); }
 "super"             { printf("Keyword: %s\n", yytext); }
 "override"          { printf("Keyword: %s\n", yytext); }
 "float"             { printf("Keyword: %s\n", yytext); }
@@ -91,6 +100,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "this"              { printf("Keyword: %s\n", yytext); }
 "ref"               { printf("Keyword: %s\n", yytext); }
 "enum"              { printf("Keyword: %s\n", yytext); }
+"class"             { printf("Keyword: %s\n", yytext); }
 
 "null"              { printf("Null: null\n"); }
 "NaN"               { printf("NaN: NaN\n"); }
@@ -159,13 +169,11 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 0[0-7]+                                                                     { printf("Int: %s (octal)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
 0[0-9]+                                                                     { printf("ERROR! Incorrect octal number: %s in row: %d\n", yytext, line); }
 0[xX][0-9a-fA-F]+(_[0-9a-fA-F]+)*                                           { printf("Int: %s (hex with separators)\n", yytext); value_int = get_int(yytext); printf("Parsed Int: %d\n", value_int); }
-
 {DIGIT}+([.]{DIGIT}+)?([eE][+-]?{DIGIT}+)?[fF]?                                                                         { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:{DIGIT}(?:_{DIGIT}|{DIGIT})*\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?    { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:\.{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)?(?:[fFlL])?                                { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[eE][+\-]?{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])?                                   { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
 (?:{DIGIT}(?:_{DIGIT}|{DIGIT})*)(?:[fFlL])                                                                              { printf("Float: %s\n", yytext); value_float = get_float(yytext); printf("Parsed Float: %f\n", value_float); }
-
 
 "//"                { tmp[0] = '\0'; BEGIN(COMMENT); }
 <COMMENT>.          { strcat(tmp, yytext); }
@@ -188,25 +196,16 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
     }
 }
 
-.                         { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
+.                            { printf("LEXICAL ERROR: Unknown character '%s' at line %d\n", yytext, line); }
 
 %%
-
-#define MAX_CLASSES 1000
-#define MAX_CLASS_NAME 256
-
-typedef struct {
-    char names[MAX_CLASSES][MAX_CLASS_NAME];
-    int count;
-} ClassTable;
-
-ClassTable classTable = { .count = 0 };
 
 void add_class_name(const char* name) {
     if (classTable.count < MAX_CLASSES) {
         strncpy(classTable.names[classTable.count], name, MAX_CLASS_NAME - 1);
         classTable.names[classTable.count][MAX_CLASS_NAME - 1] = '\0';
         classTable.count++;
+        printf("[PASS1] Added class: %s\n", name);
     }
 }
 
@@ -357,6 +356,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    printf("\n========== PASS 1: Collecting class names ==========\n");
     yyin = input_file;
     BEGIN(FIRST_PASS);
     
@@ -364,6 +364,8 @@ int main(int argc, char* argv[]) {
 
     fclose(input_file);
     print_class_table();
+
+    printf("========== PASS 2: Lexical analysis ==========\n");
     
     input_file = fopen(argv[1], "r");
     if (!input_file) {

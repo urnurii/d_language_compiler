@@ -1,3 +1,7 @@
+
+=== FOUND CLASSES (0 total) ===
+================================
+
 Found comment:  This is a single-line comment
 Keyword: int
 Found identifier: a

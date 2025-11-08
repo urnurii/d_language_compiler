@@ -18,6 +18,7 @@ void yyerror(const char *s);
 %token INTEGER
 %token FLOATVAL
 %token STR CHARVAL IDENT
+%token CLASSNAME
 
 %type type base_type array_decl
 %type expr prim_expr postfix_expr unary_expr mult_expr add_expr
@@ -80,8 +81,8 @@ array_decl
 type
     : base_type
     | base_type array_decl
-	| IDENT
-    | IDENT array_decl
+    | CLASSNAME
+    | CLASSNAME array_decl
     ;
 
 array_init
@@ -106,9 +107,9 @@ prim_expr
     | NAN_CONST
     | THIS
     | '(' expr ')'
-    | NEW IDENT array_decl
-    | NEW IDENT '(' ')'
-    | NEW IDENT '(' arg_list ')'
+    | NEW CLASSNAME array_decl
+    | NEW CLASSNAME '(' ')'
+    | NEW CLASSNAME '(' arg_list ')'
     | NEW base_type
     ;
 
@@ -119,8 +120,8 @@ postfix_expr
     | postfix_expr '.' IDENT
     | postfix_expr '.' IDENT '(' ')'
     | postfix_expr '.' IDENT '(' arg_list ')'
-    | IDENT '(' ')'
-    | IDENT '(' arg_list ')'
+    | postfix_expr '(' ')'
+    | postfix_expr '(' arg_list ')'
     | SUPER '.' IDENT
     | SUPER '.' IDENT '(' ')'
     | SUPER '.' IDENT '(' arg_list ')'
@@ -307,17 +308,17 @@ func_def
     | VOID IDENT '(' ')' func_body
     | VOID IDENT '(' param_list ')' func_body
     ;
-	
+
 func_body
     : compound_stmt
     | ';'
     ;
 
 class_def
-    : CLASS IDENT '{' class_members '}'
-    | CLASS IDENT '{' '}'
-    | CLASS IDENT ':' IDENT '{' class_members '}'
-    | CLASS IDENT ':' IDENT '{' '}'
+    : CLASS CLASSNAME '{' class_members '}'
+    | CLASS CLASSNAME '{' '}'
+    | CLASS CLASSNAME ':' CLASSNAME '{' class_members '}'
+    | CLASS CLASSNAME ':' CLASSNAME '{' '}'
     ;
 
 class_members
@@ -333,9 +334,9 @@ class_member
     | ctor_def
     | dtor_def
     | enum_def
-	| access_spec enum_def
+    | access_spec enum_def
     ;
-	
+
 access_spec
     : PUBLIC | PRIVATE | PROTECTED
     ;

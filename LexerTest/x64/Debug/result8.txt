@@ -1,5 +1,11 @@
+
+=== FOUND CLASSES (2 total) ===
+  1. Animal
+  2. Dog
+================================
+
 Keyword: class
-Found identifier: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: int
 Found identifier: age
@@ -12,9 +18,9 @@ Separator: {
 Separator: }
 Separator: }
 Keyword: class
-Found identifier: Dog
+CLASSNAME: Dog
 Operator: :
-Found identifier: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: override
 Keyword: void
@@ -36,11 +42,11 @@ Separator: )
 Separator: ;
 Separator: }
 Separator: }
-Found identifier: Animal
+CLASSNAME: Animal
 Found identifier: animal
 Operator: =
 Keyword: new
-Found identifier: Animal
+CLASSNAME: Animal
 Separator: (
 Separator: )
 Separator: ;
