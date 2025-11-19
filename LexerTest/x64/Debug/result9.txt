@@ -15,7 +15,7 @@ Operator: :
 Found identifier: abs
 Separator: ;
 Keyword: void
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {
@@ -86,7 +86,7 @@ Parsed Float: 0.300000
 Separator: ;
 Keyword: if
 Separator: (
-Found identifier: abs
+Function: abs
 Separator: (
 Found identifier: a
 Operator: -

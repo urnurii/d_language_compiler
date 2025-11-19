@@ -9,7 +9,7 @@ Found multiline comment:  Многострочный комментарий
    и переносы строк 
 Found comment:  Тестирование ключевых слов
 Keyword: int
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {
@@ -38,7 +38,7 @@ Separator: ;
 Found comment:  Модификаторы доступа и другие ключевые слова
 Keyword: public
 Keyword: class
-CLASSNAME: MyClass
+Classname: MyClass
 Separator: {
 Keyword: private
 Keyword: int
@@ -51,15 +51,15 @@ Separator: ;
 Keyword: public
 Keyword: override
 Keyword: void
-Found identifier: method
+Function: method
 Separator: (
 Separator: )
 Separator: {
-Keyword: auto
+Found identifier: auto
 Found identifier: temp
 Operator: =
 Keyword: new
-CLASSNAME: MyClass
+Function: MyClass
 Separator: (
 Separator: )
 Separator: ;
@@ -72,7 +72,7 @@ Parsed Int: 42
 Separator: ;
 Keyword: super
 Operator: .
-Found identifier: method
+Function: method
 Separator: (
 Separator: )
 Separator: ;
@@ -642,7 +642,7 @@ Separator: ,
 Found identifier: element2
 Separator: }
 Separator: ;
-Found identifier: function
+Function: function
 Separator: (
 Found identifier: param1
 Separator: ,

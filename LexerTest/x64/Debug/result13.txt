@@ -9,7 +9,7 @@ Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: class
-CLASSNAME: MyClass
+Classname: MyClass
 Separator: {
 Keyword: int
 Found identifier: value
@@ -64,7 +64,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: display
+Function: display
 Separator: (
 Separator: )
 Separator: {

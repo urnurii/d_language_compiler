@@ -10,7 +10,7 @@ Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: class
-CLASSNAME: AccessExample
+Classname: AccessExample
 Separator: {
 Keyword: public
 Keyword: string
@@ -32,49 +32,49 @@ Found String literal: protected
 Separator: ;
 Keyword: public
 Keyword: void
-Found identifier: publicMethod
+Function: publicMethod
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Keyword: private
 Keyword: void
-Found identifier: privateMethod
+Function: privateMethod
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Keyword: protected
 Keyword: void
-Found identifier: protectedMethod
+Function: protectedMethod
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Keyword: public
 Keyword: void
-Found identifier: accessPrivate
+Function: accessPrivate
 Separator: (
 Separator: )
 Separator: {
-Found identifier: privateMethod
+Function: privateMethod
 Separator: (
 Separator: )
 Separator: ;
 Separator: }
 Separator: }
 Keyword: class
-CLASSNAME: Derived
+Classname: Derived
 Operator: :
-CLASSNAME: AccessExample
+Classname: AccessExample
 Separator: {
 Keyword: public
 Keyword: void
-Found identifier: testProtected
+Function: testProtected
 Separator: (
 Separator: )
 Separator: {
-Found identifier: protectedMethod
+Function: protectedMethod
 Separator: (
 Separator: )
 Separator: ;

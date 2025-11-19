@@ -3,7 +3,7 @@
 ================================
 
 Keyword: int
-Found identifier: add
+Function: add
 Separator: (
 Keyword: int
 Found identifier: a
@@ -19,7 +19,7 @@ Found identifier: b
 Separator: ;
 Separator: }
 Keyword: void
-Found identifier: printMessage
+Function: printMessage
 Separator: (
 Keyword: string
 Found identifier: msg
@@ -27,7 +27,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: increment
+Function: increment
 Separator: (
 Keyword: ref
 Keyword: int
@@ -36,7 +36,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: greet
+Function: greet
 Separator: (
 Keyword: string
 Found identifier: name
@@ -46,31 +46,32 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: printNumbers
+Function: printNumbers
 Separator: (
 Keyword: int
 Found identifier: first
 Separator: ,
 Keyword: int
-Operator: ...
+Operator: ..
+Operator: .
 Found identifier: rest
 Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: outer
+Function: outer
 Separator: (
 Separator: )
 Separator: {
 Keyword: void
-Found identifier: inner
+Function: inner
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Separator: }
 Keyword: int
-Found identifier: factorial
+Function: factorial
 Separator: (
 Keyword: int
 Found identifier: n
@@ -90,7 +91,7 @@ Separator: ;
 Keyword: return
 Found identifier: n
 Operator: *
-Found identifier: factorial
+Function: factorial
 Separator: (
 Found identifier: n
 Operator: -
@@ -100,7 +101,7 @@ Separator: )
 Separator: ;
 Separator: }
 Keyword: void
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {

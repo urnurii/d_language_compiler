@@ -9,7 +9,7 @@ Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: int
 Found identifier: n
@@ -17,7 +17,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: string
 Found identifier: s
@@ -25,7 +25,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: double
 Found identifier: d
@@ -33,7 +33,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: int
 Found identifier: a
@@ -44,7 +44,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: string
 Found identifier: s
@@ -55,10 +55,10 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: class
-CLASSNAME: Printer
+Classname: Printer
 Separator: {
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: int
 Found identifier: n
@@ -66,7 +66,7 @@ Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Found identifier: print
+Function: print
 Separator: (
 Keyword: string
 Found identifier: s

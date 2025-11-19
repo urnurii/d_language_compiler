@@ -2,23 +2,23 @@
 === FOUND CLASSES (0 total) ===
 ================================
 
-Found identifier: write
+Function: write
 Separator: (
 Separator: )
 Separator: ;
-Found identifier: writef
+Function: writef
 Separator: (
 Separator: )
 Separator: ;
-Found identifier: readln
+Function: readln
 Separator: (
 Separator: )
 Separator: ;
-Found identifier: readf
+Function: readf
 Separator: (
 Separator: )
 Separator: ;
-Found identifier: writeln
+Function: writeln
 Separator: (
 Separator: )
 Separator: ;

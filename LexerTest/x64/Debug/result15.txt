@@ -66,7 +66,7 @@ Separator: ,
 Found identifier: SUN
 Separator: }
 Keyword: void
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {

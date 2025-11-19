@@ -8,7 +8,7 @@ Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: void
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {

@@ -13,7 +13,7 @@ Operator: .
 Found identifier: format
 Separator: ;
 Keyword: void
-Found identifier: main
+Function: main
 Separator: (
 Separator: )
 Separator: {
@@ -42,7 +42,7 @@ Separator: ;
 Keyword: string
 Found identifier: message1
 Operator: =
-Found identifier: format
+Function: format
 Separator: (
 Found String literal: Name: %s, Age: %d
 Separator: ,
@@ -54,7 +54,7 @@ Separator: ;
 Keyword: string
 Found identifier: message2
 Operator: =
-Found identifier: format
+Function: format
 Separator: (
 Found String literal: Salary: %.2f, Grade: %c
 Separator: ,
@@ -66,7 +66,7 @@ Separator: ;
 Keyword: string
 Found identifier: details
 Operator: =
-Found identifier: format
+Function: format
 Separator: (
 Found String literal: Employee: %s, Age: %d, Salary: $%.2f, Grade: %c
 Separator: ,
@@ -82,7 +82,7 @@ Separator: ;
 Keyword: string
 Found identifier: intFormat
 Operator: =
-Found identifier: format
+Function: format
 Separator: (
 Found String literal: Decimal: %d
 Separator: ,
@@ -93,7 +93,7 @@ Separator: ;
 Keyword: string
 Found identifier: floatFormat
 Operator: =
-Found identifier: format
+Function: format
 Separator: (
 Found String literal: Float: %f
 Separator: ,
