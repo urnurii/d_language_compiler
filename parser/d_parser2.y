@@ -74,8 +74,6 @@ base_type
 array_decl
     : '[' ']'
     | '[' INTEGER ']'
-    | array_decl '[' ']'
-    | array_decl '[' INTEGER ']'
     ;
 
 type
@@ -382,25 +380,4 @@ enum_body
 
 void yyerror(const char *s) {
     fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
-}
-
-int main(int argc, char *argv[]) {
-    if (argc > 1) {
-        FILE *f = fopen(argv[1], "r");
-        if (!f) {
-            perror("fopen");
-            return 1;
-        }
-        yyin = f;
-    } else {
-        yyin = stdin;
-    }
-
-    int result = yyparse();
-
-    if (argc > 1 && yyin != stdin) {
-        fclose(yyin);
-    }
-
-    return result;
 }
