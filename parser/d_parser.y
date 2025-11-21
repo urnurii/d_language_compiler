@@ -1,538 +1,372 @@
-%{ // Пролог
-#include <iostream>
-#include <cstdlib>
-#include <cstdio>
-
-
-using namespace std;
-
-
+%{
 extern int yylex(void);
+extern int yylineno;
+extern char *yytext;
 
-
-void yyerror(char const* s) {
-    cout << s << endl;
-}
-
-
+void yyerror(const char *s);
 %}
 
+%token INT CHAR STRING BOOL FLOAT_TYPE DOUBLE REAL VOID
+%token IF ELSE SWITCH CASE DEFAULT
+%token WHILE DO FOR FOREACH
+%token RETURN BREAK CONTINUE
+%token CLASS OVERRIDE SUPER PUBLIC PRIVATE PROTECTED
+%token THIS REF NEW ENUM
+%token TRUE FALSE NULL_CONST NAN_CONST
+%token DOTDOT
 
-// Секция объявлений
+%token INTEGER
+%token FLOATVAL
+%token STR CHARVAL IDENT F_IDENT
+%token CLASSNAME
 
+%type type base_type array_decl
+%type expr prim_expr postfix_expr unary_expr mult_expr add_expr
+%type rel_expr eq_expr land_expr lor_expr
+%type stmt compound_stmt stmt_list decl init_decl init_decl_list
+%type param param_list arg_list func_def func_body class_def enum_def
+%type class_members class_member access_spec if_stmt while_stmt do_while_stmt
+%type for_stmt foreach_stmt switch_stmt case_list case_item default_item
+%type method_def ctor_def dtor_def initializer array_init
 
-%union {
-    int int_lit;
-    char *identifier;
-    char *str_lit;
-    float float_lit;
-    bool bool_lit;
-}
-
-
-// Ключевые слова языка
-%token  MODULE
-%token  IMPORT
-%token  CONST
-%token  FUNC
-%token  VAR
-%token  RETURN
-%token  BREAK
-%token  CONTINUE
-%token  IF
-%token  ELSE
-%token  SWITCH
-%token  CASE
-%token  DEFAULT
-%token  DO
-%token  WHILE
-%token  FOR
-%token  FOREACH
-%token  CLASS
-%token  ENUM
-%token  NEW
-%token  THIS
-%token  SUPER
-%token  OVERRIDE
-%token  PUBLIC
-%token  PRIVATE
-%token  PROTECTED
-%token  AUTO
-%token  REF
-
-
-// Типы данных
-%token  INT
-%token  FLOAT
-%token  DOUBLE
-%token  REAL
-%token  BOOL
-%token  CHAR
-%token  STRING
-%token  VOID
-
-
-// Токены с семантическими значениями
-%token  <int_lit>      INT_LIT
-%token  <float_lit>    FLOAT_LIT
-%token  <bool_lit>     BOOL_LIT
-%token  <identifier>   ID
-%token  <str_lit>      STRING_LIT
-
-
-// Операторы (многосимвольные - как отдельные токены)
-%token  PLUS_ASSIGN
-%token  MINUS_ASSIGN
-%token  MUL_ASSIGN
-%token  DIV_ASSIGN
-%token  TILDE_ASSIGN
-%token  EQ
-%token  NE
-%token  LE
-%token  GE
-%token  AND_OP
-%token  OR_OP
-%token  INC
-%token  DEC
-
+%right ASSIGN PLUSEQ MINUSEQ STAREQ SLASHEQ TILDEQ
+%left LOR
+%left LAND
+%left EQ NEQ
+%left LT GT LE GE
+%left PLUS MINUS
+%left STAR SLASH
+%right UNOT UMINUS UPLUS
+%left '.'
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 
 %start program
 
-
 %%
 
-
-// Секция правил грамматики
-
-
 program
-    : module_clause ';' e_import_decl_list ';' e_top_level_decl_list
+    : translation_unit
+    | %empty
     ;
 
-
-module_clause
-    : MODULE ID
+translation_unit
+    : source_item
+    | translation_unit source_item
     ;
 
-
-e_import_decl_list
-    : import_decl_list
-    |
+source_item
+    : func_def
+    | class_def
+    | decl
+	| enum_def
     ;
 
-
-import_decl_list
-    : import_decl_list import_decl ';'
-    | import_decl ';'
-    ;
-
-
-import_decl
-    : IMPORT import_spec
-    | IMPORT '(' e_import_spec_list ')'
-    ;
-
-
-e_import_spec_list
-    : import_spec_list
-    |
-    ;
-
-
-import_spec_list
-    : import_spec_list import_spec ';'
-    | import_spec ';'
-    ;
-
-
-import_spec
-    : STRING_LIT
-    | '.' STRING_LIT
-    | STRING_LIT STRING_LIT
-    ;
-
-
-e_top_level_decl_list
-    : top_level_decl_list
-    |
-    ;
-
-
-top_level_decl_list
-    : top_level_decl_list top_level_decl ';'
-    | top_level_decl ';'
-    ;
-
-
-top_level_decl
-    : decl
-    | func_decl
-    | class_decl
-    | enum_decl
-    ;
-
-
-decl
-    : const_decl
-    | var_decl
-    ;
-
-
-func_decl
-    : FUNC ID '(' param_list ')' block
-    | FUNC ID '(' ')' block
-    | FUNC ID '(' param_list ')' type block
-    | FUNC ID '(' ')' type block
-    ;
-
-
-param_list
-    : param_list ',' param_decl
-    | param_decl
-    ;
-
-
-param_decl
-    : id_list type_or_builtin
-    | type_or_builtin
-    ;
-
-
-type_or_builtin
-    : type_name
-    | type_name '[' type_list ']'
-    | FUNC '(' param_list ')'
-    | FUNC '(' ')'
-    | '[' expr ']' type
-    | '[' ']' type
-    ;
-
-
-block
-    : '{' stmt_list '}'
-    | '{' '}'
-    ;
-
-
-stmt_list
-    : stmt_list stmt ';'
-    | stmt ';'
-    ;
-
-
-stmt
-    : decl
-    | simple_stmt
-    | return_stmt
-    | BREAK
-    | CONTINUE
-    | block
-    | if_stmt
-    | switch_stmt
-    | for_stmt
-    | while_stmt
-    | do_while_stmt
-    | foreach_stmt
-    ;
-
-
-simple_stmt
-    : expr
-    | expr INC
-    | expr DEC
-    | assignment_stmt
-    ;
-
-
-assignment_stmt
-    : lvalue '=' expr_list
-    | lvalue PLUS_ASSIGN expr_list
-    | lvalue MINUS_ASSIGN expr_list
-    | lvalue MUL_ASSIGN expr_list
-    | lvalue DIV_ASSIGN expr_list
-    | lvalue TILDE_ASSIGN expr_list
-    ;
-
-
-lvalue
-    : primary_name
-    | lvalue ',' primary_name
-    ;
-
-
-return_stmt
-    : RETURN
-    | RETURN expr_list
-    ;
-
-
-const_decl
-    : CONST const_spec
-    | CONST '(' const_spec_list ')'
-    ;
-
-
-const_spec_list
-    : const_spec_list ';' const_spec
-    | const_spec ';'
-    ;
-
-
-const_spec
-    : id_list
-    | id_list '=' expr_list
-    | id_list type '=' expr_list
-    ;
-
-
-var_decl
-    : VAR var_spec
-    | VAR '(' var_spec_list ')'
-    ;
-
-
-var_spec_list
-    : var_spec_list ';' var_spec
-    | var_spec ';'
-    ;
-
-
-var_spec
-    : id_list type
-    | id_list type '=' expr_list
-    | id_list '=' expr_list
-    ;
-
-
-id_list
-    : id_list ',' ID
-    | ID
-    ;
-
-
-type_name
+base_type
     : INT
-    | FLOAT
-    | DOUBLE
-    | REAL
-    | BOOL
     | CHAR
     | STRING
-    | VOID
+    | BOOL
+    | FLOAT_TYPE
+    | DOUBLE
+    | REAL
     ;
 
+array_decl
+    : '[' ']'
+    | '[' INTEGER ']'
+    ;
 
 type
-    : type_name
-    | type_name '[' type_list ']'
-    | '[' expr ']' type
-    | '[' ']' type
-    | FUNC '(' param_list ')'
-    | FUNC '(' ')'
+    : base_type
+    | base_type array_decl
+    | CLASSNAME
+    | CLASSNAME array_decl
     ;
 
-
-type_list
-    : type_list ',' type
-    | type
+array_init
+    : '[' ']'
+    | '[' arg_list ']'
     ;
 
-
-expr_list
-    : expr_list ',' expr
-    | expr
+initializer
+    : expr
+    | array_init
     ;
 
-
-expr
-    : or_expr
+prim_expr
+    : IDENT
+    | INTEGER
+    | FLOATVAL
+    | CHARVAL
+    | STR
+    | TRUE
+    | FALSE
+    | NULL_CONST
+    | NAN_CONST
+    | THIS
+    | '(' expr ')'
+    | NEW CLASSNAME '[' INTEGER ']'
+    | NEW F_IDENT '(' ')'
+    | NEW F_IDENT '(' arg_list ')'
+    | NEW base_type '[' INTEGER ']'
     ;
-
-
-or_expr
-    : or_expr OR_OP and_expr
-    | and_expr
-    ;
-
-
-and_expr
-    : and_expr AND_OP eq_expr
-    | eq_expr
-    ;
-
-
-eq_expr
-    : eq_expr EQ rel_expr
-    | eq_expr NE rel_expr
-    | rel_expr
-    ;
-
-
-rel_expr
-    : rel_expr '<' add_expr
-    | rel_expr '>' add_expr
-    | rel_expr LE add_expr
-    | rel_expr GE add_expr
-    | add_expr
-    ;
-
-
-add_expr
-    : add_expr '+' mul_expr
-    | add_expr '-' mul_expr
-    | mul_expr
-    ;
-
-
-mul_expr
-    : mul_expr '*' unary_expr
-    | mul_expr '/' unary_expr
-    | unary_expr
-    ;
-
-
-unary_expr
-    : '!' unary_expr
-    | '-' unary_expr
-    | postfix_expr
-    ;
-
 
 postfix_expr
-    : postfix_expr '[' expr ']'
-    | postfix_expr '[' ':' ']'
-    | postfix_expr '[' expr ':' ']'
-    | postfix_expr '[' ':' expr ']'
-    | postfix_expr '[' expr ':' expr ']'
-    | postfix_expr '[' ':' expr ':' expr ']'
-    | postfix_expr '[' expr ':' expr ':' expr ']'
-    | postfix_expr '[' type_list ']'
-    | primary_expr
+    : prim_expr
+    | postfix_expr '[' expr ']'
+    | postfix_expr '[' expr DOTDOT expr ']'
+    | postfix_expr '.' IDENT
+    | postfix_expr '.' F_IDENT '(' ')'
+    | postfix_expr '.' F_IDENT '(' arg_list ')'
+    | F_IDENT '(' ')'
+    | F_IDENT '(' arg_list ')'
+    | SUPER '.' IDENT
+    | SUPER '.' F_IDENT '(' ')'
+    | SUPER '.' F_IDENT '(' arg_list ')'
     ;
 
-
-primary_expr
-    : operand
-    | operand INC
-    | operand DEC
+unary_expr
+    : postfix_expr
+    | MINUS unary_expr %prec UMINUS
+    | PLUS unary_expr %prec UPLUS
+    | UNOT unary_expr %prec UNOT
     ;
 
-
-primary_name
-    : ID
-    | THIS
-    | SUPER
+mult_expr
+    : unary_expr
+    | mult_expr STAR unary_expr
+    | mult_expr SLASH unary_expr
     ;
 
-
-operand
-    : primary_name
-    | '(' expr ')'
-    | INT_LIT
-    | FLOAT_LIT
-    | STRING_LIT
-    | BOOL_LIT
+add_expr
+    : mult_expr
+    | add_expr PLUS mult_expr
+    | add_expr MINUS mult_expr
     ;
 
+rel_expr
+    : add_expr
+    | rel_expr LT add_expr
+    | rel_expr GT add_expr
+    | rel_expr LE add_expr
+    | rel_expr GE add_expr
+    ;
+
+eq_expr
+    : rel_expr
+    | eq_expr EQ rel_expr
+    | eq_expr NEQ rel_expr
+    ;
+
+land_expr
+    : eq_expr
+    | land_expr LAND eq_expr
+    ;
+
+lor_expr
+    : land_expr
+    | lor_expr LOR land_expr
+    ;
+
+expr
+    : lor_expr
+    | unary_expr ASSIGN expr
+    | unary_expr PLUSEQ expr
+    | unary_expr MINUSEQ expr
+    | unary_expr STAREQ expr
+    | unary_expr SLASHEQ expr
+    | unary_expr TILDEQ expr
+    ;
+
+arg_list
+    : expr
+    | arg_list ',' expr
+    ;
+
+init_decl
+    : IDENT
+    | IDENT '=' initializer
+    ;
+
+init_decl_list
+    : init_decl
+    | init_decl_list ',' init_decl
+    ;
+
+decl
+    : type init_decl_list ';'
+    ;
+
+param
+    : type IDENT
+    | REF base_type IDENT
+    | type IDENT '=' expr
+    | REF base_type IDENT '=' expr
+    ;
+
+param_list
+    : param
+    | param_list ',' param
+    ;
+
+stmt
+    : ';'
+    | expr ';'
+    | decl
+    | compound_stmt
+    | if_stmt
+    | while_stmt
+    | do_while_stmt
+    | for_stmt
+    | foreach_stmt
+    | switch_stmt
+    | RETURN ';'
+    | RETURN expr ';'
+    | BREAK ';'
+    | CONTINUE ';'
+    ;
+
+stmt_list
+    : stmt
+    | stmt_list stmt
+    ;
+
+compound_stmt
+    : '{' '}'
+    | '{' stmt_list '}'
+    ;
 
 if_stmt
-    : IF '(' expr ')' block ELSE if_stmt
-    | IF '(' expr ')' block ELSE block
-    | IF '(' expr ')' block
+    : IF '(' expr ')' stmt %prec LOWER_THAN_ELSE
+    | IF '(' expr ')' stmt ELSE stmt
     ;
 
+while_stmt
+    : WHILE '(' expr ')' stmt
+    ;
+
+do_while_stmt
+    : DO stmt WHILE '(' expr ')' ';'
+    ;
+
+for_stmt
+    : FOR '(' ';' ';' ')' stmt
+    | FOR '(' expr ';' ';' ')' stmt
+    | FOR '(' ';' expr ';' ')' stmt
+    | FOR '(' expr ';' expr ';' ')' stmt
+    | FOR '(' ';' ';' expr ')' stmt
+    | FOR '(' expr ';' ';' expr ')' stmt
+    | FOR '(' ';' expr ';' expr ')' stmt
+    | FOR '(' expr ';' expr ';' expr ')' stmt
+    | FOR '(' decl ';' ')' stmt
+    | FOR '(' decl expr ';' ')' stmt
+    | FOR '(' decl ';' expr ')' stmt
+    | FOR '(' decl expr ';' expr ')' stmt
+    ;
+
+foreach_stmt
+    : FOREACH '(' IDENT ';' expr ')' stmt
+    | FOREACH '(' type IDENT ';' expr ')' stmt
+    ;
 
 switch_stmt
     : SWITCH '(' expr ')' '{' case_list '}'
-    | SWITCH '{' case_list '}'
+    | SWITCH '(' expr ')' '{' '}'
     ;
-
 
 case_list
-    : case_list case_item
-    | case_item
+    : case_item
+    | default_item
+    | case_list case_item
+    | case_list default_item
     ;
 
-
 case_item
-    : CASE expr ':' stmt_list
+    : CASE INTEGER ':'
+    | CASE INTEGER ':' stmt_list
+    ;
+
+default_item
+    : DEFAULT ':'
     | DEFAULT ':' stmt_list
     ;
 
-
-for_stmt
-    : FOR '(' simple_stmt ';' expr ';' simple_stmt ')' block
-    | FOR '(' ';' expr ';' ')' block
-    | FOR '(' ';' ';' ')' block
-    | FOR expr block
+func_def
+    : type F_IDENT '(' ')' func_body
+    | type F_IDENT '(' param_list ')' func_body
+    | VOID F_IDENT '(' ')' func_body
+    | VOID F_IDENT '(' param_list ')' func_body
     ;
 
-
-while_stmt
-    : WHILE '(' expr ')' block
+func_body
+    : compound_stmt
+    | ';'
     ;
 
-
-do_while_stmt
-    : DO block WHILE '(' expr ')' ';'
+class_def
+    : CLASS CLASSNAME '{' class_members '}'
+    | CLASS CLASSNAME '{' '}'
+    | CLASS CLASSNAME ':' CLASSNAME '{' class_members '}'
+    | CLASS CLASSNAME ':' CLASSNAME '{' '}'
     ;
 
-
-foreach_stmt
-    : FOREACH '(' ID ':' expr ')' block
-    | FOREACH '(' type ID ':' expr ')' block
+class_members
+    : class_member
+    | class_members class_member
     ;
-
-
-class_decl
-    : CLASS ID class_inherit_opt '{' class_body_opt '}'
-    ;
-
-
-class_inherit_opt
-    : ':' ID
-    |
-    ;
-
-
-class_body_opt
-    : class_body
-    |
-    ;
-
-
-class_body
-    : class_body class_member
-    | class_member
-    ;
-
 
 class_member
-    : decl ';'
-    | func_decl
-    | OVERRIDE func_decl
+    : decl
+    | method_def
+    | access_spec decl
+    | access_spec method_def
+    | ctor_def
+    | dtor_def
+    | enum_def
+    | access_spec enum_def
     ;
 
-
-enum_decl
-    : ENUM ID '{' enum_member_list '}'
-    | ENUM ID '{' enum_member_list ',' '}'
+access_spec
+    : PUBLIC 
+	| PRIVATE 
+	| PROTECTED
     ;
 
-
-enum_member_list
-    : enum_member_list ',' enum_member
-    | enum_member
+method_def
+    : type F_IDENT '(' ')' compound_stmt
+    | type F_IDENT '(' param_list ')' compound_stmt
+    | VOID F_IDENT '(' ')' compound_stmt
+    | VOID F_IDENT '(' param_list ')' compound_stmt
+    | OVERRIDE type F_IDENT '(' ')' compound_stmt
+    | OVERRIDE type F_IDENT '(' param_list ')' compound_stmt
+    | OVERRIDE VOID F_IDENT '(' ')' compound_stmt
+    | OVERRIDE VOID F_IDENT '(' param_list ')' compound_stmt
     ;
 
-
-enum_member
-    : ID
-    | ID '=' expr
+ctor_def
+    : THIS '(' ')' compound_stmt
+    | THIS '(' param_list ')' compound_stmt
     ;
 
+dtor_def
+    : '~' THIS '(' ')' compound_stmt
+    ;
+
+enum_def
+    : ENUM IDENT '{' enum_body '}'
+    | ENUM '{' enum_body '}'
+    ;
+
+enum_body
+    : IDENT
+    | IDENT '=' INTEGER
+    | enum_body ',' IDENT
+    | enum_body ',' IDENT '=' INTEGER
+    ;
 
 %%
 
-
-// Секция пользовательского кода
+void yyerror(const char *s) {
+    fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
+}

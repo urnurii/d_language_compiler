@@ -35,8 +35,8 @@
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
 
-#ifndef YY_YY_D_PARSER_TAB_H_INCLUDED
-# define YY_YY_D_PARSER_TAB_H_INCLUDED
+#ifndef YY_YY_D_PARSER_REV_TAB_H_INCLUDED
+# define YY_YY_D_PARSER_REV_TAB_H_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -54,80 +54,77 @@ extern int yydebug;
     YYEOF = 0,                     /* "end of file"  */
     YYerror = 256,                 /* error  */
     YYUNDEF = 257,                 /* "invalid token"  */
-    MODULE = 258,                  /* MODULE  */
-    IMPORT = 259,                  /* IMPORT  */
-    CONST = 260,                   /* CONST  */
-    FUNC = 261,                    /* FUNC  */
-    VAR = 262,                     /* VAR  */
-    RETURN = 263,                  /* RETURN  */
-    BREAK = 264,                   /* BREAK  */
-    CONTINUE = 265,                /* CONTINUE  */
+    INT = 258,                     /* INT  */
+    CHAR = 259,                    /* CHAR  */
+    STRING = 260,                  /* STRING  */
+    BOOL = 261,                    /* BOOL  */
+    FLOAT_TYPE = 262,              /* FLOAT_TYPE  */
+    DOUBLE = 263,                  /* DOUBLE  */
+    REAL = 264,                    /* REAL  */
+    VOID = 265,                    /* VOID  */
     IF = 266,                      /* IF  */
     ELSE = 267,                    /* ELSE  */
     SWITCH = 268,                  /* SWITCH  */
     CASE = 269,                    /* CASE  */
     DEFAULT = 270,                 /* DEFAULT  */
-    DO = 271,                      /* DO  */
-    WHILE = 272,                   /* WHILE  */
+    WHILE = 271,                   /* WHILE  */
+    DO = 272,                      /* DO  */
     FOR = 273,                     /* FOR  */
     FOREACH = 274,                 /* FOREACH  */
-    CLASS = 275,                   /* CLASS  */
-    ENUM = 276,                    /* ENUM  */
-    NEW = 277,                     /* NEW  */
-    THIS = 278,                    /* THIS  */
-    SUPER = 279,                   /* SUPER  */
-    OVERRIDE = 280,                /* OVERRIDE  */
+    RETURN = 275,                  /* RETURN  */
+    BREAK = 276,                   /* BREAK  */
+    CONTINUE = 277,                /* CONTINUE  */
+    CLASS = 278,                   /* CLASS  */
+    OVERRIDE = 279,                /* OVERRIDE  */
+    SUPER = 280,                   /* SUPER  */
     PUBLIC = 281,                  /* PUBLIC  */
     PRIVATE = 282,                 /* PRIVATE  */
     PROTECTED = 283,               /* PROTECTED  */
-    AUTO = 284,                    /* AUTO  */
+    THIS = 284,                    /* THIS  */
     REF = 285,                     /* REF  */
-    INT = 286,                     /* INT  */
-    FLOAT = 287,                   /* FLOAT  */
-    DOUBLE = 288,                  /* DOUBLE  */
-    REAL = 289,                    /* REAL  */
-    BOOL = 290,                    /* BOOL  */
-    CHAR = 291,                    /* CHAR  */
-    STRING = 292,                  /* STRING  */
-    VOID = 293,                    /* VOID  */
-    INT_LIT = 294,                 /* INT_LIT  */
-    FLOAT_LIT = 295,               /* FLOAT_LIT  */
-    BOOL_LIT = 296,                /* BOOL_LIT  */
-    ID = 297,                      /* ID  */
-    STRING_LIT = 298,              /* STRING_LIT  */
-    PLUS_ASSIGN = 299,             /* PLUS_ASSIGN  */
-    MINUS_ASSIGN = 300,            /* MINUS_ASSIGN  */
-    MUL_ASSIGN = 301,              /* MUL_ASSIGN  */
-    DIV_ASSIGN = 302,              /* DIV_ASSIGN  */
-    TILDE_ASSIGN = 303,            /* TILDE_ASSIGN  */
-    EQ = 304,                      /* EQ  */
-    NE = 305,                      /* NE  */
-    LE = 306,                      /* LE  */
-    GE = 307,                      /* GE  */
-    AND_OP = 308,                  /* AND_OP  */
-    OR_OP = 309,                   /* OR_OP  */
-    INC = 310,                     /* INC  */
-    DEC = 311                      /* DEC  */
+    NEW = 286,                     /* NEW  */
+    ENUM = 287,                    /* ENUM  */
+    TRUE = 288,                    /* TRUE  */
+    FALSE = 289,                   /* FALSE  */
+    NULL_CONST = 290,              /* NULL_CONST  */
+    NAN_CONST = 291,               /* NAN_CONST  */
+    DOTDOT = 292,                  /* DOTDOT  */
+    INTEGER = 293,                 /* INTEGER  */
+    FLOATVAL = 294,                /* FLOATVAL  */
+    STR = 295,                     /* STR  */
+    CHARVAL = 296,                 /* CHARVAL  */
+    IDENT = 297,                   /* IDENT  */
+    F_IDENT = 298,                 /* F_IDENT  */
+    CLASSNAME = 299,               /* CLASSNAME  */
+    ASSIGN = 300,                  /* ASSIGN  */
+    PLUSEQ = 301,                  /* PLUSEQ  */
+    MINUSEQ = 302,                 /* MINUSEQ  */
+    STAREQ = 303,                  /* STAREQ  */
+    SLASHEQ = 304,                 /* SLASHEQ  */
+    TILDEQ = 305,                  /* TILDEQ  */
+    LOR = 306,                     /* LOR  */
+    LAND = 307,                    /* LAND  */
+    EQ = 308,                      /* EQ  */
+    NEQ = 309,                     /* NEQ  */
+    LT = 310,                      /* LT  */
+    GT = 311,                      /* GT  */
+    LE = 312,                      /* LE  */
+    GE = 313,                      /* GE  */
+    PLUS = 314,                    /* PLUS  */
+    MINUS = 315,                   /* MINUS  */
+    STAR = 316,                    /* STAR  */
+    SLASH = 317,                   /* SLASH  */
+    UNOT = 318,                    /* UNOT  */
+    UMINUS = 319,                  /* UMINUS  */
+    UPLUS = 320,                   /* UPLUS  */
+    LOWER_THAN_ELSE = 321          /* LOWER_THAN_ELSE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-union YYSTYPE
-{
-#line 24 "d_parser.y"
-
-    int int_lit;
-    char *identifier;
-    char *str_lit;
-    float float_lit;
-    bool bool_lit;
-
-#line 128 "d_parser.tab.h"
-
-};
-typedef union YYSTYPE YYSTYPE;
+typedef int YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
 #endif
@@ -139,4 +136,4 @@ extern YYSTYPE yylval;
 int yyparse (void);
 
 
-#endif /* !YY_YY_D_PARSER_TAB_H_INCLUDED  */
+#endif /* !YY_YY_D_PARSER_REV_TAB_H_INCLUDED  */
