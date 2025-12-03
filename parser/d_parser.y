@@ -29,14 +29,14 @@ void yyerror(const char *s);
 %type method_def ctor_def dtor_def initializer array_init
 
 %right ASSIGN PLUSEQ MINUSEQ STAREQ SLASHEQ TILDEQ
-%left  LOR
-%left  LAND
-%left  EQ NEQ
-%left  LT GT LE GE
-%left  PLUS MINUS
-%left  STAR SLASH
+%left LOR
+%left LAND
+%left EQ NEQ
+%left LT GT LE GE
+%left PLUS MINUS
+%left STAR SLASH
 %right UNOT UMINUS UPLUS
-%left  '.' '[' ']'
+%left '.' '[' ']'
 %right NEW
 %nonassoc '(' ')'
 %nonassoc LOWER_THAN_ELSE
