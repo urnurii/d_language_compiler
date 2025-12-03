@@ -21,8 +21,7 @@ void yyerror(const char *s);
 %token CLASSNAME
 
 %type type base_type array_decl
-%type expr prim_expr postfix_expr unary_expr mult_expr add_expr
-%type rel_expr eq_expr land_expr lor_expr
+%type expr
 %type stmt compound_stmt stmt_list decl init_decl init_decl_list
 %type param param_list arg_list func_def func_body class_def enum_def
 %type class_members class_member access_spec if_stmt while_stmt do_while_stmt
@@ -30,14 +29,16 @@ void yyerror(const char *s);
 %type method_def ctor_def dtor_def initializer array_init
 
 %right ASSIGN PLUSEQ MINUSEQ STAREQ SLASHEQ TILDEQ
-%left LOR
-%left LAND
-%left EQ NEQ
-%left LT GT LE GE
-%left PLUS MINUS
-%left STAR SLASH
+%left  LOR
+%left  LAND
+%left  EQ NEQ
+%left  LT GT LE GE
+%left  PLUS MINUS
+%left  STAR SLASH
 %right UNOT UMINUS UPLUS
-%left '.'
+%left  '.' '[' ']'
+%right NEW
+%nonassoc '(' ')'
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
 
@@ -93,8 +94,13 @@ initializer
     : expr
     | array_init
     ;
+	
+e_expr
+	: expr
+	| %empty
+	;
 
-prim_expr
+expr
     : IDENT
     | INTEGER
     | FLOATVAL
@@ -110,73 +116,37 @@ prim_expr
     | NEW F_IDENT '(' ')'
     | NEW F_IDENT '(' arg_list ')'
     | NEW base_type '[' INTEGER ']'
-    ;
-
-postfix_expr
-    : prim_expr
-    | postfix_expr '[' expr ']'
-    | postfix_expr '[' expr DOTDOT expr ']'
-    | postfix_expr '.' IDENT
-    | postfix_expr '.' F_IDENT '(' ')'
-    | postfix_expr '.' F_IDENT '(' arg_list ')'
-    | F_IDENT '(' ')'
-    | F_IDENT '(' arg_list ')'
+    | expr '[' expr ']'
+    | expr '[' expr DOTDOT expr ']'
+    | expr '.' IDENT
+    | expr '.' F_IDENT '(' ')'
+    | expr '.' F_IDENT '(' arg_list ')'
+    | expr '(' ')'
+    | expr '(' arg_list ')'
     | SUPER '.' IDENT
     | SUPER '.' F_IDENT '(' ')'
     | SUPER '.' F_IDENT '(' arg_list ')'
-    ;
-
-unary_expr
-    : postfix_expr
-    | MINUS unary_expr %prec UMINUS
-    | PLUS unary_expr %prec UPLUS
-    | UNOT unary_expr %prec UNOT
-    ;
-
-mult_expr
-    : unary_expr
-    | mult_expr STAR unary_expr
-    | mult_expr SLASH unary_expr
-    ;
-
-add_expr
-    : mult_expr
-    | add_expr PLUS mult_expr
-    | add_expr MINUS mult_expr
-    ;
-
-rel_expr
-    : add_expr
-    | rel_expr LT add_expr
-    | rel_expr GT add_expr
-    | rel_expr LE add_expr
-    | rel_expr GE add_expr
-    ;
-
-eq_expr
-    : rel_expr
-    | eq_expr EQ rel_expr
-    | eq_expr NEQ rel_expr
-    ;
-
-land_expr
-    : eq_expr
-    | land_expr LAND eq_expr
-    ;
-
-lor_expr
-    : land_expr
-    | lor_expr LOR land_expr
-    ;
-
-expr
-    : lor_expr
-    | unary_expr ASSIGN expr
-    | unary_expr PLUSEQ expr
-    | unary_expr MINUSEQ expr
-    | unary_expr STAREQ expr
-    | unary_expr SLASHEQ expr
-    | unary_expr TILDEQ expr
+    | MINUS expr %prec UMINUS
+    | PLUS expr %prec UPLUS
+    | UNOT expr %prec UNOT
+    | expr STAR expr
+    | expr SLASH expr
+    | expr PLUS expr
+    | expr MINUS expr
+    | expr LT expr
+    | expr GT expr
+    | expr LE expr
+    | expr GE expr
+    | expr EQ expr
+    | expr NEQ expr
+    | expr LAND expr
+    | expr LOR expr
+    | expr ASSIGN expr
+    | expr PLUSEQ expr
+    | expr MINUSEQ expr
+    | expr STAREQ expr
+    | expr SLASHEQ expr
+    | expr TILDEQ expr
     ;
 
 arg_list
@@ -211,8 +181,7 @@ param_list
     ;
 
 stmt
-    : ';'
-    | expr ';'
+    : e_expr ';'
     | decl
     | compound_stmt
     | if_stmt
@@ -221,8 +190,7 @@ stmt
     | for_stmt
     | foreach_stmt
     | switch_stmt
-    | RETURN ';'
-    | RETURN expr ';'
+    | RETURN e_expr ';'
     | BREAK ';'
     | CONTINUE ';'
     ;
@@ -251,18 +219,8 @@ do_while_stmt
     ;
 
 for_stmt
-    : FOR '(' ';' ';' ')' stmt
-    | FOR '(' expr ';' ';' ')' stmt
-    | FOR '(' ';' expr ';' ')' stmt
-    | FOR '(' expr ';' expr ';' ')' stmt
-    | FOR '(' ';' ';' expr ')' stmt
-    | FOR '(' expr ';' ';' expr ')' stmt
-    | FOR '(' ';' expr ';' expr ')' stmt
-    | FOR '(' expr ';' expr ';' expr ')' stmt
-    | FOR '(' decl ';' ')' stmt
-    | FOR '(' decl expr ';' ')' stmt
-    | FOR '(' decl ';' expr ')' stmt
-    | FOR '(' decl expr ';' expr ')' stmt
+    : FOR '(' e_expr ';' e_expr ';' e_expr ')' stmt
+    | FOR '(' decl e_expr ';' e_expr ')' stmt
     ;
 
 foreach_stmt
@@ -283,8 +241,8 @@ case_list
     ;
 
 case_item
-    : CASE INTEGER ':'
-    | CASE INTEGER ':' stmt_list
+    : CASE expr ':'
+    | CASE expr ':' stmt_list
     ;
 
 default_item
