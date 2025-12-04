@@ -49,10 +49,10 @@ Grammar
    36     | NAN_CONST
    37     | THIS
    38     | '(' expr ')'
-   39     | NEW CLASSNAME '[' INTEGER ']'
+   39     | NEW CLASSNAME '[' expr ']'
    40     | NEW F_IDENT '(' ')'
    41     | NEW F_IDENT '(' arg_list ')'
-   42     | NEW base_type '[' INTEGER ']'
+   42     | NEW base_type '[' expr ']'
    43     | expr '[' expr ']'
    44     | expr '[' expr DOTDOT expr ']'
    45     | expr '.' IDENT
@@ -253,7 +253,7 @@ Terminals, with rules where they appear
     NULL_CONST (290) 35
     NAN_CONST (291) 36
     DOTDOT (292) 44
-    INTEGER (293) 17 29 39 42 158 160
+    INTEGER (293) 17 29 158 160
     FLOATVAL (294) 30
     STR (295) 32
     CHARVAL (296) 31
@@ -317,7 +317,7 @@ Nonterminals, with rules where they appear
         on right: 87 96 107 108
     expr (89)
         on left: 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73
-        on right: 24 26 38 43 44 45 46 47 48 49 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 83 84 103 104 105 106 109 110 111 112 117 118
+        on right: 24 26 38 39 42 43 44 45 46 47 48 49 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 83 84 103 104 105 106 109 110 111 112 117 118
     arg_list (90)
         on left: 74 75
         on right: 23 41 47 49 52 75
@@ -1200,10 +1200,10 @@ State 75
 
 State 76
 
-   39 expr: NEW . CLASSNAME '[' INTEGER ']'
+   39 expr: NEW . CLASSNAME '[' expr ']'
    40     | NEW . F_IDENT '(' ')'
    41     | NEW . F_IDENT '(' arg_list ')'
-   42     | NEW . base_type '[' INTEGER ']'
+   42     | NEW . base_type '[' expr ']'
 
     INT         shift, and go to state 1
     CHAR        shift, and go to state 2
@@ -1802,14 +1802,14 @@ State 121
 
 State 122
 
-   39 expr: NEW CLASSNAME . '[' INTEGER ']'
+   39 expr: NEW CLASSNAME . '[' expr ']'
 
     '['  shift, and go to state 194
 
 
 State 123
 
-   42 expr: NEW base_type . '[' INTEGER ']'
+   42 expr: NEW base_type . '[' expr ']'
 
     '['  shift, and go to state 195
 
@@ -3117,16 +3117,50 @@ State 193
 
 State 194
 
-   39 expr: NEW CLASSNAME '[' . INTEGER ']'
+   39 expr: NEW CLASSNAME '[' . expr ']'
 
-    INTEGER  shift, and go to state 251
+    SUPER       shift, and go to state 74
+    THIS        shift, and go to state 75
+    NEW         shift, and go to state 76
+    TRUE        shift, and go to state 77
+    FALSE       shift, and go to state 78
+    NULL_CONST  shift, and go to state 79
+    NAN_CONST   shift, and go to state 80
+    INTEGER     shift, and go to state 81
+    FLOATVAL    shift, and go to state 82
+    STR         shift, and go to state 83
+    CHARVAL     shift, and go to state 84
+    IDENT       shift, and go to state 85
+    PLUS        shift, and go to state 86
+    MINUS       shift, and go to state 87
+    UNOT        shift, and go to state 88
+    '('         shift, and go to state 90
+
+    expr  go to state 251
 
 
 State 195
 
-   42 expr: NEW base_type '[' . INTEGER ']'
+   42 expr: NEW base_type '[' . expr ']'
 
-    INTEGER  shift, and go to state 252
+    SUPER       shift, and go to state 74
+    THIS        shift, and go to state 75
+    NEW         shift, and go to state 76
+    TRUE        shift, and go to state 77
+    FALSE       shift, and go to state 78
+    NULL_CONST  shift, and go to state 79
+    NAN_CONST   shift, and go to state 80
+    INTEGER     shift, and go to state 81
+    FLOATVAL    shift, and go to state 82
+    STR         shift, and go to state 83
+    CHARVAL     shift, and go to state 84
+    IDENT       shift, and go to state 85
+    PLUS        shift, and go to state 86
+    MINUS       shift, and go to state 87
+    UNOT        shift, and go to state 88
+    '('         shift, and go to state 90
+
+    expr  go to state 252
 
 
 State 196
@@ -4496,16 +4530,108 @@ State 250
 
 State 251
 
-   39 expr: NEW CLASSNAME '[' INTEGER . ']'
+   39 expr: NEW CLASSNAME '[' expr . ']'
+   43     | expr . '[' expr ']'
+   44     | expr . '[' expr DOTDOT expr ']'
+   45     | expr . '.' IDENT
+   46     | expr . '.' F_IDENT '(' ')'
+   47     | expr . '.' F_IDENT '(' arg_list ')'
+   48     | expr . '(' ')'
+   49     | expr . '(' arg_list ')'
+   56     | expr . STAR expr
+   57     | expr . SLASH expr
+   58     | expr . PLUS expr
+   59     | expr . MINUS expr
+   60     | expr . LT expr
+   61     | expr . GT expr
+   62     | expr . LE expr
+   63     | expr . GE expr
+   64     | expr . EQ expr
+   65     | expr . NEQ expr
+   66     | expr . LAND expr
+   67     | expr . LOR expr
+   68     | expr . ASSIGN expr
+   69     | expr . PLUSEQ expr
+   70     | expr . MINUSEQ expr
+   71     | expr . STAREQ expr
+   72     | expr . SLASHEQ expr
+   73     | expr . TILDEQ expr
 
-    ']'  shift, and go to state 281
+    ASSIGN   shift, and go to state 131
+    PLUSEQ   shift, and go to state 132
+    MINUSEQ  shift, and go to state 133
+    STAREQ   shift, and go to state 134
+    SLASHEQ  shift, and go to state 135
+    TILDEQ   shift, and go to state 136
+    LOR      shift, and go to state 137
+    LAND     shift, and go to state 138
+    EQ       shift, and go to state 139
+    NEQ      shift, and go to state 140
+    LT       shift, and go to state 141
+    GT       shift, and go to state 142
+    LE       shift, and go to state 143
+    GE       shift, and go to state 144
+    PLUS     shift, and go to state 145
+    MINUS    shift, and go to state 146
+    STAR     shift, and go to state 147
+    SLASH    shift, and go to state 148
+    '.'      shift, and go to state 149
+    '['      shift, and go to state 150
+    ']'      shift, and go to state 281
+    '('      shift, and go to state 151
 
 
 State 252
 
-   42 expr: NEW base_type '[' INTEGER . ']'
+   42 expr: NEW base_type '[' expr . ']'
+   43     | expr . '[' expr ']'
+   44     | expr . '[' expr DOTDOT expr ']'
+   45     | expr . '.' IDENT
+   46     | expr . '.' F_IDENT '(' ')'
+   47     | expr . '.' F_IDENT '(' arg_list ')'
+   48     | expr . '(' ')'
+   49     | expr . '(' arg_list ')'
+   56     | expr . STAR expr
+   57     | expr . SLASH expr
+   58     | expr . PLUS expr
+   59     | expr . MINUS expr
+   60     | expr . LT expr
+   61     | expr . GT expr
+   62     | expr . LE expr
+   63     | expr . GE expr
+   64     | expr . EQ expr
+   65     | expr . NEQ expr
+   66     | expr . LAND expr
+   67     | expr . LOR expr
+   68     | expr . ASSIGN expr
+   69     | expr . PLUSEQ expr
+   70     | expr . MINUSEQ expr
+   71     | expr . STAREQ expr
+   72     | expr . SLASHEQ expr
+   73     | expr . TILDEQ expr
 
-    ']'  shift, and go to state 282
+    ASSIGN   shift, and go to state 131
+    PLUSEQ   shift, and go to state 132
+    MINUSEQ  shift, and go to state 133
+    STAREQ   shift, and go to state 134
+    SLASHEQ  shift, and go to state 135
+    TILDEQ   shift, and go to state 136
+    LOR      shift, and go to state 137
+    LAND     shift, and go to state 138
+    EQ       shift, and go to state 139
+    NEQ      shift, and go to state 140
+    LT       shift, and go to state 141
+    GT       shift, and go to state 142
+    LE       shift, and go to state 143
+    GE       shift, and go to state 144
+    PLUS     shift, and go to state 145
+    MINUS    shift, and go to state 146
+    STAR     shift, and go to state 147
+    SLASH    shift, and go to state 148
+    '.'      shift, and go to state 149
+    '['      shift, and go to state 150
+    ']'      shift, and go to state 282
+    '('      shift, and go to state 151
 
 
 State 253
@@ -5011,14 +5137,14 @@ State 280
 
 State 281
 
-   39 expr: NEW CLASSNAME '[' INTEGER ']' .
+   39 expr: NEW CLASSNAME '[' expr ']' .
 
     $default  reduce using rule 39 (expr)
 
 
 State 282
 
-   42 expr: NEW base_type '[' INTEGER ']' .
+   42 expr: NEW base_type '[' expr ']' .
 
     $default  reduce using rule 42 (expr)
 

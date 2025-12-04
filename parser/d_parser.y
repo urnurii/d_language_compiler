@@ -112,10 +112,10 @@ expr
     | NAN_CONST
     | THIS
     | '(' expr ')'
-    | NEW CLASSNAME '[' INTEGER ']'
+    | NEW CLASSNAME '[' expr ']'
     | NEW F_IDENT '(' ')'
     | NEW F_IDENT '(' arg_list ')'
-    | NEW base_type '[' INTEGER ']'
+    | NEW base_type '[' expr ']'
     | expr '[' expr ']'
     | expr '[' expr DOTDOT expr ']'
     | expr '.' IDENT
