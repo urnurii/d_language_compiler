@@ -17,8 +17,7 @@ void yyerror(const char *s);
 
 %token INTEGER
 %token FLOATVAL
-%token STR CHARVAL IDENT F_IDENT
-%token CLASSNAME
+%token STR CHARVAL IDENT CLASSNAME
 
 %type type base_type array_decl
 %type expr
@@ -113,19 +112,19 @@ expr
     | THIS
     | '(' expr ')'
     | NEW CLASSNAME '[' expr ']'
-    | NEW F_IDENT '(' ')'
-    | NEW F_IDENT '(' arg_list ')'
+    | NEW CLASSNAME '(' ')'
+    | NEW CLASSNAME '(' arg_list ')'
     | NEW base_type '[' expr ']'
     | expr '[' expr ']'
     | expr '[' expr DOTDOT expr ']'
     | expr '.' IDENT
-    | expr '.' F_IDENT '(' ')'
-    | expr '.' F_IDENT '(' arg_list ')'
-    | expr '(' ')'
-    | expr '(' arg_list ')'
+    | expr '.' IDENT '(' ')'
+    | expr '.' IDENT '(' arg_list ')'
+    | IDENT '(' ')'
+    | IDENT '(' arg_list ')'
     | SUPER '.' IDENT
-    | SUPER '.' F_IDENT '(' ')'
-    | SUPER '.' F_IDENT '(' arg_list ')'
+    | SUPER '.' IDENT '(' ')'
+    | SUPER '.' IDENT '(' arg_list ')'
     | MINUS expr %prec UMINUS
     | PLUS expr %prec UPLUS
     | UNOT expr %prec UNOT
@@ -251,10 +250,10 @@ default_item
     ;
 
 func_def
-    : type F_IDENT '(' ')' func_body
-    | type F_IDENT '(' param_list ')' func_body
-    | VOID F_IDENT '(' ')' func_body
-    | VOID F_IDENT '(' param_list ')' func_body
+    : type IDENT '(' ')' func_body
+    | type IDENT '(' param_list ')' func_body
+    | VOID IDENT '(' ')' func_body
+    | VOID IDENT '(' param_list ')' func_body
     ;
 
 func_body
@@ -292,14 +291,14 @@ access_spec
     ;
 
 method_def
-    : type F_IDENT '(' ')' compound_stmt
-    | type F_IDENT '(' param_list ')' compound_stmt
-    | VOID F_IDENT '(' ')' compound_stmt
-    | VOID F_IDENT '(' param_list ')' compound_stmt
-    | OVERRIDE type F_IDENT '(' ')' compound_stmt
-    | OVERRIDE type F_IDENT '(' param_list ')' compound_stmt
-    | OVERRIDE VOID F_IDENT '(' ')' compound_stmt
-    | OVERRIDE VOID F_IDENT '(' param_list ')' compound_stmt
+    : type IDENT '(' ')' compound_stmt
+    | type IDENT '(' param_list ')' compound_stmt
+    | VOID IDENT '(' ')' compound_stmt
+    | VOID IDENT '(' param_list ')' compound_stmt
+    | OVERRIDE type IDENT '(' ')' compound_stmt
+    | OVERRIDE type IDENT '(' param_list ')' compound_stmt
+    | OVERRIDE VOID IDENT '(' ')' compound_stmt
+    | OVERRIDE VOID IDENT '(' param_list ')' compound_stmt
     ;
 
 ctor_def
