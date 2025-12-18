@@ -25,8 +25,6 @@ long parse_hexadecimal(const char* yytext);
 long parse_decimal(const char* yytext);
 int get_int(const char* yytext);
 float get_float(const char* yytext);
-void process_possible_function(int yyleng, const char* yytext);
-int is_keyword(const char* word);
 %}
 
 DIGIT [0-9]
@@ -89,6 +87,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "private"           { printf("Keyword: %s\n", yytext); }
 "public"            { printf("Keyword: %s\n", yytext); }
 "protected"         { printf("Keyword: %s\n", yytext); }
+"auto"              { printf("Keyword: %s\n", yytext); }
 "this"              { printf("Keyword: %s\n", yytext); }
 "ref"               { printf("Keyword: %s\n", yytext); }
 "enum"              { printf("Keyword: %s\n", yytext); }
@@ -140,6 +139,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "&&"                { printf("Operator: %s\n", yytext); }
 "||"                { printf("Operator: %s\n", yytext); }
 "!"                 { printf("Operator: %s\n", yytext); }
+"..."               { printf("Operator: %s\n", yytext); }
 ".."                { printf("Operator: %s\n", yytext); }
 "."                 { printf("Operator: %s\n", yytext); }
 "~"                 { printf("Operator: %s\n", yytext); }
@@ -180,11 +180,9 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 
 <MULTILINE_COMMENT><<EOF>>   { printf("ERROR! Multiline comment with position %d: \n\"%s\" \nisn't closed!\n", line, tmp); BEGIN(INITIAL); }
 
-{IDENTIFIER}[ \t\n]*/"(" { process_possible_function(yyleng, yytext); }
-
 {IDENTIFIER} {
     if (is_class_name(yytext)) {
-        printf("Classname: %s\n", yytext);
+        printf("CLASSNAME: %s\n", yytext);
     } else {
         printf("Found identifier: %s\n", yytext);
     }
@@ -231,38 +229,6 @@ void print_class_table() {
         printf("  %d. %s\n", i + 1, classTable.names[i]);
     }
     printf("================================\n\n");
-}
-
-int is_keyword(const char* word) {
-    const char* keywords[] = {
-        "if", "else", "while", "for", "do", "switch", "case", 
-        "return", "break", "continue", "int", "char", "float",
-        "string", "foreach", "super", "override", "enum", "real", 
-        "double", "void", "class", "new", "this", "ref", NULL
-    };
-    
-    for (int i = 0; keywords[i] != NULL; i++) {
-        if (strcmp(word, keywords[i]) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-void process_possible_function(int yyleng, const char* yytext) {
-    char func_name[256];
-    int i = 0;
-    while (i < yyleng && (isalnum(yytext[i]) || yytext[i] == '_')) {
-        func_name[i] = yytext[i];
-        i++;
-    }
-    func_name[i] = '\0';
-
-    if (is_keyword(func_name)) {
-        printf("Keyword: %s\n", func_name);
-    } else {
-        printf("Function: %s\n", func_name);
-    }
 }
 
 void handle_hex_escape(char* buffer, char* yytext) {

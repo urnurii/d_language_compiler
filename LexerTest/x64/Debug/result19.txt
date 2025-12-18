@@ -3,7 +3,7 @@
 ================================
 
 Keyword: void
-Function: main
+Found identifier: main
 Separator: (
 Separator: )
 Separator: {
