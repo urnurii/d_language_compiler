@@ -5,48 +5,48 @@
 ================================
 
 Keyword: class
-Classname: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: int
 Found identifier: age
 Separator: ;
 Keyword: void
-Function: speak
+Found identifier: speak
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Separator: }
 Keyword: class
-Classname: Dog
+CLASSNAME: Dog
 Operator: :
-Classname: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: override
 Keyword: void
-Function: speak
+Found identifier: speak
 Separator: (
 Separator: )
 Separator: {
 Separator: }
 Keyword: void
-Function: callSuper
+Found identifier: callSuper
 Separator: (
 Separator: )
 Separator: {
 Keyword: super
 Operator: .
-Function: speak
+Found identifier: speak
 Separator: (
 Separator: )
 Separator: ;
 Separator: }
 Separator: }
-Classname: Animal
+CLASSNAME: Animal
 Found identifier: animal
 Operator: =
 Keyword: new
-Function: Animal
+CLASSNAME: Animal
 Separator: (
 Separator: )
 Separator: ;
@@ -59,7 +59,7 @@ Parsed Int: 3
 Separator: ;
 Found identifier: animal
 Operator: .
-Function: speak
+Found identifier: speak
 Separator: (
 Separator: )
 Separator: ;

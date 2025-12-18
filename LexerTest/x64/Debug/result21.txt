@@ -10,7 +10,7 @@ Operator: .
 Found identifier: stdio
 Separator: ;
 Keyword: class
-Classname: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: private
 Keyword: string
@@ -58,11 +58,11 @@ Separator: }
 Keyword: public
 Found identifier: virtual
 Keyword: void
-Function: makeSound
+Found identifier: makeSound
 Separator: (
 Separator: )
 Separator: {
-Function: writeln
+Found identifier: writeln
 Separator: (
 Found identifier: name
 Separator: ,
@@ -72,7 +72,7 @@ Separator: ;
 Separator: }
 Keyword: public
 Keyword: string
-Function: getName
+Found identifier: getName
 Separator: (
 Separator: )
 Separator: {
@@ -82,9 +82,9 @@ Separator: ;
 Separator: }
 Separator: }
 Keyword: class
-Classname: Dog
+CLASSNAME: Dog
 Operator: :
-Classname: Animal
+CLASSNAME: Animal
 Separator: {
 Keyword: this
 Separator: (
@@ -108,13 +108,13 @@ Separator: }
 Keyword: public
 Keyword: override
 Keyword: void
-Function: makeSound
+Found identifier: makeSound
 Separator: (
 Separator: )
 Separator: {
-Function: writeln
+Found identifier: writeln
 Separator: (
-Function: getName
+Found identifier: getName
 Separator: (
 Separator: )
 Separator: ,
@@ -124,23 +124,23 @@ Separator: ;
 Separator: }
 Separator: }
 Keyword: void
-Function: callAnimalSound
+Found identifier: callAnimalSound
 Separator: (
-Classname: Animal
+CLASSNAME: Animal
 Found identifier: animal
 Separator: )
 Separator: {
 Found identifier: animal
 Operator: .
-Function: makeSound
+Found identifier: makeSound
 Separator: (
 Separator: )
 Separator: ;
 Separator: }
 Keyword: void
-Function: callAllSounds
+Found identifier: callAllSounds
 Separator: (
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Operator: ]
 Found identifier: animals
@@ -155,14 +155,14 @@ Separator: )
 Separator: {
 Found identifier: animal
 Operator: .
-Function: makeSound
+Found identifier: makeSound
 Separator: (
 Separator: )
 Separator: ;
 Separator: }
 Separator: }
-Classname: Animal
-Function: createRandomAnimal
+CLASSNAME: Animal
+Found identifier: createRandomAnimal
 Separator: (
 Keyword: int
 Found identifier: choice
@@ -178,7 +178,7 @@ Separator: )
 Separator: {
 Keyword: return
 Keyword: new
-Function: Dog
+CLASSNAME: Dog
 Separator: (
 Found String literal: Барбос
 Separator: ,
@@ -191,7 +191,7 @@ Keyword: else
 Separator: {
 Keyword: return
 Keyword: new
-Function: Animal
+CLASSNAME: Animal
 Separator: (
 Found String literal: Неизвестное животное
 Separator: ,
@@ -203,20 +203,20 @@ Separator: )
 Separator: ;
 Separator: }
 Separator: }
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Operator: ]
-Function: createAnimalArray
+Found identifier: createAnimalArray
 Separator: (
 Separator: )
 Separator: {
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Operator: ]
 Found identifier: animals
 Operator: =
 Keyword: new
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Int: 2
 Parsed Int: 2
@@ -229,7 +229,7 @@ Parsed Int: 0
 Operator: ]
 Operator: =
 Keyword: new
-Function: Dog
+CLASSNAME: Dog
 Separator: (
 Found String literal: Рекс
 Separator: ,
@@ -244,7 +244,7 @@ Parsed Int: 1
 Operator: ]
 Operator: =
 Keyword: new
-Function: Animal
+CLASSNAME: Animal
 Separator: (
 Found String literal: Ящерица
 Separator: ,
@@ -259,15 +259,15 @@ Found identifier: animals
 Separator: ;
 Separator: }
 Keyword: void
-Function: main
+Found identifier: main
 Separator: (
 Separator: )
 Separator: {
-Classname: Animal
+CLASSNAME: Animal
 Found identifier: animal
 Operator: =
 Keyword: new
-Function: Animal
+CLASSNAME: Animal
 Separator: (
 Found String literal: Животное
 Separator: ,
@@ -277,11 +277,11 @@ Separator: ,
 Found String literal: Неизвестный вид
 Separator: )
 Separator: ;
-Classname: Dog
+CLASSNAME: Dog
 Found identifier: dog
 Operator: =
 Keyword: new
-Function: Dog
+CLASSNAME: Dog
 Separator: (
 Found String literal: Шарик
 Separator: ,
@@ -289,14 +289,14 @@ Int: 3
 Parsed Int: 3
 Separator: )
 Separator: ;
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Operator: ]
 Found identifier: animalsArray
 Operator: =
 Operator: [
 Keyword: new
-Function: Dog
+CLASSNAME: Dog
 Separator: (
 Found String literal: Филипп
 Separator: ,
@@ -305,7 +305,7 @@ Parsed Int: 4
 Separator: )
 Separator: ,
 Keyword: new
-Function: Dog
+CLASSNAME: Dog
 Separator: (
 Found String literal: Джек
 Separator: ,
@@ -314,7 +314,7 @@ Parsed Int: 2
 Separator: )
 Separator: ,
 Keyword: new
-Function: Animal
+CLASSNAME: Animal
 Separator: (
 Found String literal: Ослик
 Separator: ,
@@ -325,31 +325,31 @@ Found String literal: Осел
 Separator: )
 Operator: ]
 Separator: ;
-Function: callAnimalSound
+Found identifier: callAnimalSound
 Separator: (
 Found identifier: dog
 Separator: )
 Separator: ;
-Function: callAllSounds
+Found identifier: callAllSounds
 Separator: (
 Found identifier: animalsArray
 Separator: )
 Separator: ;
-Classname: Animal
+CLASSNAME: Animal
 Found identifier: returnedAnimal
 Operator: =
-Function: createRandomAnimal
+Found identifier: createRandomAnimal
 Separator: (
 Int: 1
 Parsed Int: 1
 Separator: )
 Separator: ;
-Classname: Animal
+CLASSNAME: Animal
 Operator: [
 Operator: ]
 Found identifier: returnedArray
 Operator: =
-Function: createAnimalArray
+Found identifier: createAnimalArray
 Separator: (
 Separator: )
 Separator: ;
