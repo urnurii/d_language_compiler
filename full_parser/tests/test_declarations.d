@@ -1,0 +1,14 @@
+int x;
+int y = 1;
+float a;
+float b = 3.14;
+char c;
+char d = 'a';
+double e;
+double f = 2.71;
+bool g;
+bool h = true;
+string s;
+string t = "hello";
+int x1, y1, z1;
+int x2 = 1, y2 = 2, z2 = 3;
