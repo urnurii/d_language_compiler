@@ -193,6 +193,12 @@ typedef struct {
     int capacity;
 } NInitDeclList;
 
+// Структура для результата правила decl
+typedef struct {
+    NType *type;
+    NInitDeclList *init_decls;
+} NDeclStmt;
+
 // Типы операторов stmt
 typedef enum {
     STMT_EXPR,
@@ -297,6 +303,12 @@ typedef struct NCaseItem {
     NExpr *case_expr;
     NStmtList *stmts;
 } NCaseItem;
+
+typedef struct {
+    NCaseItem **items;
+    int count;
+    int capacity;
+} NCaseList;
 
 // Определения функций
 typedef struct {

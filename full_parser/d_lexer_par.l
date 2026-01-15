@@ -85,7 +85,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "class"             { return CLASS; }
 "super"             { return SUPER; }
 "override"          { return OVERRIDE; }
-"float"             { return FLOAT; }
+"float"             { return FLOAT_TYPE; }
 "double"            { return DOUBLE; }
 "real"              { return REAL; }
 "private"           { return PRIVATE; }
@@ -98,7 +98,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "null"              { return NULL_CONST; }
 "NaN"               { return NAN_CONST; }
 
-"true"              { return FALSE_VAL; }
+"true"              { return TRUE_VAL; }
 "false"             { return FALSE_VAL; }
 
 \'                               { strcpy(tmp,""); BEGIN(CHAR); }
@@ -151,35 +151,35 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "!="                { return NEQ; }
 "<="                { return LE; }
 ">="                { return GE; }
-"+="                { return PLUS_ASSIGN; }
-"-="                { return MINUS_ASSIGN; }
-"*="                { return MUL_ASSIGN; }
-"/="                { return DIV_ASSIGN; }
-"~="                { return TILDE_ASSIGN; }
-"&&"                { return AND; }
-"||"                { return OR; }
-".."                { return RANGE; }
+"+="                { return PLUSEQ; }
+"-="                { return MINUSEQ; }
+"*="                { return STAREQ; }
+"/="                { return SLASHEQ; }
+"~="                { return TILDEQ; }
+"&&"                { return LAND; }
+"||"                { return LOR; }
+".."                { return DOTDOT; }
 
 "<"                 { return LT; }
 ">"                 { return GT; }
 "+"                 { return PLUS; }
 "-"                 { return MINUS; }
-"*"                 { return MUL; }
-"/"                 { return DIV; }
-"="                 { return ASSIGN; }
-"!"                 { return NOT; }
-"."                 { return DOT; }
-"~"                 { return TILDE; }
+"*"                 { return STAR; }
+"/"                 { return SLASH; }
+"="                 { return '='; }
+"!"                 { return UNOT; }
+"."                 { return '.'; }
+"~"                 { return '~'; }
 
-"("                 { return LPAREN; }
-")"                 { return RPAREN; }
-"{"                 { return LBRACE; }
-"}"                 { return RBRACE; }
-"["                 { return LBRACKET; }
-"]"                 { return RBRACKET; }
-";"                 { return SEMI; }
-","                 { return COMMA; }
-":"                 { return COLON; }
+"("                 { return '('; }
+")"                 { return ')'; }
+"{"                 { return '{'; }
+"}"                 { return '}'; }
+"["                 { return '['; }
+"]"                 { return ']'; }
+";"                 { return ';'; }
+","                 { return ','; }
+":"                 { return ':'; }
 
 0|(?:[1-9]{DIGIT}*(?:_{DIGIT}+)*)                                           { 
                                     yylval.int_val = get_int(yytext);

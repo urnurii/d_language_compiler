@@ -464,7 +464,7 @@ void AddExprToList(NExprList *list, NExpr *expr) {
     list->elements[list->count++] = expr;
 }
 
-// ----- Функции для параметров
+// ----- Функции для параметров -----
 
 NParam* CreateParam(NType *param_type, const char *param_name, int is_ref, NExpr *default_value) {
     NParam *param = (NParam *)malloc(sizeof(NParam));
@@ -510,6 +510,29 @@ void AddParamToList(NParamList *list, NParam *param) {
     list->params[list->count++] = param;
 }
 
+void FreeParamList(NParamList *list) {
+    if (list == NULL) return;
+    
+    for (int i = 0; i < list->count; i++) {
+        if (list->params[i] != NULL) {
+            if (list->params[i]->param_type != NULL) {
+                FreeType(list->params[i]->param_type);
+            }
+            if (list->params[i]->param_name != NULL) {
+                free(list->params[i]->param_name);
+            }
+            if (list->params[i]->default_value != NULL) {
+                FreeExpr(list->params[i]->default_value);
+            }
+            free(list->params[i]);
+        }
+    }
+    if (list->params != NULL) {
+        free(list->params);
+    }
+    free(list);
+}
+
 // ----- Функции для объявлений переменных -----
 
 NInitDecl* CreateInitDecl(const char *name, NInitializer *initializer) {
@@ -552,6 +575,40 @@ void AddInitDeclToList(NInitDeclList *list, NInitDecl *decl) {
     }
     
     list->decls[list->count++] = decl;
+}
+
+void FreeInitDeclList(NInitDeclList *list) {
+    if (list == NULL) return;
+    
+    for (int i = 0; i < list->count; i++) {
+        if (list->decls[i] != NULL) {
+            if (list->decls[i]->name != NULL) {
+                free(list->decls[i]->name);
+            }
+            if (list->decls[i]->initializer != NULL) {
+                if (list->decls[i]->initializer->is_array == 0) {
+                    if (list->decls[i]->initializer->expr != NULL) {
+                        FreeExpr(list->decls[i]->initializer->expr);
+                    }
+                } else {
+                    for (int j = 0; j < list->decls[i]->initializer->array_init.count; j++) {
+                        if (list->decls[i]->initializer->array_init.elements[j] != NULL) {
+                            FreeExpr(list->decls[i]->initializer->array_init.elements[j]);
+                        }
+                    }
+                    if (list->decls[i]->initializer->array_init.elements != NULL) {
+                        free(list->decls[i]->initializer->array_init.elements);
+                    }
+                }
+                free(list->decls[i]->initializer);
+            }
+            free(list->decls[i]);
+        }
+    }
+    if (list->decls != NULL) {
+        free(list->decls);
+    }
+    free(list);
 }
 
 // ----- Функции для операторов -----
@@ -814,6 +871,46 @@ NCaseItem* CreateDefaultItem(NStmtList *stmts) {
     item->stmts = stmts;
     
     return item;
+}
+
+NCaseList* CreateCaseList(void) {
+    NCaseList *list = (NCaseList *)malloc(sizeof(NCaseList));
+    if (list == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+    
+    list->capacity = 10;
+    list->count = 0;
+    list->items = (NCaseItem **)malloc(sizeof(NCaseItem*) * list->capacity);
+    if (list->items == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+    
+    return list;
+}
+
+void AddCaseItemToList(NCaseList *list, NCaseItem *item) {
+    if (list == NULL || item == NULL) return;
+    
+    if (list->count >= list->capacity) {
+        list->capacity *= 2;
+        list->items = (NCaseItem **)realloc(list->items, sizeof(NCaseItem*) * list->capacity);
+        if (list->items == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+            exit(1);
+        }
+    }
+    
+    list->items[list->count] = item;
+    list->count++;
+}
+
+void FreeCaseList(NCaseList *list) {
+    if (list == NULL) return;
+    free(list->items);
+    free(list);
 }
 
 // ----- Функции для управления списками операторов -----

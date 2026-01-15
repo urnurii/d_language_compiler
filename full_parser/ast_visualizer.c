@@ -107,9 +107,8 @@ static const char* OpTypeToString(OpType op) {
         case OP_MINUS: return "-";
         case OP_MUL: return "*";
         case OP_DIV: return "/";
-        case OP_MOD: return "%";
         case OP_EQ: return "==";
-        case OP_NE: return "!=";
+        case OP_NEQ: return "!=";
         case OP_LT: return "<";
         case OP_GT: return ">";
         case OP_LE: return "<=";

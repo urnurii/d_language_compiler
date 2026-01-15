@@ -94,6 +94,9 @@ void AddStmtToList(NStmtList *list, NStmt *stmt);
 void FreeStmtList(NStmtList *list);
 NCaseItem* CreateCaseItem(NExpr *case_expr, NStmtList *stmts);
 NCaseItem* CreateDefaultItem(NStmtList *stmts);
+NCaseList* CreateCaseList(void);
+void AddCaseItemToList(NCaseList *list, NCaseItem *item);
+void FreeCaseList(NCaseList *list);
 
 // ----- Функции для функций -----
 

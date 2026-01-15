@@ -30,12 +30,14 @@ NProgram *root = NULL;
     NParamList *param_list;
     NInitDecl *init_decl;
     NInitDeclList *init_decl_list;
+    NDeclStmt decl_stmt;
     
     // Операторы
     NStmt *stmt;
     NStmtList *stmt_list;
     StmtType stmt_type;
     NCaseItem *case_item;
+    NCaseList *case_list;
     
     // Функции и методы
     NFuncDef *func_def;
@@ -86,10 +88,12 @@ NProgram *root = NULL;
 %type <stmt> for_stmt foreach_stmt switch_stmt
 %type <stmt_list> stmt_list
 %type <case_item> case_item default_item
+%type <case_list> case_list
 %type <param> param
 %type <param_list> param_list
 %type <init_decl> init_decl
-%type <init_decl_list> init_decl_list decl
+%type <init_decl_list> init_decl_list
+%type <decl_stmt> decl
 %type <func_def> func_def func_body
 %type <method_def> method_def
 %type <ctor_def> ctor_def
@@ -101,7 +105,7 @@ NProgram *root = NULL;
 %type <source_item> source_item translation_unit
 %type <program> program
 
-%right ASSIGN PLUSEQ MINUSEQ STAREQ SLASHEQ TILDEQ
+%right '=' PLUSEQ MINUSEQ STAREQ SLASHEQ TILDEQ
 %left LOR
 %left LAND
 %left EQ NEQ
@@ -132,7 +136,7 @@ translation_unit
 source_item
     : func_def { $$ = CreateFuncSourceItem($1); }
     | class_def { $$ = CreateClassSourceItem($1); }
-    | decl { $$ = CreateDeclSourceItem($1->type, $1->init_decls); }
+    | decl { $$ = CreateDeclSourceItem($1.type, $1.init_decls); }
     | enum_def { $$ = CreateEnumSourceItem($1); }
     ;
 
@@ -177,7 +181,7 @@ expr
     : IDENT { $$ = CreateIdentExpr($1); }
     | INTEGER { $$ = CreateIntExpr($1); }
     | FLOAT_VAL { $$ = CreateFloatExpr($1); }
-    | CHARVAL { $$ = CreateCharExpr($1[0]); }
+    | CHARVAL { $$ = CreateCharExpr($1); }
     | STR { $$ = CreateStringExpr($1); }
     | TRUE_VAL { $$ = CreateBoolExpr(1); }
     | FALSE_VAL { $$ = CreateBoolExpr(0); }
@@ -214,7 +218,7 @@ expr
     | expr NEQ expr { $$ = CreateBinaryOpExpr(OP_NEQ, $1, $3); }
     | expr LAND expr { $$ = CreateBinaryOpExpr(OP_AND, $1, $3); }
     | expr LOR expr { $$ = CreateBinaryOpExpr(OP_OR, $1, $3); }
-    | expr ASSIGN expr { $$ = CreateAssignExpr(OP_ASSIGN, $1, $3); }
+    | expr '=' expr { $$ = CreateAssignExpr(OP_ASSIGN, $1, $3); }
     | expr PLUSEQ expr { $$ = CreateAssignExpr(OP_PLUS_ASSIGN, $1, $3); }
     | expr MINUSEQ expr { $$ = CreateAssignExpr(OP_MINUS_ASSIGN, $1, $3); }
     | expr STAREQ expr { $$ = CreateAssignExpr(OP_MUL_ASSIGN, $1, $3); }
@@ -238,7 +242,7 @@ init_decl_list
     ;
 
 decl
-    : type init_decl_list ';' { $$ = CreateInitDecl(NULL, NULL); $$->name = NULL; $$->initializer = (NInitializer*)$2; }
+    : type init_decl_list ';' { $$.type = $1; $$.init_decls = $2; }
     ;
 
 param
@@ -255,7 +259,7 @@ param_list
 
 stmt
     : e_expr ';' { $$ = CreateExprStmt($1); }
-    | decl { $$ = CreateDeclStmt(NULL, NULL); }
+    | decl { $$ = CreateDeclStmt($1.type, $1.init_decls); }
     | compound_stmt { $$ = $1; }
     | if_stmt { $$ = $1; }
     | while_stmt { $$ = $1; }
@@ -302,15 +306,15 @@ foreach_stmt
     ;
 
 switch_stmt
-    : SWITCH '(' expr ')' '{' case_list '}' { $$ = CreateSwitchStmt($3, NULL, 0); }
+    : SWITCH '(' expr ')' '{' case_list '}' { $$ = CreateSwitchStmt($3, $6->items, $6->count); }
     | SWITCH '(' expr ')' '{' '}' { $$ = CreateSwitchStmt($3, NULL, 0); }
     ;
 
 case_list
-    : case_item { $$ = $1; }
-    | default_item { $$ = $1; }
-    | case_list case_item { $$ = $1; }
-    | case_list default_item { $$ = $1; }
+    : case_item { $$ = CreateCaseList(); AddCaseItemToList($$, $1); }
+    | default_item { $$ = CreateCaseList(); AddCaseItemToList($$, $1); }
+    | case_list case_item { $$ = $1; AddCaseItemToList($$, $2); }
+    | case_list default_item { $$ = $1; AddCaseItemToList($$, $2); }
     ;
 
 case_item
@@ -348,7 +352,7 @@ class_members
     ;
 
 class_member
-    : decl { $$ = CreateFieldMember(ACCESS_PUBLIC, NULL, NULL); }
+    : decl { $$ = CreateFieldMember(ACCESS_PUBLIC, $1.type, $1.init_decls); }
     | method_def { $$ = CreateMethodMember(ACCESS_PUBLIC, $1); }
     | access_spec decl { $$ = CreateFieldMember($1, NULL, NULL); }
     | access_spec method_def { $$ = CreateMethodMember($1, $2); }
