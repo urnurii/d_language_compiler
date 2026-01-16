@@ -53,7 +53,6 @@ NProgram *root = NULL;
     
     // Enum
     NEnumDef *enum_def;
-    NEnumItem *enum_item;
     NEnumItemList *enum_item_list;
     
     // Элементы верхнего уровня
