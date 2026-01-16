@@ -29,6 +29,8 @@ long parse_hexadecimal(const char* yytext);
 long parse_decimal(const char* yytext);
 int get_int(const char* yytext);
 float get_float(const char* yytext);
+void set_lexer_first_pass(void);
+void set_lexer_initial(void);
 %}
 
 DIGIT [0-9]
@@ -305,6 +307,14 @@ void print_class_table() {
         printf("  %d. %s\n", i + 1, classTable.names[i]);
     }
     printf("================================\n\n");
+}
+
+void set_lexer_first_pass(void) {
+    BEGIN(FIRST_PASS);
+}
+
+void set_lexer_initial(void) {
+    BEGIN(INITIAL);
 }
 
 void handle_hex_escape(char* buffer, char* yytext) {

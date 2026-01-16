@@ -9,6 +9,8 @@ extern int yyparse(void);
 extern void yyerror(const char *s);
 extern void reset_class_table(void);
 extern void print_class_table(void);
+extern void set_lexer_first_pass(void);
+extern void set_lexer_initial(void);
 extern FILE *yyin;
 extern int yylineno;
 
@@ -47,6 +49,7 @@ int first_pass(const char *filename) {
     }
     
     reset_class_table();
+    set_lexer_first_pass();
     
     yylineno = 1;
 
@@ -70,6 +73,7 @@ int second_pass_and_parse(const char *filename) {
         return 0;
     }
     
+    set_lexer_initial();
     yylineno = 1;
     
     int parse_result = yyparse();
