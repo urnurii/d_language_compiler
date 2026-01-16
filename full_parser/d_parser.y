@@ -94,7 +94,8 @@ NProgram *root = NULL;
 %type <init_decl> init_decl
 %type <init_decl_list> init_decl_list
 %type <decl_stmt> decl
-%type <func_def> func_def func_body
+%type <func_def> func_def
+%type <stmt> func_body
 %type <method_def> method_def
 %type <ctor_def> ctor_def
 %type <dtor_def> dtor_def
@@ -335,7 +336,7 @@ func_def
     ;
 
 func_body
-    : compound_stmt { $$ = (NFuncDef*)$1; }
+    : compound_stmt { $$ = $1; }
     | ';' { $$ = NULL; }
     ;
 
