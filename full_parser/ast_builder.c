@@ -1094,6 +1094,19 @@ NClassMember* CreateEnumMember(AccessSpec access, NEnumDef *enum_def) {
     return member;
 }
 
+NClassMember* AppendClassMember(NClassMember *list, NClassMember *member) {
+    if (!list) return member;
+
+    NClassMember *current = list;
+    while (current->next) {
+        current = current->next;
+    }
+
+    current->next = member;
+    member->next = NULL;
+    return list;
+}
+
 void AddClassMemberToList(NClassMember **first, NClassMember **last, NClassMember *member) {
     if (first == NULL || member == NULL) return;
     

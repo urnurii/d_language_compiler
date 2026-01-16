@@ -348,7 +348,7 @@ class_def
 
 class_members
     : class_member { $$ = $1; }
-    | class_members class_member { $$ = $1; }
+    | class_members class_member { $$ = AppendClassMember($1, $2); }
     ;
 
 class_member

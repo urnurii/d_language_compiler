@@ -123,6 +123,7 @@ NClassMember* CreateMethodMember(AccessSpec access, NMethodDef *method);
 NClassMember* CreateCtorMember(NCtorDef *ctor);
 NClassMember* CreateDtorMember(NDtorDef *dtor);
 NClassMember* CreateEnumMember(AccessSpec access, NEnumDef *enum_def);
+NClassMember* AppendClassMember(NClassMember *list, NClassMember *member);
 
 // ----- Функции для классов -----
 
