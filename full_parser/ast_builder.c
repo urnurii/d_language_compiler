@@ -764,7 +764,7 @@ NStmt* CreateDoWhileStmt(NStmt *body, NExpr *condition) {
     return stmt;
 }
 
-NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDecl *init_decl,
+NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDeclList *init_decls,
                     NExpr *cond_expr, NExpr *iter_expr, NStmt *body) {
     NStmt *stmt = (NStmt *)malloc(sizeof(NStmt));
     if (stmt == NULL) {
@@ -776,28 +776,8 @@ NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDecl *init_de
     stmt->line = yylineno;
     stmt->column = 0;
     stmt->value.for_stmt.init_expr = init_expr;
-    
-    if (init_decl_type != NULL && init_decl != NULL) {
-        stmt->value.for_stmt.init_decl = 
-            (struct {
-                NType *decl_type;
-                NInitDecl init_decl;
-            } *)malloc(sizeof(struct {
-                NType *decl_type;
-                NInitDecl init_decl;
-            }));
-        
-        if (stmt->value.for_stmt.init_decl == NULL) {
-            fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
-            exit(1);
-        }
-        
-        stmt->value.for_stmt.init_decl->decl_type = init_decl_type;
-        stmt->value.for_stmt.init_decl->init_decl = *init_decl;
-    } else {
-        stmt->value.for_stmt.init_decl = NULL;
-    }
-    
+    stmt->value.for_stmt.init_decl_type = init_decl_type;
+    stmt->value.for_stmt.init_decls = init_decls;
     stmt->value.for_stmt.cond_expr = cond_expr;
     stmt->value.for_stmt.iter_expr = iter_expr;
     stmt->value.for_stmt.body = body;

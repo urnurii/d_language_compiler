@@ -298,7 +298,7 @@ do_while_stmt
 
 for_stmt
     : FOR '(' e_expr ';' e_expr ';' e_expr ')' stmt { $$ = CreateForStmt($3, NULL, NULL, $5, $7, $9); }
-    | FOR '(' decl e_expr ';' e_expr ')' stmt { $$ = CreateForStmt(NULL, NULL, NULL, $4, $6, $8); }
+    | FOR '(' decl e_expr ';' e_expr ')' stmt { $$ = CreateForStmt(NULL, $3.type, $3.init_decls, $4, $6, $8); }
     ;
 
 foreach_stmt

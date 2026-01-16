@@ -81,7 +81,7 @@ NStmt* CreateContinueStmt(void);
 NStmt* CreateIfStmt(NExpr *condition, NStmt *then_stmt, NStmt *else_stmt);
 NStmt* CreateWhileStmt(NExpr *condition, NStmt *body);
 NStmt* CreateDoWhileStmt(NStmt *body, NExpr *condition);
-NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDecl *init_decl,
+NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDeclList *init_decls,
                     NExpr *cond_expr, NExpr *iter_expr, NStmt *body);
 NStmt* CreateForeachStmt(int is_typed, NType *var_type, const char *var_name,
                         NExpr *collection, NStmt *body);

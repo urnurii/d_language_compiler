@@ -254,10 +254,8 @@ typedef struct NStmt {
         // STMT_FOR
         struct {
             NExpr *init_expr;
-            struct {
-                NType *decl_type;
-                NInitDecl init_decl;
-            } *init_decl;
+            NType *init_decl_type;
+            NInitDeclList *init_decls;
             NExpr *cond_expr;
             NExpr *iter_expr;
             struct NStmt *body;
