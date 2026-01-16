@@ -191,18 +191,10 @@ expr
     | NAN_CONST { $$ = CreateNanExpr(); }
     | THIS { $$ = CreateThisExpr(); }
     | '(' expr ')' { $$ = CreateParenExpr($2); }
-    | NEW CLASSNAME '[' expr ']' {
-        NExprList *list = CreateExprList();
-        AddExprToList(list, $4);
-        $$ = CreateNewExpr(CreateClassType($2), list->elements, list->count);
-      }
+    | NEW CLASSNAME '[' expr ']' { $$ = CreateNewArrayExpr(CreateClassType($2), $4); }
     | NEW CLASSNAME '(' ')' { $$ = CreateNewExpr(CreateClassType($2), NULL, 0); }
     | NEW CLASSNAME '(' arg_list ')' { $$ = CreateNewExpr(CreateClassType($2), $4->elements, $4->count); }
-    | NEW base_type '[' expr ']' {
-        NExprList *list = CreateExprList();
-        AddExprToList(list, $4);
-        $$ = CreateNewExpr($2, list->elements, list->count);
-      }
+    | NEW base_type '[' expr ']' { $$ = CreateNewArrayExpr($2, $4); }
     | expr '[' expr ']' { $$ = CreateArrayAccessExpr($1, $3, NULL); }
     | expr '[' expr DOTDOT expr ']' { $$ = CreateArrayAccessExpr($1, $3, $5); }
     | expr '.' IDENT { $$ = CreateMemberAccessExpr($1, $3); }
@@ -415,3 +407,12 @@ enum_body
 void yyerror(const char *s) {
     fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
 }
+
+NExpr* CreateNewArrayExpr(NType type, NExpr* expr)
+{
+    NExprList *list = CreateExprList();
+    AddExprToList(list, expr);
+    NExpr *result = CreateNewExpr(type, list->elements, list->count);
+    return result;
+}
+
