@@ -365,7 +365,7 @@ class_members
 class_member
     : decl { $$ = CreateFieldMember(ACCESS_PUBLIC, $1.type, $1.init_decls); }
     | method_def { $$ = CreateMethodMember(ACCESS_PUBLIC, $1); }
-    | access_spec decl { $$ = CreateFieldMember($1, NULL, NULL); }
+    | access_spec decl { $$ = CreateFieldMember($1, $2.type, $2.init_decls); }
     | access_spec method_def { $$ = CreateMethodMember($1, $2); }
     | ctor_def { $$ = CreateCtorMember(ACCESS_PUBLIC, $1); }
     | dtor_def { $$ = CreateDtorMember(ACCESS_PUBLIC, $1); }
