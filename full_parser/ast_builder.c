@@ -400,7 +400,7 @@ NExpr* CreateNewExpr(NType *type, NExpr **init_exprs, int init_count) {
     return expr;
 }
 
-NExpr* CreateSuperExpr(void) {
+NExpr* CreateSuperExpr(const char *member_name) {
     NExpr *expr = (NExpr *)malloc(sizeof(NExpr));
     if (expr == NULL) {
         fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
@@ -410,7 +410,7 @@ NExpr* CreateSuperExpr(void) {
     expr->type = EXPR_SUPER;
     expr->line = yylineno;
     expr->column = 0;
-    expr->value.ident_name = NULL;
+    expr->value.ident_name = DuplicateString(member_name);
     
     return expr;
 }
