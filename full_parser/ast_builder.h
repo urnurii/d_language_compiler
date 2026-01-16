@@ -120,8 +120,8 @@ NDtorDef* CreateDtorDef(NStmt *body);
 
 NClassMember* CreateFieldMember(AccessSpec access, NType *field_type, NInitDeclList *init_decls);
 NClassMember* CreateMethodMember(AccessSpec access, NMethodDef *method);
-NClassMember* CreateCtorMember(NCtorDef *ctor);
-NClassMember* CreateDtorMember(NDtorDef *dtor);
+NClassMember* CreateCtorMember(AccessSpec access, NCtorDef *ctor);
+NClassMember* CreateDtorMember(AccessSpec access, NDtorDef *dtor);
 NClassMember* CreateEnumMember(AccessSpec access, NEnumDef *enum_def);
 NClassMember* AppendClassMember(NClassMember *list, NClassMember *member);
 

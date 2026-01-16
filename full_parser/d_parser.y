@@ -359,8 +359,8 @@ class_member
     | method_def { $$ = CreateMethodMember(ACCESS_PUBLIC, $1); }
     | access_spec decl { $$ = CreateFieldMember($1, NULL, NULL); }
     | access_spec method_def { $$ = CreateMethodMember($1, $2); }
-    | ctor_def { $$ = CreateCtorMember($1); }
-    | dtor_def { $$ = CreateDtorMember($1); }
+    | ctor_def { $$ = CreateCtorMember(ACCESS_PUBLIC, $1); }
+    | dtor_def { $$ = CreateDtorMember(ACCESS_PUBLIC, $1); }
     | enum_def { $$ = CreateEnumMember(ACCESS_PUBLIC, $1); }
     | access_spec enum_def { $$ = CreateEnumMember($1, $2); }
     ;
