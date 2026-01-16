@@ -192,10 +192,18 @@ expr
     | NAN_CONST { $$ = CreateNanExpr(); }
     | THIS { $$ = CreateThisExpr(); }
     | '(' expr ')' { $$ = CreateParenExpr($2); }
-    | NEW CLASSNAME '[' expr ']' { $$ = CreateNewExpr(CreateClassType($2), &$4, 1); }
+    | NEW CLASSNAME '[' expr ']' {
+        NExprList *list = CreateExprList();
+        AddExprToList(list, $4);
+        $$ = CreateNewExpr(CreateClassType($2), list->elements, list->count);
+      }
     | NEW CLASSNAME '(' ')' { $$ = CreateNewExpr(CreateClassType($2), NULL, 0); }
     | NEW CLASSNAME '(' arg_list ')' { $$ = CreateNewExpr(CreateClassType($2), $4->elements, $4->count); }
-    | NEW base_type '[' expr ']' { $$ = CreateNewExpr($2, &$4, 1); }
+    | NEW base_type '[' expr ']' {
+        NExprList *list = CreateExprList();
+        AddExprToList(list, $4);
+        $$ = CreateNewExpr($2, list->elements, list->count);
+      }
     | expr '[' expr ']' { $$ = CreateArrayAccessExpr($1, $3, NULL); }
     | expr '[' expr DOTDOT expr ']' { $$ = CreateArrayAccessExpr($1, $3, $5); }
     | expr '.' IDENT { $$ = CreateMemberAccessExpr($1, $3); }
