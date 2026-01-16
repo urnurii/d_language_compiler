@@ -54,6 +54,7 @@ NProgram *root = NULL;
     // Enum
     NEnumDef *enum_def;
     NEnumItem *enum_item;
+    NEnumItemList *enum_item_list;
     
     // Элементы верхнего уровня
     NSourceItem *source_item;
@@ -102,7 +103,8 @@ NProgram *root = NULL;
 %type <class_def> class_def
 %type <class_member> class_member class_members
 %type <access_spec> access_spec
-%type <enum_def> enum_def enum_body
+%type <enum_def> enum_def
+%type <enum_item_list> enum_body
 %type <source_item> source_item translation_unit
 %type <program> program
 
@@ -390,15 +392,15 @@ dtor_def
     ;
 
 enum_def
-    : ENUM IDENT '{' enum_body '}' { $$ = CreateEnumDef($2, NULL, 0); }
-    | ENUM '{' enum_body '}' { $$ = CreateEnumDef(NULL, NULL, 0); }
+    : ENUM IDENT '{' enum_body '}' { $$ = CreateEnumDef($2, $4->items, $4->count); }
+    | ENUM '{' enum_body '}' { $$ = CreateEnumDef(NULL, $3->items, $3->count); }
     ;
 
 enum_body
-    : IDENT { $$ = CreateEnumDef(NULL, (NEnumItem**)malloc(sizeof(NEnumItem*)), 0); }
-    | IDENT '=' INTEGER { $$ = CreateEnumDef(NULL, (NEnumItem**)malloc(sizeof(NEnumItem*)), 0); }
-    | enum_body ',' IDENT { $$ = $1; }
-    | enum_body ',' IDENT '=' INTEGER { $$ = $1; }
+    : IDENT { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 0, 0)); }
+    | IDENT '=' INTEGER { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 1, $3)); }
+    | enum_body ',' IDENT { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 0, 0)); }
+    | enum_body ',' IDENT '=' INTEGER { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 1, $5)); }
     ;
 
 %%

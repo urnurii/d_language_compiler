@@ -389,6 +389,12 @@ typedef struct {
     int value;  // значение если has_value == 1
 } NEnumItem;
 
+typedef struct {
+    NEnumItem **items;
+    int count;
+    int capacity;
+} NEnumItemList;
+
 // Определения enum
 typedef struct NEnumDef {
     char *enum_name;

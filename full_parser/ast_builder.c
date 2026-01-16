@@ -1146,6 +1146,35 @@ NEnumItem* CreateEnumItem(const char *name, int has_value, int value) {
     return item;
 }
 
+NEnumItemList* CreateEnumItemList(void) {
+    NEnumItemList *list = (NEnumItemList *)malloc(sizeof(NEnumItemList));
+    if (list == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+    
+    list->items = NULL;
+    list->count = 0;
+    list->capacity = 0;
+    
+    return list;
+}
+
+void AddEnumItemToList(NEnumItemList *list, NEnumItem *item) {
+    if (list == NULL || item == NULL) return;
+    
+    if (list->count >= list->capacity) {
+        list->capacity = (list->capacity == 0) ? 8 : list->capacity * 2;
+        list->items = (NEnumItem **)realloc(list->items, list->capacity * sizeof(NEnumItem *));
+        if (list->items == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+            exit(1);
+        }
+    }
+    
+    list->items[list->count++] = item;
+}
+
 NEnumDef* CreateEnumDef(const char *enum_name, NEnumItem **items, int item_count) {
     NEnumDef *enum_def = (NEnumDef *)malloc(sizeof(NEnumDef));
     if (enum_def == NULL) {

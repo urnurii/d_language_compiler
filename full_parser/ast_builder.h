@@ -134,6 +134,8 @@ NClassDef* CreateClassDef(const char *class_name, const char *base_class_name,
 
 NEnumItem* CreateEnumItem(const char *name, int has_value, int value);
 NEnumDef* CreateEnumDef(const char *enum_name, NEnumItem **items, int item_count);
+NEnumItemList* CreateEnumItemList(void);
+void AddEnumItemToList(NEnumItemList *list, NEnumItem *item);
 
 // ----- Функции для программы -----
 
