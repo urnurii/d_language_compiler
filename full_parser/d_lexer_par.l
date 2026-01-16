@@ -37,12 +37,12 @@ DIGIT [0-9]
 IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 
 %x FIRST_PASS
+%x FP_COMMENT FP_STRING FP_CHAR FP_MULTILINE_COMMENT
 %x COMMENT STRING CHAR MULTILINE_COMMENT
 
 %%
 
 %{
-    int line = 1;
     char tmp[8192];
     int string_pos = 0;
     int comment_pos = 0;
@@ -59,7 +59,33 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
     add_class_name(class_name);
 }
 
-<FIRST_PASS>[\n]                { line++; yylineno++; }
+<FIRST_PASS>"//"               { BEGIN(FP_COMMENT); }
+<FP_COMMENT>.                  ;
+<FP_COMMENT>\n                 { BEGIN(FIRST_PASS); }
+
+<FIRST_PASS>"/*"               { BEGIN(FP_MULTILINE_COMMENT); }
+<FP_MULTILINE_COMMENT>[^*\n]+  ;
+<FP_MULTILINE_COMMENT>[^*\n]*\n ;
+<FP_MULTILINE_COMMENT>"*"+\n   ;
+<FP_MULTILINE_COMMENT>"*"+[^*/] ;
+<FP_MULTILINE_COMMENT>"*"+"/"  { BEGIN(FIRST_PASS); }
+<FP_MULTILINE_COMMENT><<EOF>>  { BEGIN(FIRST_PASS); return -1; }
+
+<FIRST_PASS>\"                 { BEGIN(FP_STRING); }
+<FP_STRING>[^\\\n\"]+          ;
+<FP_STRING>\\[^\n]             ;
+<FP_STRING>\n                  ;
+<FP_STRING>\"                  { BEGIN(FIRST_PASS); }
+<FP_STRING><<EOF>>             { BEGIN(FIRST_PASS); return -1; }
+
+<FIRST_PASS>\'                 { BEGIN(FP_CHAR); }
+<FP_CHAR>[^\\\n\']+            ;
+<FP_CHAR>\\[^\n]               ;
+<FP_CHAR>\n                    { BEGIN(FIRST_PASS); }
+<FP_CHAR>\'                    { BEGIN(FIRST_PASS); }
+<FP_CHAR><<EOF>>               { BEGIN(FIRST_PASS); return -1; }
+
+<FIRST_PASS>[\n]                ;
 <FIRST_PASS>[ \t\r]+            ;
 <FIRST_PASS>.                   ;
 
