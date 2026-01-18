@@ -147,8 +147,8 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 <STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( tmp, yytext ); }
 
 <STRING>\n                       { yylineno++; strcat(tmp,"\n"); }
-<CHAR>\n                         { fprintf(stderr, "ERROR! Line break found in char literal at row: %d\n", yylineno); yylineno++; }
-<STRING,CHAR><<EOF>>             { fprintf(stderr, "ERROR! String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
+<CHAR>\n                         { fprintf(stderr, "LEXER ERROR: Line break found in char literal at line %d\n", yylineno); yylineno++; }
+<STRING,CHAR><<EOF>>             { fprintf(stderr, "LEXER ERROR: String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
 
 <STRING>\"                       { 
                                     yylval.string_val = (char*)malloc(strlen(tmp) + 1);
@@ -163,7 +163,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 
 <CHAR>\'                         {
                                     if(strlen(tmp) != 1) {
-                                        fprintf(stderr, "ERROR! char length != 1 at row: %d\n", yylineno);
+                                        fprintf(stderr, "LEXER ERROR: char length != 1 at line %d\n", yylineno);
                                         BEGIN(INITIAL);
                                         return -1;
                                     } else {
@@ -223,7 +223,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
                                  }
 
 0[0-9]+                                                                     { 
-                                    fprintf(stderr, "ERROR! Incorrect octal number: %s at row: %d\n", yytext, yylineno);
+                                    fprintf(stderr, "LEXER ERROR: Incorrect octal number: %s at line %d\n", yytext, yylineno);
                                     return -1;
                                  }
 
@@ -268,7 +268,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 <MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+"/"   { BEGIN(INITIAL); }
 
-<MULTILINE_COMMENT><<EOF>>   { fprintf(stderr, "ERROR! Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
+<MULTILINE_COMMENT><<EOF>>   { fprintf(stderr, "LEXER ERROR: Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
 
 {IDENTIFIER} {
     if (is_class_name(yytext)) {

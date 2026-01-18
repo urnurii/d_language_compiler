@@ -1484,12 +1484,12 @@ case 77:
 /* rule 77 can match eol */
 YY_RULE_SETUP
 #line 151 "d_lexer_par.l"
-{ fprintf(stderr, "ERROR! Line break found in char literal at row: %d\n", yylineno); yylineno++; }
+{ fprintf(stderr, "LEXER ERROR: Line break found in char literal at line %d\n", yylineno); yylineno++; }
 	YY_BREAK
 case YY_STATE_EOF(STRING):
 case YY_STATE_EOF(CHAR):
 #line 152 "d_lexer_par.l"
-{ fprintf(stderr, "ERROR! String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
+{ fprintf(stderr, "LEXER ERROR: String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
@@ -1510,7 +1510,7 @@ YY_RULE_SETUP
 #line 165 "d_lexer_par.l"
 {
                                     if(strlen(tmp) != 1) {
-                                        fprintf(stderr, "ERROR! char length != 1 at row: %d\n", yylineno);
+                                        fprintf(stderr, "LEXER ERROR: char length != 1 at line %d\n", yylineno);
                                         BEGIN(INITIAL);
                                         return -1;
                                     } else {
@@ -1703,7 +1703,7 @@ case 114:
 YY_RULE_SETUP
 #line 226 "d_lexer_par.l"
 { 
-                                    fprintf(stderr, "ERROR! Incorrect octal number: %s at row: %d\n", yytext, yylineno);
+                                    fprintf(stderr, "LEXER ERROR: Incorrect octal number: %s at line %d\n", yytext, yylineno);
                                     return -1;
                                  }
 	YY_BREAK
@@ -1806,7 +1806,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case YY_STATE_EOF(MULTILINE_COMMENT):
 #line 272 "d_lexer_par.l"
-{ fprintf(stderr, "ERROR! Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
+{ fprintf(stderr, "LEXER ERROR: Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
 	YY_BREAK
 case 130:
 YY_RULE_SETUP

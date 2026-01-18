@@ -9,6 +9,7 @@ int yylex(void);
 int yyparse(void);
 void yyerror(const char *s);
 extern int yylineno;
+extern char *yytext;
 NExpr* CreateNewArrayExpr(NType *type, NExpr *expr);
 void AppendSourceItemToRoot(NSourceItem *item);
 
@@ -409,7 +410,11 @@ enum_body
 %%
 
 void yyerror(const char *s) {
-    fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
+    if (yytext && yytext[0] != '\0') {
+        fprintf(stderr, "PARSER ERROR at line %d near '%s': %s\n", yylineno, yytext, s);
+    } else {
+        fprintf(stderr, "PARSER ERROR at line %d: %s\n", yylineno, s);
+    }
 }
 
 void AppendSourceItemToRoot(NSourceItem *item) {
