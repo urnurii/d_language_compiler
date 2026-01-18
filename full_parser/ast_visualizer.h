@@ -1,43 +1,25 @@
 #ifndef AST_VISUALIZER_H
 #define AST_VISUALIZER_H
 
-#include <stdio.h>
 #include "tree_nodes.h"
-
-// ----- Функции для ввизуализации -----
-
-/**
- * Генерирует DOT код для всей программы
- * @param file - файловый дескриптор для записи
- * @param program - корень дерева программы
- */
-void ProgramToDoT(FILE *file, NProgram *program);
+#include <stdio.h>
 
 /**
- * Генерирует DOT код для отдельного выражения
- * @param file - файловый дескриптор для записи
- * @param expr - выражение
- * @return - ID узла в графе
+ * Генерирует DOT код для визуализации синтаксического дерева
+ * 
+ * @param program - корень синтаксического дерева
+ * @param output_file - имя файла для сохранения DOT кода (если NULL, выводит в stdout)
+ * 
+ * Функция преобразует AST в формат Graphviz DOT:
+ * - Каждому узлу присваивается уникальный ID (автоинкрементный)
+ * - Узлы называются по типам грамматики (expr, stmt, class, func и т.д.)
+ * - Связи между узлами подписаны (например: "condition", "body", "left", "right")
  */
-int ExprToDoT(FILE *file, NExpr *expr);
+void VisualizeASTToFile(NProgram *program, const char *output_file);
 
 /**
- * Генерирует DOT код для оператора
- * @param file - файловый дескриптор для записи
- * @param stmt - оператор
- * @return - ID узла в графе
+ * Выводит DOT код в стандартный поток вывода
  */
-int StmtToDoT(FILE *file, NStmt *stmt);
+void VisualizeASTToStdout(NProgram *program);
 
-/**
- * Генерирует DOT код для типа
- * @param file - файловый дескриптор для записи
- * @param type - тип
- * @return - ID узла в графе
- */
-int TypeToDoT(FILE *file, NType *type);
-
-// Сброс счетчика ID узлов
-void ResetNodeCounter(void);
-
-#endif
+#endif // AST_VISUALIZER_H
