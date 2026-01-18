@@ -599,9 +599,18 @@ static long VisualizeFunc(NFuncDef *func) {
     
     long func_id = GenerateNodeId();
     
-    const char *ret_type = func->return_type ? BaseTypeToString(func->return_type->base_type) : "void";
-    DotPrintf("    node_%ld [label=\"func: %s() -> %s\"];\n", func_id, 
-             EscapeString(func->func_name), ret_type);
+    DotPrintf("    node_%ld [label=\"func: %s()\"];\n", func_id,
+             EscapeString(func->func_name));
+    if (func->return_type) {
+        long ret_id = VisualizeType(func->return_type);
+        if (ret_id >= 0) {
+            DotPrintf("    node_%ld -> node_%ld [label=\"return_type\"];\n", func_id, ret_id);
+        }
+    } else {
+        long ret_id = GenerateNodeId();
+        DotPrintf("    node_%ld [label=\"return_type: void\"];\n", ret_id);
+        DotPrintf("    node_%ld -> node_%ld [label=\"return_type\"];\n", func_id, ret_id);
+    }
     
     VisualizeParams(func_id, func->params, "params");
     
@@ -622,9 +631,18 @@ static long VisualizeMethod(NMethodDef *method) {
     long method_id = GenerateNodeId();
     
     const char *override_str = method->is_override ? "override " : "";
-    const char *ret_type = method->return_type ? BaseTypeToString(method->return_type->base_type) : "void";
-    DotPrintf("    node_%ld [label=\"method: %s%s() -> %s\"];\n", method_id, override_str,
-             EscapeString(method->method_name), ret_type);
+    DotPrintf("    node_%ld [label=\"method: %s%s()\"];\n", method_id, override_str,
+             EscapeString(method->method_name));
+    if (method->return_type) {
+        long ret_id = VisualizeType(method->return_type);
+        if (ret_id >= 0) {
+            DotPrintf("    node_%ld -> node_%ld [label=\"return_type\"];\n", method_id, ret_id);
+        }
+    } else {
+        long ret_id = GenerateNodeId();
+        DotPrintf("    node_%ld [label=\"return_type: void\"];\n", ret_id);
+        DotPrintf("    node_%ld -> node_%ld [label=\"return_type\"];\n", method_id, ret_id);
+    }
     
     VisualizeParams(method_id, method->params, "params");
     
