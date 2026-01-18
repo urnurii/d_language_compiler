@@ -8,6 +8,7 @@
 int yylex(void);
 int yyparse(void);
 void yyerror(const char *s);
+NExpr* CreateNewArrayExpr(NType *type, NExpr *expr);
 
 NProgram *root = NULL;
 %}
@@ -408,7 +409,7 @@ void yyerror(const char *s) {
     fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
 }
 
-NExpr* CreateNewArrayExpr(NType type, NExpr* expr)
+NExpr* CreateNewArrayExpr(NType *type, NExpr *expr)
 {
     NExprList *list = CreateExprList();
     AddExprToList(list, expr);
