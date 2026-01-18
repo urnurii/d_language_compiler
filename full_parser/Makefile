@@ -16,7 +16,7 @@ LDFLAGS = -lm
 TARGET = compiler.exe
 
 # Исходные файлы (главные)
-MAIN_SOURCES = main.c ast_builder.c
+MAIN_SOURCES = main.c ast_builder.c ast_visualizer.c
 
 # Сгенерированные файлы парсером и лексером
 GENERATED_SOURCES = d_parser.tab.c lex.yy.c

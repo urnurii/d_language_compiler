@@ -3,6 +3,7 @@
 #include <string.h>
 #include "tree_nodes.h"
 #include "ast_builder.h"
+#include "ast_visualizer.h"
 
 extern int yylex(void);
 extern int yyparse(void);
@@ -100,6 +101,9 @@ int analyze_ast(void) {
     }
     
     fprintf(stdout, "[PHASE 3] AST root pointer: %p\n", (void *)root);
+    
+    VisualizeASTToFile(root, "ast.dot");
+    fprintf(stdout, "[PHASE 3] AST DOT saved to ast.dot\n");
     
     fprintf(stdout, "[PHASE 3] Analysis complete.\n");
     return 1;
