@@ -1,5 +1,3 @@
-module full_parser.tests.test_super;
-
 class Child {
     void method() {
         super.field;

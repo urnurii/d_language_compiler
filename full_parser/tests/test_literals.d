@@ -4,6 +4,5 @@ char c = 'a';
 string s = "hello";
 bool t = true;
 bool f2 = false;
-Object o = null;
-double n = double.nan;
+double n = NaN;
 int p = (5);

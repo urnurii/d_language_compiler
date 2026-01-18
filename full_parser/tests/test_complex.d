@@ -33,7 +33,7 @@ void main() {
     bool flag = true;
     string text = "hello";
     
-    int result = a + b * 2;
+    int result = a + 2;
     bool check = a < 10 && flag;
     
     int[] arr = new int[5];
@@ -49,11 +49,11 @@ void main() {
         a -= 3;
     }
     
-    while (b < 10) {
-        b += 1;
+    while (b < 10.0) {
+        b += 1.0;
     }
     
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i += 1) {
         a = a + i;
     }
     

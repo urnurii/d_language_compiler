@@ -6,6 +6,6 @@ void testLoop() {
         if (x == 3) {
             continue;
         }
-        x++;
+        x += 1;
     }
 }

@@ -1,3 +1,10 @@
+class Object {
+}
+
+class Exception {
+
+}
+
 Object o = new Object();
 Exception e = new Exception("error");
 int[] arr1 = new int[5];

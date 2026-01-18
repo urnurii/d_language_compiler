@@ -10,14 +10,14 @@ void testStatements() {
     }
     
     while (i < 10) {
-        i++;
+        i += 1;
     }
     
     do {
-        x++;
+        x += 1;
     } while (x < 10);
     
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i+=1) {
         sum += i;
     }
     
