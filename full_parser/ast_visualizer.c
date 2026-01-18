@@ -338,16 +338,24 @@ static long VisualizeType(NType *type) {
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         const char *base = BaseTypeToString(type->base_type);
         if (type->kind == TYPE_KIND_BASE_ARRAY) {
-            int size = type->array_decl ? type->array_decl->size : 0;
-            DotPrintf("    node_%ld [label=\"type: %s[%d]\"];\n", node_id, base, size);
+            if (type->array_decl && type->array_decl->has_size) {
+                DotPrintf("    node_%ld [label=\"type: %s[%d]\"];\n", node_id, base,
+                         type->array_decl->size);
+            } else {
+                DotPrintf("    node_%ld [label=\"type: %s[]\"];\n", node_id, base);
+            }
         } else {
             DotPrintf("    node_%ld [label=\"type: %s\"];\n", node_id, base);
         }
     } else if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
         if (type->kind == TYPE_KIND_CLASS_ARRAY) {
-            int size = type->array_decl ? type->array_decl->size : 0;
-            DotPrintf("    node_%ld [label=\"type: %s[%d]\"];\n", node_id, 
-                     EscapeString(type->class_name), size);
+            if (type->array_decl && type->array_decl->has_size) {
+                DotPrintf("    node_%ld [label=\"type: %s[%d]\"];\n", node_id,
+                         EscapeString(type->class_name), type->array_decl->size);
+            } else {
+                DotPrintf("    node_%ld [label=\"type: %s[]\"];\n", node_id,
+                         EscapeString(type->class_name));
+            }
         } else {
             DotPrintf("    node_%ld [label=\"type: %s\"];\n", node_id, 
                      EscapeString(type->class_name));
