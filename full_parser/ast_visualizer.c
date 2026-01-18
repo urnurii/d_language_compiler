@@ -756,6 +756,32 @@ static long VisualizeClass(NClassDef *class_def) {
                     if (type_id >= 0) {
                         DotPrintf("    node_%ld -> node_%ld [label=\"type\"];\n", member_id, type_id);
                     }
+                    if (member->value.field.init_decls) {
+                        for (int i = 0; i < member->value.field.init_decls->count; i++) {
+                            NInitDecl *init_decl = member->value.field.init_decls->decls[i];
+                            long var_id = GenerateNodeId();
+                            DotPrintf("    node_%ld [label=\"var: %s\"];\n", var_id,
+                                     EscapeString(init_decl->name));
+                            DotPrintf("    node_%ld -> node_%ld [label=\"var_%d\"];\n", member_id, var_id, i);
+                            
+                            if (init_decl->initializer) {
+                                if (init_decl->initializer->is_array) {
+                                    for (int j = 0; j < init_decl->initializer->array_init.count; j++) {
+                                        long elem_id = VisualizeExpr(init_decl->initializer->array_init.elements[j]);
+                                        if (elem_id >= 0) {
+                                            DotPrintf("    node_%ld -> node_%ld [label=\"init_%d\"];\n",
+                                                     var_id, elem_id, j);
+                                        }
+                                    }
+                                } else if (init_decl->initializer->expr) {
+                                    long init_id = VisualizeExpr(init_decl->initializer->expr);
+                                    if (init_id >= 0) {
+                                        DotPrintf("    node_%ld -> node_%ld [label=\"init\"];\n", var_id, init_id);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     break;
                 }
                     
