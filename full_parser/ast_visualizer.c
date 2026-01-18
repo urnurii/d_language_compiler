@@ -811,8 +811,20 @@ static long VisualizeClass(NClassDef *class_def) {
                     
                 case CLASS_MEMBER_ENUM: {
                     long enum_id = GenerateNodeId();
-                    DotPrintf("    node_%ld [label=\"enum: %s\"];\n", enum_id, 
+                    DotPrintf("    node_%ld [label=\"enum: %s\"];\n", enum_id,
                              EscapeString(member->value.enum_def->enum_name));
+                    for (int i = 0; i < member->value.enum_def->items.count; i++) {
+                        NEnumItem *item = member->value.enum_def->items.items[i];
+                        long item_id = GenerateNodeId();
+                        if (item->has_value) {
+                            DotPrintf("    node_%ld [label=\"item: %s = %d\"];\n", item_id,
+                                     EscapeString(item->name), item->value);
+                        } else {
+                            DotPrintf("    node_%ld [label=\"item: %s\"];\n", item_id,
+                                     EscapeString(item->name));
+                        }
+                        DotPrintf("    node_%ld -> node_%ld [label=\"item_%d\"];\n", enum_id, item_id, i);
+                    }
                     member_id = enum_id;
                     break;
                 }
@@ -891,8 +903,21 @@ static void VisualizeProgram(NProgram *program) {
                     
                 case SOURCE_ITEM_ENUM: {
                     long enum_id = GenerateNodeId();
-                    DotPrintf("    node_%ld [label=\"enum: %s\"];\n", enum_id, 
+                    DotPrintf("    node_%ld [label=\"enum: %s\"];\n", enum_id,
                              EscapeString(item->value.enum_def->enum_name));
+                    for (int i = 0; i < item->value.enum_def->items.count; i++) {
+                        NEnumItem *enum_item = item->value.enum_def->items.items[i];
+                        long enum_item_id = GenerateNodeId();
+                        if (enum_item->has_value) {
+                            DotPrintf("    node_%ld [label=\"item: %s = %d\"];\n", enum_item_id,
+                                     EscapeString(enum_item->name), enum_item->value);
+                        } else {
+                            DotPrintf("    node_%ld [label=\"item: %s\"];\n", enum_item_id,
+                                     EscapeString(enum_item->name));
+                        }
+                        DotPrintf("    node_%ld -> node_%ld [label=\"item_%d\"];\n",
+                                 enum_id, enum_item_id, i);
+                    }
                     item_id = enum_id;
                     break;
                 }
