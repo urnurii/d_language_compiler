@@ -11,7 +11,7 @@ digraph AST {
     node_1 -> node_3 [label="params"];
     node_4 [label="param: arr"];
     node_3 -> node_4 [label="param_0"];
-    node_5 [label="type: int[0]"];
+    node_5 [label="type: int[]"];
     node_4 -> node_5 [label="type"];
     node_6 [label="compound"];
     node_7 [label="foreach"];

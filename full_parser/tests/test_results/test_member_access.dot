@@ -4,7 +4,7 @@ digraph AST {
     edge [fontname="Arial", fontsize=10];
 
     node_0 [label="Program"];
-    node_1 [label="class: Point extends Point"];
+    node_1 [label="class: Point extends Object"];
     node_2 [label="public field"];
     node_3 [label="type: int"];
     node_2 -> node_3 [label="type"];

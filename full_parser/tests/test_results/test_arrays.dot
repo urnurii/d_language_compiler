@@ -10,7 +10,7 @@ digraph AST {
     node_3 [label="compound"];
     node_4 [label="decl"];
     node_4 [label="decl"];
-    node_5 [label="type: int[0]"];
+    node_5 [label="type: int[]"];
     node_4 -> node_5 [label="type"];
     node_6 [label="var: arr"];
     node_4 -> node_6 [label="var_0"];
@@ -41,7 +41,7 @@ digraph AST {
     node_3 -> node_10 [label="stmt_1"];
     node_16 [label="decl"];
     node_16 [label="decl"];
-    node_17 [label="type: int[0]"];
+    node_17 [label="type: int[]"];
     node_16 -> node_17 [label="type"];
     node_18 [label="var: slice"];
     node_16 -> node_18 [label="var_0"];

@@ -16,7 +16,7 @@ Input file: test_complex_expressions.d
 [PHASE 2] Parsing successful. AST built.
 
 [PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000001c4f8e9b370
+[PHASE 3] AST root pointer: 00000267a85ab370
 AST visualization saved to 'ast.dot'
 To convert to PNG, run: dot -Tpng ast.dot -o ast.dot.png
 [PHASE 3] AST DOT saved to ast.dot

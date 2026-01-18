@@ -4,11 +4,11 @@ digraph AST {
     edge [fontname="Arial", fontsize=10];
 
     node_0 [label="Program"];
-    node_1 [label="class: Base extends Base"];
+    node_1 [label="class: Base extends Object"];
     node_0 -> node_1 [label="item_0"];
-    node_2 [label="class: Child extends Child"];
+    node_2 [label="class: Child extends Base"];
     node_0 -> node_2 [label="item_1"];
-    node_3 [label="class: Point extends Point"];
+    node_3 [label="class: Point extends Object"];
     node_4 [label="public field"];
     node_5 [label="type: int"];
     node_4 -> node_5 [label="type"];
@@ -22,7 +22,7 @@ digraph AST {
     node_7 -> node_9 [label="var_0"];
     node_3 -> node_7 [label="member_1"];
     node_0 -> node_3 [label="item_2"];
-    node_10 [label="class: MyClass extends MyClass"];
+    node_10 [label="class: MyClass extends Object"];
     node_11 [label="public field"];
     node_12 [label="type: int"];
     node_11 -> node_12 [label="type"];

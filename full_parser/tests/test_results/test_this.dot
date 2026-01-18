@@ -4,7 +4,7 @@ digraph AST {
     edge [fontname="Arial", fontsize=10];
 
     node_0 [label="Program"];
-    node_1 [label="class: MyClass extends MyClass"];
+    node_1 [label="class: MyClass extends Object"];
     node_3 [label="method: method()"];
     node_4 [label="return_type: void"];
     node_3 -> node_4 [label="return_type"];

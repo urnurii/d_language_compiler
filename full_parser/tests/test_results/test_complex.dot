@@ -13,7 +13,7 @@ digraph AST {
     node_4 [label="int: 42"];
     node_3 -> node_4 [label="init"];
     node_0 -> node_1 [label="item_0"];
-    node_5 [label="class: Base extends Base"];
+    node_5 [label="class: Base extends Object"];
     node_6 [label="public field"];
     node_7 [label="type: int"];
     node_6 -> node_7 [label="type"];
@@ -27,7 +27,7 @@ digraph AST {
     node_10 -> node_12 [label="body"];
     node_5 -> node_10 [label="member_1"];
     node_0 -> node_5 [label="item_1"];
-    node_13 [label="class: MyClass extends MyClass"];
+    node_13 [label="class: MyClass extends Base"];
     node_14 [label="public field"];
     node_15 [label="type: int"];
     node_14 -> node_15 [label="type"];
@@ -183,7 +183,7 @@ digraph AST {
     node_52 -> node_75 [label="stmt_5"];
     node_83 [label="decl"];
     node_83 [label="decl"];
-    node_84 [label="type: int[0]"];
+    node_84 [label="type: int[]"];
     node_83 -> node_84 [label="type"];
     node_85 [label="var: arr"];
     node_83 -> node_85 [label="var_0"];
@@ -214,7 +214,7 @@ digraph AST {
     node_52 -> node_89 [label="stmt_7"];
     node_95 [label="decl"];
     node_95 [label="decl"];
-    node_96 [label="type: int[0]"];
+    node_96 [label="type: int[]"];
     node_95 -> node_96 [label="type"];
     node_97 [label="var: slice"];
     node_95 -> node_97 [label="var_0"];

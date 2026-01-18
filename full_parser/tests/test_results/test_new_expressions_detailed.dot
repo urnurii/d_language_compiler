@@ -6,7 +6,7 @@ digraph AST {
     node_0 [label="Program"];
     node_1 [label="class: Object extends Object"];
     node_0 -> node_1 [label="item_0"];
-    node_2 [label="class: Exception extends Exception"];
+    node_2 [label="class: Exception extends Object"];
     node_0 -> node_2 [label="item_1"];
     node_3 [label="global_decl"];
     node_4 [label="type: Object"];
@@ -34,7 +34,7 @@ digraph AST {
     node_10 -> node_11 [label="init"];
     node_0 -> node_8 [label="item_3"];
     node_14 [label="global_decl"];
-    node_15 [label="type: int[0]"];
+    node_15 [label="type: int[]"];
     node_14 -> node_15 [label="type"];
     node_16 [label="var: arr1"];
     node_14 -> node_16 [label="var_0"];
@@ -48,7 +48,7 @@ digraph AST {
     node_16 -> node_17 [label="init"];
     node_0 -> node_14 [label="item_4"];
     node_20 [label="global_decl"];
-    node_21 [label="type: float[0]"];
+    node_21 [label="type: float[]"];
     node_20 -> node_21 [label="type"];
     node_22 [label="var: arr2"];
     node_20 -> node_22 [label="var_0"];
@@ -62,7 +62,7 @@ digraph AST {
     node_22 -> node_23 [label="init"];
     node_0 -> node_20 [label="item_5"];
     node_26 [label="global_decl"];
-    node_27 [label="type: Object[0]"];
+    node_27 [label="type: Object[]"];
     node_26 -> node_27 [label="type"];
     node_28 [label="var: arr3"];
     node_26 -> node_28 [label="var_0"];
