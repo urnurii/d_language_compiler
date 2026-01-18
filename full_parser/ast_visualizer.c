@@ -392,6 +392,14 @@ static long VisualizeStmt(NStmt *stmt) {
                         if (init_id >= 0) {
                             DotPrintf("    node_%ld -> node_%ld [label=\"init\"];\n", var_id, init_id);
                         }
+                    } else if (init_decl->initializer && init_decl->initializer->is_array) {
+                        for (int j = 0; j < init_decl->initializer->array_init.count; j++) {
+                            long elem_id = VisualizeExpr(init_decl->initializer->array_init.elements[j]);
+                            if (elem_id >= 0) {
+                                DotPrintf("    node_%ld -> node_%ld [label=\"init_%d\"];\n",
+                                         var_id, elem_id, j);
+                            }
+                        }
                     }
                 }
             }
