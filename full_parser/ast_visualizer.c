@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 
-static long g_node_id = 0;      // Счётчик ID для уникальности узлов
-static FILE *g_output = NULL;   // Текущий файл вывода
+static long g_node_id = 0;
+static FILE *g_output = NULL;
 
 static long VisualizeType(NType *type);
 
@@ -128,10 +128,6 @@ static const char* StmtTypeToString(StmtType type) {
         default:              return "stmt_unknown";
     }
 }
-
-/* ============================================================================
-   ВИЗУАЛИЗАЦИЯ ВЫРАЖЕНИЙ
-   ============================================================================ */
 
 // Функция для визуализации выражений
 static long VisualizeExpr(NExpr *expr) {
@@ -755,8 +751,12 @@ static long VisualizeClass(NClassDef *class_def) {
     long class_id = GenerateNodeId();
     
     const char *base_str = class_def->base_class_name ? class_def->base_class_name : "Object";
-    DotPrintf("    node_%ld [label=\"class: %s extends %s\"];\n", class_id, 
-             EscapeString(class_def->class_name), EscapeString(base_str));
+    char class_buf[1024];
+    char base_buf[1024];
+    snprintf(class_buf, sizeof(class_buf), "%s", EscapeString(class_def->class_name));
+    snprintf(base_buf, sizeof(base_buf), "%s", EscapeString(base_str));
+    DotPrintf("    node_%ld [label=\"class: %s extends %s\"];\n", class_id,
+             class_buf, base_buf);
     
     if (class_def->members.first) {
         NClassMember *member = class_def->members.first;
