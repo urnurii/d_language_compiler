@@ -36,7 +36,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 
 %x FIRST_PASS
 %x FP_COMMENT FP_STRING FP_CHAR FP_MULTILINE_COMMENT
-%x COMMENT STRING CHAR MULTILINE_COMMENT
+%x COMMENT STR_LIT CHAR_LIT MULTILINE_COMMENT
 
 %%
 
@@ -127,30 +127,30 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 "true"              { return TRUE_VAL; }
 "false"             { return FALSE_VAL; }
 
-\'                               { strcpy(tmp,""); BEGIN(CHAR); }
-\"                               { strcpy(tmp,""); string_pos = yylineno; BEGIN(STRING); }
+\'                               { strcpy(tmp,""); BEGIN(CHAR_LIT); }
+\"                               { strcpy(tmp,""); string_pos = yylineno; BEGIN(STR_LIT); }
 
-<STRING>[^\\\n\"]+               { strcat(tmp,yytext); }
-<CHAR>[^\\\n\']+                 { strcat(tmp,yytext); }
+<STR_LIT>[^\\\n\"]+               { strcat(tmp,yytext); }
+<CHAR_LIT>[^\\\n\']+                 { strcat(tmp,yytext); }
 
-<STRING,CHAR>\\b                 { strcat(tmp,"\b"); }
-<STRING,CHAR>\\f                 { strcat(tmp,"\f"); }
-<STRING,CHAR>\\n                 { strcat(tmp,"\n"); }
-<STRING,CHAR>\\r                 { strcat(tmp,"\r"); }
-<STRING,CHAR>\\t                 { strcat(tmp,"\t"); }
-<STRING,CHAR>\\v                 { strcat(tmp,"\v"); }
-<STRING,CHAR>\\\'                { strcat(tmp,"\'"); }
-<STRING,CHAR>\\\"                { strcat(tmp,"\""); }
-<STRING,CHAR>\\\\                { strcat(tmp,"\\"); }
-<STRING,CHAR>\\\?                { strcat(tmp,"\?"); }
-<STRING,CHAR>\\x[0-9a-fA-F]{1,2} { handle_hex_escape( tmp, yytext ); }
-<STRING,CHAR>\\[0-7]{1,3}        { handle_octal_escape( tmp, yytext ); }
+<STR_LIT,CHAR_LIT>\\b                 { strcat(tmp,"\b"); }
+<STR_LIT,CHAR_LIT>\\f                 { strcat(tmp,"\f"); }
+<STR_LIT,CHAR_LIT>\\n                 { strcat(tmp,"\n"); }
+<STR_LIT,CHAR_LIT>\\r                 { strcat(tmp,"\r"); }
+<STR_LIT,CHAR_LIT>\\t                 { strcat(tmp,"\t"); }
+<STR_LIT,CHAR_LIT>\\v                 { strcat(tmp,"\v"); }
+<STR_LIT,CHAR_LIT>\\\'                { strcat(tmp,"\'"); }
+<STR_LIT,CHAR_LIT>\\\"                { strcat(tmp,"\""); }
+<STR_LIT,CHAR_LIT>\\\\                { strcat(tmp,"\\"); }
+<STR_LIT,CHAR_LIT>\\\?                { strcat(tmp,"\?"); }
+<STR_LIT,CHAR_LIT>\\x[0-9a-fA-F]{1,2} { handle_hex_escape( tmp, yytext ); }
+<STR_LIT,CHAR_LIT>\\[0-7]{1,3}        { handle_octal_escape( tmp, yytext ); }
 
-<STRING>\n                       { yylineno++; strcat(tmp,"\n"); }
-<CHAR>\n                         { fprintf(stderr, "ERROR! Line break found in char literal at row: %d\n", yylineno); yylineno++; }
-<STRING,CHAR><<EOF>>             { fprintf(stderr, "ERROR! String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
+<STR_LIT>\n                       { yylineno++; strcat(tmp,"\n"); }
+<CHAR_LIT>\n                         { fprintf(stderr, "LEXER ERROR: Line break found in char literal at line %d\n", yylineno); yylineno++; }
+<STR_LIT,CHAR_LIT><<EOF>>             { fprintf(stderr, "LEXER ERROR: String/char starting at line %d not closed\n", string_pos); BEGIN(INITIAL); return -1; }
 
-<STRING>\"                       { 
+<STR_LIT>\"                       { 
                                     yylval.string_val = (char*)malloc(strlen(tmp) + 1);
                                     if (yylval.string_val == NULL) {
                                         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -161,9 +161,9 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
                                     return STR;
                                  }
 
-<CHAR>\'                         {
+<CHAR_LIT>\'                         {
                                     if(strlen(tmp) != 1) {
-                                        fprintf(stderr, "ERROR! char length != 1 at row: %d\n", yylineno);
+                                        fprintf(stderr, "LEXER ERROR: char length != 1 at line %d\n", yylineno);
                                         BEGIN(INITIAL);
                                         return -1;
                                     } else {
@@ -223,7 +223,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
                                  }
 
 0[0-9]+                                                                     { 
-                                    fprintf(stderr, "ERROR! Incorrect octal number: %s at row: %d\n", yytext, yylineno);
+                                    fprintf(stderr, "LEXER ERROR: Incorrect octal number: %s at line %d\n", yytext, yylineno);
                                     return -1;
                                  }
 
@@ -268,7 +268,7 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
 <MULTILINE_COMMENT>"*"+[^*/] { strcat(tmp, yytext); }
 <MULTILINE_COMMENT>"*"+"/"   { BEGIN(INITIAL); }
 
-<MULTILINE_COMMENT><<EOF>>   { fprintf(stderr, "ERROR! Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
+<MULTILINE_COMMENT><<EOF>>   { fprintf(stderr, "LEXER ERROR: Multiline comment starting at %d not closed\n", comment_pos); BEGIN(INITIAL); return -1; }
 
 {IDENTIFIER} {
     if (is_class_name(yytext)) {
