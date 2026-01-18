@@ -17,7 +17,7 @@ extern int yylineno;
 
 extern NProgram *root;
 
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+// ----- Вспомогательные функции -----
 
 void print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s <input_file.d>\n", program_name);
@@ -40,7 +40,7 @@ void close_input_file(void) {
     }
 }
 
-// ==================== ФАЗА 1: ПЕРВЫЙ ПРОХОД ====================
+// ----- Первый проход -----
 
 int first_pass(const char *filename) {
     fprintf(stdout, "[PHASE 1] First lexer pass: collecting class names...\n");
@@ -65,7 +65,7 @@ int first_pass(const char *filename) {
     return 1;
 }
 
-// ==================== ФАЗА 2: ВТОРОЙ ПРОХОД И ПАРСИНГ ====================
+// ----- Второй проход и парсинг -----
 
 int second_pass_and_parse(const char *filename) {
     fprintf(stdout, "\n[PHASE 2] Second lexer pass and parsing...\n");
@@ -90,7 +90,7 @@ int second_pass_and_parse(const char *filename) {
     }
 }
 
-// ==================== ФАЗА 3: АНАЛИЗ AST ====================
+// ----- Анализ AST -----
 
 int analyze_ast(void) {
     fprintf(stdout, "\n[PHASE 3] AST analysis...\n");
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, "===  D-like Language Compiler v1.0  ===\n");
     fprintf(stdout, "============================================\n\n");
     
-    // === Обработка аргументов командной строки ===
+    // Обработка аргументов командной строки
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
@@ -124,25 +124,24 @@ int main(int argc, char *argv[]) {
     const char *input_filename = argv[1];
     fprintf(stdout, "Input file: %s\n\n", input_filename);
     
-    // === ФАЗА 1: Первый проход лексера ===
+    // Первый проход
     if (!first_pass(input_filename)) {
         fprintf(stderr, "\nError: First pass failed!\n");
         return 2;
     }
     
-    // === ФАЗА 2: Второй проход и парсинг ===
+    // Второй проход и парсинг
     if (!second_pass_and_parse(input_filename)) {
         fprintf(stderr, "\nError: Second pass/parsing failed!\n");
         return 3;
     }
     
-    // === ФАЗА 3: Анализ AST ===
+    // Анализ AST
     if (!analyze_ast()) {
         fprintf(stderr, "\nError: AST analysis failed!\n");
         return 4;
     }
     
-    // === УСПЕШНОЕ ЗАВЕРШЕНИЕ ===
     fprintf(stdout, "\n");
     fprintf(stdout, "============================================\n");
     fprintf(stdout, "===  Compilation successful! ===\n");
