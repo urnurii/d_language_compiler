@@ -78,10 +78,12 @@
 int yylex(void);
 int yyparse(void);
 void yyerror(const char *s);
+extern int yylineno;
+NExpr* CreateNewArrayExpr(NType *type, NExpr *expr);
 
 NProgram *root = NULL;
 
-#line 85 "d_parser.tab.c"
+#line 87 "d_parser.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -617,23 +619,23 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   127,   127,   128,   132,   133,   137,   138,   139,   140,
-     144,   145,   146,   147,   148,   149,   150,   154,   155,   159,
-     160,   161,   162,   166,   167,   171,   172,   176,   177,   181,
-     182,   183,   184,   185,   186,   187,   188,   189,   190,   191,
-     192,   193,   194,   195,   196,   197,   198,   199,   200,   201,
-     202,   203,   204,   205,   206,   207,   208,   209,   210,   211,
-     212,   213,   214,   215,   216,   217,   218,   219,   220,   221,
-     222,   223,   224,   225,   226,   230,   231,   235,   236,   240,
-     241,   245,   249,   250,   251,   252,   256,   257,   261,   262,
-     263,   264,   265,   266,   267,   268,   269,   270,   271,   272,
-     276,   277,   281,   282,   286,   287,   291,   295,   299,   300,
-     304,   305,   309,   310,   314,   315,   316,   317,   321,   322,
-     326,   327,   331,   332,   333,   334,   338,   339,   343,   344,
-     345,   346,   350,   351,   355,   356,   357,   358,   359,   360,
-     361,   362,   366,   367,   368,   372,   373,   374,   375,   376,
-     377,   378,   379,   383,   384,   388,   392,   393,   397,   398,
-     399,   400
+       0,   132,   132,   133,   137,   138,   142,   143,   144,   145,
+     149,   150,   151,   152,   153,   154,   155,   159,   160,   164,
+     165,   166,   167,   171,   172,   176,   177,   181,   182,   186,
+     187,   188,   189,   190,   191,   192,   193,   194,   195,   196,
+     197,   198,   199,   200,   201,   202,   203,   204,   205,   206,
+     207,   208,   209,   210,   211,   212,   213,   214,   215,   216,
+     217,   218,   219,   220,   221,   222,   223,   224,   225,   226,
+     227,   228,   229,   230,   231,   235,   236,   240,   241,   245,
+     246,   250,   254,   255,   256,   257,   261,   262,   266,   267,
+     268,   269,   270,   271,   272,   273,   274,   275,   276,   277,
+     281,   282,   286,   287,   291,   292,   296,   300,   304,   305,
+     309,   310,   314,   315,   319,   320,   321,   322,   326,   327,
+     331,   332,   336,   337,   338,   339,   343,   344,   348,   349,
+     350,   351,   355,   356,   360,   361,   362,   363,   364,   365,
+     366,   367,   371,   372,   373,   377,   378,   379,   380,   381,
+     382,   383,   384,   388,   389,   393,   397,   398,   402,   403,
+     404,   405
 };
 #endif
 
@@ -1632,967 +1634,967 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* program: translation_unit  */
-#line 127 "d_parser.y"
+#line 132 "d_parser.y"
                        { (yyval.program) = CreateProgram((yyvsp[0].source_item)); root = (yyval.program); }
-#line 1638 "d_parser.tab.c"
+#line 1640 "d_parser.tab.c"
     break;
 
   case 3: /* program: %empty  */
-#line 128 "d_parser.y"
+#line 133 "d_parser.y"
              { (yyval.program) = CreateProgram(NULL); root = (yyval.program); }
-#line 1644 "d_parser.tab.c"
+#line 1646 "d_parser.tab.c"
     break;
 
   case 4: /* translation_unit: source_item  */
-#line 132 "d_parser.y"
+#line 137 "d_parser.y"
                   { (yyval.source_item) = (yyvsp[0].source_item); }
-#line 1650 "d_parser.tab.c"
+#line 1652 "d_parser.tab.c"
     break;
 
   case 5: /* translation_unit: translation_unit source_item  */
-#line 133 "d_parser.y"
+#line 138 "d_parser.y"
                                    { AddSourceItemToProgram(root, (yyvsp[0].source_item)); (yyval.source_item) = (yyvsp[-1].source_item); }
-#line 1656 "d_parser.tab.c"
+#line 1658 "d_parser.tab.c"
     break;
 
   case 6: /* source_item: func_def  */
-#line 137 "d_parser.y"
+#line 142 "d_parser.y"
                { (yyval.source_item) = CreateFuncSourceItem((yyvsp[0].func_def)); }
-#line 1662 "d_parser.tab.c"
+#line 1664 "d_parser.tab.c"
     break;
 
   case 7: /* source_item: class_def  */
-#line 138 "d_parser.y"
+#line 143 "d_parser.y"
                 { (yyval.source_item) = CreateClassSourceItem((yyvsp[0].class_def)); }
-#line 1668 "d_parser.tab.c"
+#line 1670 "d_parser.tab.c"
     break;
 
   case 8: /* source_item: decl  */
-#line 139 "d_parser.y"
+#line 144 "d_parser.y"
            { (yyval.source_item) = CreateDeclSourceItem((yyvsp[0].decl_stmt).type, (yyvsp[0].decl_stmt).init_decls); }
-#line 1674 "d_parser.tab.c"
+#line 1676 "d_parser.tab.c"
     break;
 
   case 9: /* source_item: enum_def  */
-#line 140 "d_parser.y"
+#line 145 "d_parser.y"
                { (yyval.source_item) = CreateEnumSourceItem((yyvsp[0].enum_def)); }
-#line 1680 "d_parser.tab.c"
+#line 1682 "d_parser.tab.c"
     break;
 
   case 10: /* base_type: INT  */
-#line 144 "d_parser.y"
+#line 149 "d_parser.y"
           { (yyval.type) = CreateBaseType(TYPE_INT); }
-#line 1686 "d_parser.tab.c"
+#line 1688 "d_parser.tab.c"
     break;
 
   case 11: /* base_type: CHAR  */
-#line 145 "d_parser.y"
+#line 150 "d_parser.y"
            { (yyval.type) = CreateBaseType(TYPE_CHAR); }
-#line 1692 "d_parser.tab.c"
+#line 1694 "d_parser.tab.c"
     break;
 
   case 12: /* base_type: STRING  */
-#line 146 "d_parser.y"
+#line 151 "d_parser.y"
              { (yyval.type) = CreateBaseType(TYPE_STRING); }
-#line 1698 "d_parser.tab.c"
+#line 1700 "d_parser.tab.c"
     break;
 
   case 13: /* base_type: BOOL  */
-#line 147 "d_parser.y"
+#line 152 "d_parser.y"
            { (yyval.type) = CreateBaseType(TYPE_BOOL); }
-#line 1704 "d_parser.tab.c"
+#line 1706 "d_parser.tab.c"
     break;
 
   case 14: /* base_type: FLOAT_TYPE  */
-#line 148 "d_parser.y"
+#line 153 "d_parser.y"
                  { (yyval.type) = CreateBaseType(TYPE_FLOAT); }
-#line 1710 "d_parser.tab.c"
+#line 1712 "d_parser.tab.c"
     break;
 
   case 15: /* base_type: DOUBLE  */
-#line 149 "d_parser.y"
+#line 154 "d_parser.y"
              { (yyval.type) = CreateBaseType(TYPE_DOUBLE); }
-#line 1716 "d_parser.tab.c"
+#line 1718 "d_parser.tab.c"
     break;
 
   case 16: /* base_type: REAL  */
-#line 150 "d_parser.y"
+#line 155 "d_parser.y"
            { (yyval.type) = CreateBaseType(TYPE_REAL); }
-#line 1722 "d_parser.tab.c"
+#line 1724 "d_parser.tab.c"
     break;
 
   case 17: /* array_decl: '[' ']'  */
-#line 154 "d_parser.y"
-              { (yyval.type) = CreateArrayDecl(0, 0); }
-#line 1728 "d_parser.tab.c"
+#line 159 "d_parser.y"
+              { (yyval.array_decl) = CreateArrayDecl(0, 0); }
+#line 1730 "d_parser.tab.c"
     break;
 
   case 18: /* array_decl: '[' INTEGER ']'  */
-#line 155 "d_parser.y"
-                      { (yyval.type) = CreateArrayDecl(1, (yyvsp[-1].int_val)); }
-#line 1734 "d_parser.tab.c"
+#line 160 "d_parser.y"
+                      { (yyval.array_decl) = CreateArrayDecl(1, (yyvsp[-1].int_val)); }
+#line 1736 "d_parser.tab.c"
     break;
 
   case 19: /* type: base_type  */
-#line 159 "d_parser.y"
+#line 164 "d_parser.y"
                 { (yyval.type) = (yyvsp[0].type); }
-#line 1740 "d_parser.tab.c"
+#line 1742 "d_parser.tab.c"
     break;
 
   case 20: /* type: base_type array_decl  */
-#line 160 "d_parser.y"
-                           { (yyval.type) = AddArrayToType((yyvsp[-1].type), (yyvsp[0].type)); }
-#line 1746 "d_parser.tab.c"
+#line 165 "d_parser.y"
+                           { (yyval.type) = AddArrayToType((yyvsp[-1].type), (yyvsp[0].array_decl)); }
+#line 1748 "d_parser.tab.c"
     break;
 
   case 21: /* type: CLASSNAME  */
-#line 161 "d_parser.y"
+#line 166 "d_parser.y"
                 { (yyval.type) = CreateClassType((yyvsp[0].string_val)); }
-#line 1752 "d_parser.tab.c"
+#line 1754 "d_parser.tab.c"
     break;
 
   case 22: /* type: CLASSNAME array_decl  */
-#line 162 "d_parser.y"
-                           { (yyval.type) = AddArrayToType(CreateClassType((yyvsp[-1].string_val)), (yyvsp[0].type)); }
-#line 1758 "d_parser.tab.c"
+#line 167 "d_parser.y"
+                           { (yyval.type) = AddArrayToType(CreateClassType((yyvsp[-1].string_val)), (yyvsp[0].array_decl)); }
+#line 1760 "d_parser.tab.c"
     break;
 
   case 23: /* array_init: '[' ']'  */
-#line 166 "d_parser.y"
+#line 171 "d_parser.y"
               { (yyval.initializer) = CreateArrayInitializer(NULL, 0); }
-#line 1764 "d_parser.tab.c"
+#line 1766 "d_parser.tab.c"
     break;
 
   case 24: /* array_init: '[' arg_list ']'  */
-#line 167 "d_parser.y"
+#line 172 "d_parser.y"
                        { (yyval.initializer) = CreateArrayInitializer((yyvsp[-1].expr_list)->elements, (yyvsp[-1].expr_list)->count); }
-#line 1770 "d_parser.tab.c"
+#line 1772 "d_parser.tab.c"
     break;
 
   case 25: /* initializer: expr  */
-#line 171 "d_parser.y"
+#line 176 "d_parser.y"
            { (yyval.initializer) = CreateExprInitializer((yyvsp[0].expr)); }
-#line 1776 "d_parser.tab.c"
+#line 1778 "d_parser.tab.c"
     break;
 
   case 26: /* initializer: array_init  */
-#line 172 "d_parser.y"
+#line 177 "d_parser.y"
                  { (yyval.initializer) = (yyvsp[0].initializer); }
-#line 1782 "d_parser.tab.c"
+#line 1784 "d_parser.tab.c"
     break;
 
   case 27: /* e_expr: expr  */
-#line 176 "d_parser.y"
+#line 181 "d_parser.y"
            { (yyval.expr) = (yyvsp[0].expr); }
-#line 1788 "d_parser.tab.c"
+#line 1790 "d_parser.tab.c"
     break;
 
   case 28: /* e_expr: %empty  */
-#line 177 "d_parser.y"
+#line 182 "d_parser.y"
              { (yyval.expr) = NULL; }
-#line 1794 "d_parser.tab.c"
+#line 1796 "d_parser.tab.c"
     break;
 
   case 29: /* expr: IDENT  */
-#line 181 "d_parser.y"
+#line 186 "d_parser.y"
             { (yyval.expr) = CreateIdentExpr((yyvsp[0].string_val)); }
-#line 1800 "d_parser.tab.c"
+#line 1802 "d_parser.tab.c"
     break;
 
   case 30: /* expr: INTEGER  */
-#line 182 "d_parser.y"
+#line 187 "d_parser.y"
               { (yyval.expr) = CreateIntExpr((yyvsp[0].int_val)); }
-#line 1806 "d_parser.tab.c"
+#line 1808 "d_parser.tab.c"
     break;
 
   case 31: /* expr: FLOAT_VAL  */
-#line 183 "d_parser.y"
+#line 188 "d_parser.y"
                 { (yyval.expr) = CreateFloatExpr((yyvsp[0].float_val)); }
-#line 1812 "d_parser.tab.c"
+#line 1814 "d_parser.tab.c"
     break;
 
   case 32: /* expr: CHARVAL  */
-#line 184 "d_parser.y"
+#line 189 "d_parser.y"
               { (yyval.expr) = CreateCharExpr((yyvsp[0].char_val)); }
-#line 1818 "d_parser.tab.c"
+#line 1820 "d_parser.tab.c"
     break;
 
   case 33: /* expr: STR  */
-#line 185 "d_parser.y"
+#line 190 "d_parser.y"
           { (yyval.expr) = CreateStringExpr((yyvsp[0].string_val)); }
-#line 1824 "d_parser.tab.c"
+#line 1826 "d_parser.tab.c"
     break;
 
   case 34: /* expr: TRUE_VAL  */
-#line 186 "d_parser.y"
+#line 191 "d_parser.y"
                { (yyval.expr) = CreateBoolExpr(1); }
-#line 1830 "d_parser.tab.c"
+#line 1832 "d_parser.tab.c"
     break;
 
   case 35: /* expr: FALSE_VAL  */
-#line 187 "d_parser.y"
+#line 192 "d_parser.y"
                 { (yyval.expr) = CreateBoolExpr(0); }
-#line 1836 "d_parser.tab.c"
+#line 1838 "d_parser.tab.c"
     break;
 
   case 36: /* expr: NULL_CONST  */
-#line 188 "d_parser.y"
+#line 193 "d_parser.y"
                  { (yyval.expr) = CreateNullExpr(); }
-#line 1842 "d_parser.tab.c"
+#line 1844 "d_parser.tab.c"
     break;
 
   case 37: /* expr: NAN_CONST  */
-#line 189 "d_parser.y"
+#line 194 "d_parser.y"
                 { (yyval.expr) = CreateNanExpr(); }
-#line 1848 "d_parser.tab.c"
+#line 1850 "d_parser.tab.c"
     break;
 
   case 38: /* expr: THIS  */
-#line 190 "d_parser.y"
+#line 195 "d_parser.y"
            { (yyval.expr) = CreateThisExpr(); }
-#line 1854 "d_parser.tab.c"
+#line 1856 "d_parser.tab.c"
     break;
 
   case 39: /* expr: '(' expr ')'  */
-#line 191 "d_parser.y"
+#line 196 "d_parser.y"
                    { (yyval.expr) = CreateParenExpr((yyvsp[-1].expr)); }
-#line 1860 "d_parser.tab.c"
+#line 1862 "d_parser.tab.c"
     break;
 
   case 40: /* expr: NEW CLASSNAME '[' expr ']'  */
-#line 192 "d_parser.y"
-                                 { (yyval.expr) = CreateNewExpr(CreateClassType((yyvsp[-3].string_val)), &(yyvsp[-1].expr), 1); }
-#line 1866 "d_parser.tab.c"
+#line 197 "d_parser.y"
+                                 { (yyval.expr) = CreateNewArrayExpr(CreateClassType((yyvsp[-3].string_val)), (yyvsp[-1].expr)); }
+#line 1868 "d_parser.tab.c"
     break;
 
   case 41: /* expr: NEW CLASSNAME '(' ')'  */
-#line 193 "d_parser.y"
+#line 198 "d_parser.y"
                             { (yyval.expr) = CreateNewExpr(CreateClassType((yyvsp[-2].string_val)), NULL, 0); }
-#line 1872 "d_parser.tab.c"
+#line 1874 "d_parser.tab.c"
     break;
 
   case 42: /* expr: NEW CLASSNAME '(' arg_list ')'  */
-#line 194 "d_parser.y"
+#line 199 "d_parser.y"
                                      { (yyval.expr) = CreateNewExpr(CreateClassType((yyvsp[-3].string_val)), (yyvsp[-1].expr_list)->elements, (yyvsp[-1].expr_list)->count); }
-#line 1878 "d_parser.tab.c"
+#line 1880 "d_parser.tab.c"
     break;
 
   case 43: /* expr: NEW base_type '[' expr ']'  */
-#line 195 "d_parser.y"
-                                 { (yyval.expr) = CreateNewExpr((yyvsp[-3].type), &(yyvsp[-1].expr), 1); }
-#line 1884 "d_parser.tab.c"
+#line 200 "d_parser.y"
+                                 { (yyval.expr) = CreateNewArrayExpr((yyvsp[-3].type), (yyvsp[-1].expr)); }
+#line 1886 "d_parser.tab.c"
     break;
 
   case 44: /* expr: expr '[' expr ']'  */
-#line 196 "d_parser.y"
+#line 201 "d_parser.y"
                         { (yyval.expr) = CreateArrayAccessExpr((yyvsp[-3].expr), (yyvsp[-1].expr), NULL); }
-#line 1890 "d_parser.tab.c"
+#line 1892 "d_parser.tab.c"
     break;
 
   case 45: /* expr: expr '[' expr DOTDOT expr ']'  */
-#line 197 "d_parser.y"
+#line 202 "d_parser.y"
                                     { (yyval.expr) = CreateArrayAccessExpr((yyvsp[-5].expr), (yyvsp[-3].expr), (yyvsp[-1].expr)); }
-#line 1896 "d_parser.tab.c"
+#line 1898 "d_parser.tab.c"
     break;
 
   case 46: /* expr: expr '.' IDENT  */
-#line 198 "d_parser.y"
+#line 203 "d_parser.y"
                      { (yyval.expr) = CreateMemberAccessExpr((yyvsp[-2].expr), (yyvsp[0].string_val)); }
-#line 1902 "d_parser.tab.c"
+#line 1904 "d_parser.tab.c"
     break;
 
   case 47: /* expr: expr '.' IDENT '(' ')'  */
-#line 199 "d_parser.y"
+#line 204 "d_parser.y"
                              { (yyval.expr) = CreateMethodCallExpr((yyvsp[-4].expr), (yyvsp[-2].string_val), NULL, 0); }
-#line 1908 "d_parser.tab.c"
+#line 1910 "d_parser.tab.c"
     break;
 
   case 48: /* expr: expr '.' IDENT '(' arg_list ')'  */
-#line 200 "d_parser.y"
+#line 205 "d_parser.y"
                                       { (yyval.expr) = CreateMethodCallExpr((yyvsp[-5].expr), (yyvsp[-3].string_val), (yyvsp[-1].expr_list)->elements, (yyvsp[-1].expr_list)->count); }
-#line 1914 "d_parser.tab.c"
+#line 1916 "d_parser.tab.c"
     break;
 
   case 49: /* expr: IDENT '(' ')'  */
-#line 201 "d_parser.y"
+#line 206 "d_parser.y"
                     { (yyval.expr) = CreateFuncCallExpr((yyvsp[-2].string_val), NULL, 0); }
-#line 1920 "d_parser.tab.c"
+#line 1922 "d_parser.tab.c"
     break;
 
   case 50: /* expr: IDENT '(' arg_list ')'  */
-#line 202 "d_parser.y"
+#line 207 "d_parser.y"
                              { (yyval.expr) = CreateFuncCallExpr((yyvsp[-3].string_val), (yyvsp[-1].expr_list)->elements, (yyvsp[-1].expr_list)->count); }
-#line 1926 "d_parser.tab.c"
+#line 1928 "d_parser.tab.c"
     break;
 
   case 51: /* expr: SUPER '.' IDENT  */
-#line 203 "d_parser.y"
+#line 208 "d_parser.y"
                       { (yyval.expr) = CreateSuperExpr((yyvsp[0].string_val)); }
-#line 1932 "d_parser.tab.c"
+#line 1934 "d_parser.tab.c"
     break;
 
   case 52: /* expr: SUPER '.' IDENT '(' ')'  */
-#line 204 "d_parser.y"
+#line 209 "d_parser.y"
                               { (yyval.expr) = CreateSuperMethodCallExpr((yyvsp[-2].string_val), NULL, 0); }
-#line 1938 "d_parser.tab.c"
+#line 1940 "d_parser.tab.c"
     break;
 
   case 53: /* expr: SUPER '.' IDENT '(' arg_list ')'  */
-#line 205 "d_parser.y"
+#line 210 "d_parser.y"
                                        { (yyval.expr) = CreateSuperMethodCallExpr((yyvsp[-3].string_val), (yyvsp[-1].expr_list)->elements, (yyvsp[-1].expr_list)->count); }
-#line 1944 "d_parser.tab.c"
+#line 1946 "d_parser.tab.c"
     break;
 
   case 54: /* expr: MINUS expr  */
-#line 206 "d_parser.y"
+#line 211 "d_parser.y"
                               { (yyval.expr) = CreateUnaryOpExpr(OP_MINUS, (yyvsp[0].expr)); }
-#line 1950 "d_parser.tab.c"
+#line 1952 "d_parser.tab.c"
     break;
 
   case 55: /* expr: PLUS expr  */
-#line 207 "d_parser.y"
+#line 212 "d_parser.y"
                             { (yyval.expr) = CreateUnaryOpExpr(OP_PLUS, (yyvsp[0].expr)); }
-#line 1956 "d_parser.tab.c"
+#line 1958 "d_parser.tab.c"
     break;
 
   case 56: /* expr: UNOT expr  */
-#line 208 "d_parser.y"
+#line 213 "d_parser.y"
                            { (yyval.expr) = CreateUnaryOpExpr(OP_NOT, (yyvsp[0].expr)); }
-#line 1962 "d_parser.tab.c"
+#line 1964 "d_parser.tab.c"
     break;
 
   case 57: /* expr: expr STAR expr  */
-#line 209 "d_parser.y"
+#line 214 "d_parser.y"
                      { (yyval.expr) = CreateBinaryOpExpr(OP_MUL, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1968 "d_parser.tab.c"
+#line 1970 "d_parser.tab.c"
     break;
 
   case 58: /* expr: expr SLASH expr  */
-#line 210 "d_parser.y"
+#line 215 "d_parser.y"
                       { (yyval.expr) = CreateBinaryOpExpr(OP_DIV, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1974 "d_parser.tab.c"
+#line 1976 "d_parser.tab.c"
     break;
 
   case 59: /* expr: expr PLUS expr  */
-#line 211 "d_parser.y"
+#line 216 "d_parser.y"
                      { (yyval.expr) = CreateBinaryOpExpr(OP_PLUS, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1980 "d_parser.tab.c"
+#line 1982 "d_parser.tab.c"
     break;
 
   case 60: /* expr: expr MINUS expr  */
-#line 212 "d_parser.y"
+#line 217 "d_parser.y"
                       { (yyval.expr) = CreateBinaryOpExpr(OP_MINUS, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1986 "d_parser.tab.c"
+#line 1988 "d_parser.tab.c"
     break;
 
   case 61: /* expr: expr LT expr  */
-#line 213 "d_parser.y"
+#line 218 "d_parser.y"
                    { (yyval.expr) = CreateBinaryOpExpr(OP_LT, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1992 "d_parser.tab.c"
+#line 1994 "d_parser.tab.c"
     break;
 
   case 62: /* expr: expr GT expr  */
-#line 214 "d_parser.y"
+#line 219 "d_parser.y"
                    { (yyval.expr) = CreateBinaryOpExpr(OP_GT, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 1998 "d_parser.tab.c"
+#line 2000 "d_parser.tab.c"
     break;
 
   case 63: /* expr: expr LE expr  */
-#line 215 "d_parser.y"
+#line 220 "d_parser.y"
                    { (yyval.expr) = CreateBinaryOpExpr(OP_LE, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2004 "d_parser.tab.c"
+#line 2006 "d_parser.tab.c"
     break;
 
   case 64: /* expr: expr GE expr  */
-#line 216 "d_parser.y"
+#line 221 "d_parser.y"
                    { (yyval.expr) = CreateBinaryOpExpr(OP_GE, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2010 "d_parser.tab.c"
+#line 2012 "d_parser.tab.c"
     break;
 
   case 65: /* expr: expr EQ expr  */
-#line 217 "d_parser.y"
+#line 222 "d_parser.y"
                    { (yyval.expr) = CreateBinaryOpExpr(OP_EQ, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2016 "d_parser.tab.c"
+#line 2018 "d_parser.tab.c"
     break;
 
   case 66: /* expr: expr NEQ expr  */
-#line 218 "d_parser.y"
+#line 223 "d_parser.y"
                     { (yyval.expr) = CreateBinaryOpExpr(OP_NEQ, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2022 "d_parser.tab.c"
+#line 2024 "d_parser.tab.c"
     break;
 
   case 67: /* expr: expr LAND expr  */
-#line 219 "d_parser.y"
+#line 224 "d_parser.y"
                      { (yyval.expr) = CreateBinaryOpExpr(OP_AND, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2028 "d_parser.tab.c"
+#line 2030 "d_parser.tab.c"
     break;
 
   case 68: /* expr: expr LOR expr  */
-#line 220 "d_parser.y"
+#line 225 "d_parser.y"
                     { (yyval.expr) = CreateBinaryOpExpr(OP_OR, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2034 "d_parser.tab.c"
+#line 2036 "d_parser.tab.c"
     break;
 
   case 69: /* expr: expr '=' expr  */
-#line 221 "d_parser.y"
+#line 226 "d_parser.y"
                     { (yyval.expr) = CreateAssignExpr(OP_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2040 "d_parser.tab.c"
+#line 2042 "d_parser.tab.c"
     break;
 
   case 70: /* expr: expr PLUSEQ expr  */
-#line 222 "d_parser.y"
+#line 227 "d_parser.y"
                        { (yyval.expr) = CreateAssignExpr(OP_PLUS_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2046 "d_parser.tab.c"
+#line 2048 "d_parser.tab.c"
     break;
 
   case 71: /* expr: expr MINUSEQ expr  */
-#line 223 "d_parser.y"
+#line 228 "d_parser.y"
                         { (yyval.expr) = CreateAssignExpr(OP_MINUS_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2052 "d_parser.tab.c"
+#line 2054 "d_parser.tab.c"
     break;
 
   case 72: /* expr: expr STAREQ expr  */
-#line 224 "d_parser.y"
+#line 229 "d_parser.y"
                        { (yyval.expr) = CreateAssignExpr(OP_MUL_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2058 "d_parser.tab.c"
+#line 2060 "d_parser.tab.c"
     break;
 
   case 73: /* expr: expr SLASHEQ expr  */
-#line 225 "d_parser.y"
+#line 230 "d_parser.y"
                         { (yyval.expr) = CreateAssignExpr(OP_DIV_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2064 "d_parser.tab.c"
+#line 2066 "d_parser.tab.c"
     break;
 
   case 74: /* expr: expr TILDEQ expr  */
-#line 226 "d_parser.y"
+#line 231 "d_parser.y"
                        { (yyval.expr) = CreateAssignExpr(OP_BITWISE_NOT_ASSIGN, (yyvsp[-2].expr), (yyvsp[0].expr)); }
-#line 2070 "d_parser.tab.c"
+#line 2072 "d_parser.tab.c"
     break;
 
   case 75: /* arg_list: expr  */
-#line 230 "d_parser.y"
+#line 235 "d_parser.y"
            { (yyval.expr_list) = CreateExprList(); AddExprToList((yyval.expr_list), (yyvsp[0].expr)); }
-#line 2076 "d_parser.tab.c"
+#line 2078 "d_parser.tab.c"
     break;
 
   case 76: /* arg_list: arg_list ',' expr  */
-#line 231 "d_parser.y"
+#line 236 "d_parser.y"
                         { (yyval.expr_list) = (yyvsp[-2].expr_list); AddExprToList((yyval.expr_list), (yyvsp[0].expr)); }
-#line 2082 "d_parser.tab.c"
+#line 2084 "d_parser.tab.c"
     break;
 
   case 77: /* init_decl: IDENT  */
-#line 235 "d_parser.y"
+#line 240 "d_parser.y"
             { (yyval.init_decl) = CreateInitDecl((yyvsp[0].string_val), NULL); }
-#line 2088 "d_parser.tab.c"
+#line 2090 "d_parser.tab.c"
     break;
 
   case 78: /* init_decl: IDENT '=' initializer  */
-#line 236 "d_parser.y"
+#line 241 "d_parser.y"
                             { (yyval.init_decl) = CreateInitDecl((yyvsp[-2].string_val), (yyvsp[0].initializer)); }
-#line 2094 "d_parser.tab.c"
+#line 2096 "d_parser.tab.c"
     break;
 
   case 79: /* init_decl_list: init_decl  */
-#line 240 "d_parser.y"
+#line 245 "d_parser.y"
                 { (yyval.init_decl_list) = CreateInitDeclList(); AddInitDeclToList((yyval.init_decl_list), (yyvsp[0].init_decl)); }
-#line 2100 "d_parser.tab.c"
+#line 2102 "d_parser.tab.c"
     break;
 
   case 80: /* init_decl_list: init_decl_list ',' init_decl  */
-#line 241 "d_parser.y"
+#line 246 "d_parser.y"
                                    { (yyval.init_decl_list) = (yyvsp[-2].init_decl_list); AddInitDeclToList((yyval.init_decl_list), (yyvsp[0].init_decl)); }
-#line 2106 "d_parser.tab.c"
+#line 2108 "d_parser.tab.c"
     break;
 
   case 81: /* decl: type init_decl_list ';'  */
-#line 245 "d_parser.y"
+#line 250 "d_parser.y"
                               { (yyval.decl_stmt).type = (yyvsp[-2].type); (yyval.decl_stmt).init_decls = (yyvsp[-1].init_decl_list); }
-#line 2112 "d_parser.tab.c"
+#line 2114 "d_parser.tab.c"
     break;
 
   case 82: /* param: type IDENT  */
-#line 249 "d_parser.y"
+#line 254 "d_parser.y"
                  { (yyval.param) = CreateParam((yyvsp[-1].type), (yyvsp[0].string_val), 0, NULL); }
-#line 2118 "d_parser.tab.c"
+#line 2120 "d_parser.tab.c"
     break;
 
   case 83: /* param: REF base_type IDENT  */
-#line 250 "d_parser.y"
+#line 255 "d_parser.y"
                           { (yyval.param) = CreateParam((yyvsp[-1].type), (yyvsp[0].string_val), 1, NULL); }
-#line 2124 "d_parser.tab.c"
+#line 2126 "d_parser.tab.c"
     break;
 
   case 84: /* param: type IDENT '=' expr  */
-#line 251 "d_parser.y"
+#line 256 "d_parser.y"
                           { (yyval.param) = CreateParam((yyvsp[-3].type), (yyvsp[-2].string_val), 0, (yyvsp[0].expr)); }
-#line 2130 "d_parser.tab.c"
+#line 2132 "d_parser.tab.c"
     break;
 
   case 85: /* param: REF base_type IDENT '=' expr  */
-#line 252 "d_parser.y"
+#line 257 "d_parser.y"
                                    { (yyval.param) = CreateParam((yyvsp[-3].type), (yyvsp[-2].string_val), 1, (yyvsp[0].expr)); }
-#line 2136 "d_parser.tab.c"
+#line 2138 "d_parser.tab.c"
     break;
 
   case 86: /* param_list: param  */
-#line 256 "d_parser.y"
+#line 261 "d_parser.y"
             { (yyval.param_list) = CreateParamList(); AddParamToList((yyval.param_list), (yyvsp[0].param)); }
-#line 2142 "d_parser.tab.c"
+#line 2144 "d_parser.tab.c"
     break;
 
   case 87: /* param_list: param_list ',' param  */
-#line 257 "d_parser.y"
+#line 262 "d_parser.y"
                            { (yyval.param_list) = (yyvsp[-2].param_list); AddParamToList((yyval.param_list), (yyvsp[0].param)); }
-#line 2148 "d_parser.tab.c"
+#line 2150 "d_parser.tab.c"
     break;
 
   case 88: /* stmt: e_expr ';'  */
-#line 261 "d_parser.y"
+#line 266 "d_parser.y"
                  { (yyval.stmt) = CreateExprStmt((yyvsp[-1].expr)); }
-#line 2154 "d_parser.tab.c"
+#line 2156 "d_parser.tab.c"
     break;
 
   case 89: /* stmt: decl  */
-#line 262 "d_parser.y"
+#line 267 "d_parser.y"
            { (yyval.stmt) = CreateDeclStmt((yyvsp[0].decl_stmt).type, (yyvsp[0].decl_stmt).init_decls); }
-#line 2160 "d_parser.tab.c"
+#line 2162 "d_parser.tab.c"
     break;
 
   case 90: /* stmt: compound_stmt  */
-#line 263 "d_parser.y"
+#line 268 "d_parser.y"
                     { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2166 "d_parser.tab.c"
+#line 2168 "d_parser.tab.c"
     break;
 
   case 91: /* stmt: if_stmt  */
-#line 264 "d_parser.y"
+#line 269 "d_parser.y"
               { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2172 "d_parser.tab.c"
+#line 2174 "d_parser.tab.c"
     break;
 
   case 92: /* stmt: while_stmt  */
-#line 265 "d_parser.y"
+#line 270 "d_parser.y"
                  { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2178 "d_parser.tab.c"
+#line 2180 "d_parser.tab.c"
     break;
 
   case 93: /* stmt: do_while_stmt  */
-#line 266 "d_parser.y"
+#line 271 "d_parser.y"
                     { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2184 "d_parser.tab.c"
+#line 2186 "d_parser.tab.c"
     break;
 
   case 94: /* stmt: for_stmt  */
-#line 267 "d_parser.y"
+#line 272 "d_parser.y"
                { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2190 "d_parser.tab.c"
+#line 2192 "d_parser.tab.c"
     break;
 
   case 95: /* stmt: foreach_stmt  */
-#line 268 "d_parser.y"
+#line 273 "d_parser.y"
                    { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2196 "d_parser.tab.c"
+#line 2198 "d_parser.tab.c"
     break;
 
   case 96: /* stmt: switch_stmt  */
-#line 269 "d_parser.y"
+#line 274 "d_parser.y"
                   { (yyval.stmt) = (yyvsp[0].stmt); }
-#line 2202 "d_parser.tab.c"
+#line 2204 "d_parser.tab.c"
     break;
 
   case 97: /* stmt: RETURN e_expr ';'  */
-#line 270 "d_parser.y"
+#line 275 "d_parser.y"
                         { (yyval.stmt) = CreateReturnStmt((yyvsp[-1].expr)); }
-#line 2208 "d_parser.tab.c"
+#line 2210 "d_parser.tab.c"
     break;
 
   case 98: /* stmt: BREAK ';'  */
-#line 271 "d_parser.y"
+#line 276 "d_parser.y"
                 { (yyval.stmt) = CreateBreakStmt(); }
-#line 2214 "d_parser.tab.c"
+#line 2216 "d_parser.tab.c"
     break;
 
   case 99: /* stmt: CONTINUE ';'  */
-#line 272 "d_parser.y"
+#line 277 "d_parser.y"
                    { (yyval.stmt) = CreateContinueStmt(); }
-#line 2220 "d_parser.tab.c"
+#line 2222 "d_parser.tab.c"
     break;
 
   case 100: /* stmt_list: stmt  */
-#line 276 "d_parser.y"
+#line 281 "d_parser.y"
            { (yyval.stmt_list) = CreateStmtList(); AddStmtToList((yyval.stmt_list), (yyvsp[0].stmt)); }
-#line 2226 "d_parser.tab.c"
+#line 2228 "d_parser.tab.c"
     break;
 
   case 101: /* stmt_list: stmt_list stmt  */
-#line 277 "d_parser.y"
+#line 282 "d_parser.y"
                      { (yyval.stmt_list) = (yyvsp[-1].stmt_list); AddStmtToList((yyval.stmt_list), (yyvsp[0].stmt)); }
-#line 2232 "d_parser.tab.c"
+#line 2234 "d_parser.tab.c"
     break;
 
   case 102: /* compound_stmt: '{' '}'  */
-#line 281 "d_parser.y"
+#line 286 "d_parser.y"
               { (yyval.stmt) = CreateCompoundStmt(NULL); }
-#line 2238 "d_parser.tab.c"
+#line 2240 "d_parser.tab.c"
     break;
 
   case 103: /* compound_stmt: '{' stmt_list '}'  */
-#line 282 "d_parser.y"
+#line 287 "d_parser.y"
                         { (yyval.stmt) = CreateCompoundStmt((yyvsp[-1].stmt_list)); }
-#line 2244 "d_parser.tab.c"
+#line 2246 "d_parser.tab.c"
     break;
 
   case 104: /* if_stmt: IF '(' expr ')' stmt  */
-#line 286 "d_parser.y"
+#line 291 "d_parser.y"
                                                  { (yyval.stmt) = CreateIfStmt((yyvsp[-2].expr), (yyvsp[0].stmt), NULL); }
-#line 2250 "d_parser.tab.c"
+#line 2252 "d_parser.tab.c"
     break;
 
   case 105: /* if_stmt: IF '(' expr ')' stmt ELSE stmt  */
-#line 287 "d_parser.y"
+#line 292 "d_parser.y"
                                      { (yyval.stmt) = CreateIfStmt((yyvsp[-4].expr), (yyvsp[-2].stmt), (yyvsp[0].stmt)); }
-#line 2256 "d_parser.tab.c"
+#line 2258 "d_parser.tab.c"
     break;
 
   case 106: /* while_stmt: WHILE '(' expr ')' stmt  */
-#line 291 "d_parser.y"
+#line 296 "d_parser.y"
                               { (yyval.stmt) = CreateWhileStmt((yyvsp[-2].expr), (yyvsp[0].stmt)); }
-#line 2262 "d_parser.tab.c"
+#line 2264 "d_parser.tab.c"
     break;
 
   case 107: /* do_while_stmt: DO stmt WHILE '(' expr ')' ';'  */
-#line 295 "d_parser.y"
+#line 300 "d_parser.y"
                                      { (yyval.stmt) = CreateDoWhileStmt((yyvsp[-5].stmt), (yyvsp[-2].expr)); }
-#line 2268 "d_parser.tab.c"
+#line 2270 "d_parser.tab.c"
     break;
 
   case 108: /* for_stmt: FOR '(' e_expr ';' e_expr ';' e_expr ')' stmt  */
-#line 299 "d_parser.y"
+#line 304 "d_parser.y"
                                                     { (yyval.stmt) = CreateForStmt((yyvsp[-6].expr), NULL, NULL, (yyvsp[-4].expr), (yyvsp[-2].expr), (yyvsp[0].stmt)); }
-#line 2274 "d_parser.tab.c"
+#line 2276 "d_parser.tab.c"
     break;
 
   case 109: /* for_stmt: FOR '(' decl e_expr ';' e_expr ')' stmt  */
-#line 300 "d_parser.y"
-                                              { (yyval.stmt) = CreateForStmt(NULL, NULL, NULL, (yyvsp[-4].expr), (yyvsp[-2].expr), (yyvsp[0].stmt)); }
-#line 2280 "d_parser.tab.c"
+#line 305 "d_parser.y"
+                                              { (yyval.stmt) = CreateForStmt(NULL, (yyvsp[-5].decl_stmt).type, (yyvsp[-5].decl_stmt).init_decls, (yyvsp[-4].expr), (yyvsp[-2].expr), (yyvsp[0].stmt)); }
+#line 2282 "d_parser.tab.c"
     break;
 
   case 110: /* foreach_stmt: FOREACH '(' IDENT ';' expr ')' stmt  */
-#line 304 "d_parser.y"
+#line 309 "d_parser.y"
                                           { (yyval.stmt) = CreateForeachStmt(0, NULL, (yyvsp[-4].string_val), (yyvsp[-2].expr), (yyvsp[0].stmt)); }
-#line 2286 "d_parser.tab.c"
+#line 2288 "d_parser.tab.c"
     break;
 
   case 111: /* foreach_stmt: FOREACH '(' type IDENT ';' expr ')' stmt  */
-#line 305 "d_parser.y"
+#line 310 "d_parser.y"
                                                { (yyval.stmt) = CreateForeachStmt(1, (yyvsp[-5].type), (yyvsp[-4].string_val), (yyvsp[-2].expr), (yyvsp[0].stmt)); }
-#line 2292 "d_parser.tab.c"
+#line 2294 "d_parser.tab.c"
     break;
 
   case 112: /* switch_stmt: SWITCH '(' expr ')' '{' case_list '}'  */
-#line 309 "d_parser.y"
+#line 314 "d_parser.y"
                                             { (yyval.stmt) = CreateSwitchStmt((yyvsp[-4].expr), (yyvsp[-1].case_list)->items, (yyvsp[-1].case_list)->count); }
-#line 2298 "d_parser.tab.c"
+#line 2300 "d_parser.tab.c"
     break;
 
   case 113: /* switch_stmt: SWITCH '(' expr ')' '{' '}'  */
-#line 310 "d_parser.y"
+#line 315 "d_parser.y"
                                   { (yyval.stmt) = CreateSwitchStmt((yyvsp[-3].expr), NULL, 0); }
-#line 2304 "d_parser.tab.c"
+#line 2306 "d_parser.tab.c"
     break;
 
   case 114: /* case_list: case_item  */
-#line 314 "d_parser.y"
+#line 319 "d_parser.y"
                 { (yyval.case_list) = CreateCaseList(); AddCaseItemToList((yyval.case_list), (yyvsp[0].case_item)); }
-#line 2310 "d_parser.tab.c"
+#line 2312 "d_parser.tab.c"
     break;
 
   case 115: /* case_list: default_item  */
-#line 315 "d_parser.y"
+#line 320 "d_parser.y"
                    { (yyval.case_list) = CreateCaseList(); AddCaseItemToList((yyval.case_list), (yyvsp[0].case_item)); }
-#line 2316 "d_parser.tab.c"
+#line 2318 "d_parser.tab.c"
     break;
 
   case 116: /* case_list: case_list case_item  */
-#line 316 "d_parser.y"
+#line 321 "d_parser.y"
                           { (yyval.case_list) = (yyvsp[-1].case_list); AddCaseItemToList((yyval.case_list), (yyvsp[0].case_item)); }
-#line 2322 "d_parser.tab.c"
+#line 2324 "d_parser.tab.c"
     break;
 
   case 117: /* case_list: case_list default_item  */
-#line 317 "d_parser.y"
+#line 322 "d_parser.y"
                              { (yyval.case_list) = (yyvsp[-1].case_list); AddCaseItemToList((yyval.case_list), (yyvsp[0].case_item)); }
-#line 2328 "d_parser.tab.c"
+#line 2330 "d_parser.tab.c"
     break;
 
   case 118: /* case_item: CASE expr ':'  */
-#line 321 "d_parser.y"
+#line 326 "d_parser.y"
                     { (yyval.case_item) = CreateCaseItem((yyvsp[-1].expr), NULL); }
-#line 2334 "d_parser.tab.c"
+#line 2336 "d_parser.tab.c"
     break;
 
   case 119: /* case_item: CASE expr ':' stmt_list  */
-#line 322 "d_parser.y"
+#line 327 "d_parser.y"
                               { (yyval.case_item) = CreateCaseItem((yyvsp[-2].expr), (yyvsp[0].stmt_list)); }
-#line 2340 "d_parser.tab.c"
+#line 2342 "d_parser.tab.c"
     break;
 
   case 120: /* default_item: DEFAULT ':'  */
-#line 326 "d_parser.y"
+#line 331 "d_parser.y"
                   { (yyval.case_item) = CreateDefaultItem(NULL); }
-#line 2346 "d_parser.tab.c"
+#line 2348 "d_parser.tab.c"
     break;
 
   case 121: /* default_item: DEFAULT ':' stmt_list  */
-#line 327 "d_parser.y"
+#line 332 "d_parser.y"
                             { (yyval.case_item) = CreateDefaultItem((yyvsp[0].stmt_list)); }
-#line 2352 "d_parser.tab.c"
+#line 2354 "d_parser.tab.c"
     break;
 
   case 122: /* func_def: type IDENT '(' ')' func_body  */
-#line 331 "d_parser.y"
-                                   { (yyval.func_def) = CreateFuncDef((yyvsp[-4].type), (yyvsp[-3].string_val), NULL, (yyvsp[0].func_def)); }
-#line 2358 "d_parser.tab.c"
+#line 336 "d_parser.y"
+                                   { (yyval.func_def) = CreateFuncDef((yyvsp[-4].type), (yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
+#line 2360 "d_parser.tab.c"
     break;
 
   case 123: /* func_def: type IDENT '(' param_list ')' func_body  */
-#line 332 "d_parser.y"
-                                              { (yyval.func_def) = CreateFuncDef((yyvsp[-5].type), (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].func_def)); }
-#line 2364 "d_parser.tab.c"
+#line 337 "d_parser.y"
+                                              { (yyval.func_def) = CreateFuncDef((yyvsp[-5].type), (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
+#line 2366 "d_parser.tab.c"
     break;
 
   case 124: /* func_def: VOID IDENT '(' ')' func_body  */
-#line 333 "d_parser.y"
-                                   { (yyval.func_def) = CreateVoidFuncDef((yyvsp[-3].string_val), NULL, (yyvsp[0].func_def)); }
-#line 2370 "d_parser.tab.c"
+#line 338 "d_parser.y"
+                                   { (yyval.func_def) = CreateVoidFuncDef((yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
+#line 2372 "d_parser.tab.c"
     break;
 
   case 125: /* func_def: VOID IDENT '(' param_list ')' func_body  */
-#line 334 "d_parser.y"
-                                              { (yyval.func_def) = CreateVoidFuncDef((yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].func_def)); }
-#line 2376 "d_parser.tab.c"
+#line 339 "d_parser.y"
+                                              { (yyval.func_def) = CreateVoidFuncDef((yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
+#line 2378 "d_parser.tab.c"
     break;
 
   case 126: /* func_body: compound_stmt  */
-#line 338 "d_parser.y"
-                    { (yyval.func_def) = (NFuncDef*)(yyvsp[0].stmt); }
-#line 2382 "d_parser.tab.c"
+#line 343 "d_parser.y"
+                    { (yyval.stmt) = (yyvsp[0].stmt); }
+#line 2384 "d_parser.tab.c"
     break;
 
   case 127: /* func_body: ';'  */
-#line 339 "d_parser.y"
-          { (yyval.func_def) = NULL; }
-#line 2388 "d_parser.tab.c"
+#line 344 "d_parser.y"
+          { (yyval.stmt) = NULL; }
+#line 2390 "d_parser.tab.c"
     break;
 
   case 128: /* class_def: CLASS CLASSNAME '{' class_members '}'  */
-#line 343 "d_parser.y"
+#line 348 "d_parser.y"
                                             { (yyval.class_def) = CreateClassDef((yyvsp[-3].string_val), NULL, (yyvsp[-1].class_member)); }
-#line 2394 "d_parser.tab.c"
+#line 2396 "d_parser.tab.c"
     break;
 
   case 129: /* class_def: CLASS CLASSNAME '{' '}'  */
-#line 344 "d_parser.y"
+#line 349 "d_parser.y"
                               { (yyval.class_def) = CreateClassDef((yyvsp[-2].string_val), NULL, NULL); }
-#line 2400 "d_parser.tab.c"
+#line 2402 "d_parser.tab.c"
     break;
 
   case 130: /* class_def: CLASS CLASSNAME ':' CLASSNAME '{' class_members '}'  */
-#line 345 "d_parser.y"
+#line 350 "d_parser.y"
                                                           { (yyval.class_def) = CreateClassDef((yyvsp[-5].string_val), (yyvsp[-3].string_val), (yyvsp[-1].class_member)); }
-#line 2406 "d_parser.tab.c"
+#line 2408 "d_parser.tab.c"
     break;
 
   case 131: /* class_def: CLASS CLASSNAME ':' CLASSNAME '{' '}'  */
-#line 346 "d_parser.y"
+#line 351 "d_parser.y"
                                             { (yyval.class_def) = CreateClassDef((yyvsp[-4].string_val), (yyvsp[-2].string_val), NULL); }
-#line 2412 "d_parser.tab.c"
+#line 2414 "d_parser.tab.c"
     break;
 
   case 132: /* class_members: class_member  */
-#line 350 "d_parser.y"
+#line 355 "d_parser.y"
                    { (yyval.class_member) = (yyvsp[0].class_member); }
-#line 2418 "d_parser.tab.c"
+#line 2420 "d_parser.tab.c"
     break;
 
   case 133: /* class_members: class_members class_member  */
-#line 351 "d_parser.y"
-                                 { (yyval.class_member) = (yyvsp[-1].class_member); }
-#line 2424 "d_parser.tab.c"
+#line 356 "d_parser.y"
+                                 { (yyval.class_member) = AppendClassMember((yyvsp[-1].class_member), (yyvsp[0].class_member)); }
+#line 2426 "d_parser.tab.c"
     break;
 
   case 134: /* class_member: decl  */
-#line 355 "d_parser.y"
+#line 360 "d_parser.y"
            { (yyval.class_member) = CreateFieldMember(ACCESS_PUBLIC, (yyvsp[0].decl_stmt).type, (yyvsp[0].decl_stmt).init_decls); }
-#line 2430 "d_parser.tab.c"
+#line 2432 "d_parser.tab.c"
     break;
 
   case 135: /* class_member: method_def  */
-#line 356 "d_parser.y"
+#line 361 "d_parser.y"
                  { (yyval.class_member) = CreateMethodMember(ACCESS_PUBLIC, (yyvsp[0].method_def)); }
-#line 2436 "d_parser.tab.c"
+#line 2438 "d_parser.tab.c"
     break;
 
   case 136: /* class_member: access_spec decl  */
-#line 357 "d_parser.y"
-                       { (yyval.class_member) = CreateFieldMember((yyvsp[-1].access_spec), NULL, NULL); }
-#line 2442 "d_parser.tab.c"
+#line 362 "d_parser.y"
+                       { (yyval.class_member) = CreateFieldMember((yyvsp[-1].access_spec), (yyvsp[0].decl_stmt).type, (yyvsp[0].decl_stmt).init_decls); }
+#line 2444 "d_parser.tab.c"
     break;
 
   case 137: /* class_member: access_spec method_def  */
-#line 358 "d_parser.y"
+#line 363 "d_parser.y"
                              { (yyval.class_member) = CreateMethodMember((yyvsp[-1].access_spec), (yyvsp[0].method_def)); }
-#line 2448 "d_parser.tab.c"
+#line 2450 "d_parser.tab.c"
     break;
 
   case 138: /* class_member: ctor_def  */
-#line 359 "d_parser.y"
-               { (yyval.class_member) = CreateCtorMember((yyvsp[0].ctor_def)); }
-#line 2454 "d_parser.tab.c"
+#line 364 "d_parser.y"
+               { (yyval.class_member) = CreateCtorMember(ACCESS_PUBLIC, (yyvsp[0].ctor_def)); }
+#line 2456 "d_parser.tab.c"
     break;
 
   case 139: /* class_member: dtor_def  */
-#line 360 "d_parser.y"
-               { (yyval.class_member) = CreateDtorMember((yyvsp[0].dtor_def)); }
-#line 2460 "d_parser.tab.c"
+#line 365 "d_parser.y"
+               { (yyval.class_member) = CreateDtorMember(ACCESS_PUBLIC, (yyvsp[0].dtor_def)); }
+#line 2462 "d_parser.tab.c"
     break;
 
   case 140: /* class_member: enum_def  */
-#line 361 "d_parser.y"
+#line 366 "d_parser.y"
                { (yyval.class_member) = CreateEnumMember(ACCESS_PUBLIC, (yyvsp[0].enum_def)); }
-#line 2466 "d_parser.tab.c"
+#line 2468 "d_parser.tab.c"
     break;
 
   case 141: /* class_member: access_spec enum_def  */
-#line 362 "d_parser.y"
+#line 367 "d_parser.y"
                            { (yyval.class_member) = CreateEnumMember((yyvsp[-1].access_spec), (yyvsp[0].enum_def)); }
-#line 2472 "d_parser.tab.c"
+#line 2474 "d_parser.tab.c"
     break;
 
   case 142: /* access_spec: PUBLIC  */
-#line 366 "d_parser.y"
+#line 371 "d_parser.y"
              { (yyval.access_spec) = ACCESS_PUBLIC; }
-#line 2478 "d_parser.tab.c"
+#line 2480 "d_parser.tab.c"
     break;
 
   case 143: /* access_spec: PRIVATE  */
-#line 367 "d_parser.y"
+#line 372 "d_parser.y"
               { (yyval.access_spec) = ACCESS_PRIVATE; }
-#line 2484 "d_parser.tab.c"
+#line 2486 "d_parser.tab.c"
     break;
 
   case 144: /* access_spec: PROTECTED  */
-#line 368 "d_parser.y"
+#line 373 "d_parser.y"
                 { (yyval.access_spec) = ACCESS_PROTECTED; }
-#line 2490 "d_parser.tab.c"
+#line 2492 "d_parser.tab.c"
     break;
 
   case 145: /* method_def: type IDENT '(' ')' compound_stmt  */
-#line 372 "d_parser.y"
+#line 377 "d_parser.y"
                                        { (yyval.method_def) = CreateMethodDef(0, (yyvsp[-4].type), (yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
-#line 2496 "d_parser.tab.c"
+#line 2498 "d_parser.tab.c"
     break;
 
   case 146: /* method_def: type IDENT '(' param_list ')' compound_stmt  */
-#line 373 "d_parser.y"
+#line 378 "d_parser.y"
                                                   { (yyval.method_def) = CreateMethodDef(0, (yyvsp[-5].type), (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
-#line 2502 "d_parser.tab.c"
+#line 2504 "d_parser.tab.c"
     break;
 
   case 147: /* method_def: VOID IDENT '(' ')' compound_stmt  */
-#line 374 "d_parser.y"
+#line 379 "d_parser.y"
                                        { (yyval.method_def) = CreateVoidMethodDef(0, (yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
-#line 2508 "d_parser.tab.c"
+#line 2510 "d_parser.tab.c"
     break;
 
   case 148: /* method_def: VOID IDENT '(' param_list ')' compound_stmt  */
-#line 375 "d_parser.y"
+#line 380 "d_parser.y"
                                                   { (yyval.method_def) = CreateVoidMethodDef(0, (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
-#line 2514 "d_parser.tab.c"
+#line 2516 "d_parser.tab.c"
     break;
 
   case 149: /* method_def: OVERRIDE type IDENT '(' ')' compound_stmt  */
-#line 376 "d_parser.y"
+#line 381 "d_parser.y"
                                                 { (yyval.method_def) = CreateMethodDef(1, (yyvsp[-4].type), (yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
-#line 2520 "d_parser.tab.c"
+#line 2522 "d_parser.tab.c"
     break;
 
   case 150: /* method_def: OVERRIDE type IDENT '(' param_list ')' compound_stmt  */
-#line 377 "d_parser.y"
+#line 382 "d_parser.y"
                                                            { (yyval.method_def) = CreateMethodDef(1, (yyvsp[-5].type), (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
-#line 2526 "d_parser.tab.c"
+#line 2528 "d_parser.tab.c"
     break;
 
   case 151: /* method_def: OVERRIDE VOID IDENT '(' ')' compound_stmt  */
-#line 378 "d_parser.y"
+#line 383 "d_parser.y"
                                                 { (yyval.method_def) = CreateVoidMethodDef(1, (yyvsp[-3].string_val), NULL, (yyvsp[0].stmt)); }
-#line 2532 "d_parser.tab.c"
+#line 2534 "d_parser.tab.c"
     break;
 
   case 152: /* method_def: OVERRIDE VOID IDENT '(' param_list ')' compound_stmt  */
-#line 379 "d_parser.y"
+#line 384 "d_parser.y"
                                                            { (yyval.method_def) = CreateVoidMethodDef(1, (yyvsp[-4].string_val), (yyvsp[-2].param_list), (yyvsp[0].stmt)); }
-#line 2538 "d_parser.tab.c"
+#line 2540 "d_parser.tab.c"
     break;
 
   case 153: /* ctor_def: THIS '(' ')' compound_stmt  */
-#line 383 "d_parser.y"
+#line 388 "d_parser.y"
                                  { (yyval.ctor_def) = CreateCtorDef(NULL, (yyvsp[0].stmt)); }
-#line 2544 "d_parser.tab.c"
+#line 2546 "d_parser.tab.c"
     break;
 
   case 154: /* ctor_def: THIS '(' param_list ')' compound_stmt  */
-#line 384 "d_parser.y"
+#line 389 "d_parser.y"
                                             { (yyval.ctor_def) = CreateCtorDef((yyvsp[-2].param_list), (yyvsp[0].stmt)); }
-#line 2550 "d_parser.tab.c"
+#line 2552 "d_parser.tab.c"
     break;
 
   case 155: /* dtor_def: '~' THIS '(' ')' compound_stmt  */
-#line 388 "d_parser.y"
+#line 393 "d_parser.y"
                                      { (yyval.dtor_def) = CreateDtorDef((yyvsp[0].stmt)); }
-#line 2556 "d_parser.tab.c"
+#line 2558 "d_parser.tab.c"
     break;
 
   case 156: /* enum_def: ENUM IDENT '{' enum_body '}'  */
-#line 392 "d_parser.y"
-                                   { (yyval.enum_def) = CreateEnumDef((yyvsp[-3].string_val), NULL, 0); }
-#line 2562 "d_parser.tab.c"
+#line 397 "d_parser.y"
+                                   { (yyval.enum_def) = CreateEnumDef((yyvsp[-3].string_val), (yyvsp[-1].enum_item_list)->items, (yyvsp[-1].enum_item_list)->count); }
+#line 2564 "d_parser.tab.c"
     break;
 
   case 157: /* enum_def: ENUM '{' enum_body '}'  */
-#line 393 "d_parser.y"
-                             { (yyval.enum_def) = CreateEnumDef(NULL, NULL, 0); }
-#line 2568 "d_parser.tab.c"
+#line 398 "d_parser.y"
+                             { (yyval.enum_def) = CreateEnumDef(NULL, (yyvsp[-1].enum_item_list)->items, (yyvsp[-1].enum_item_list)->count); }
+#line 2570 "d_parser.tab.c"
     break;
 
   case 158: /* enum_body: IDENT  */
-#line 397 "d_parser.y"
-            { (yyval.enum_def) = CreateEnumDef(NULL, (NEnumItem**)malloc(sizeof(NEnumItem*)), 0); }
-#line 2574 "d_parser.tab.c"
+#line 402 "d_parser.y"
+            { (yyval.enum_item_list) = CreateEnumItemList(); AddEnumItemToList((yyval.enum_item_list), CreateEnumItem((yyvsp[0].string_val), 0, 0)); }
+#line 2576 "d_parser.tab.c"
     break;
 
   case 159: /* enum_body: IDENT '=' INTEGER  */
-#line 398 "d_parser.y"
-                        { (yyval.enum_def) = CreateEnumDef(NULL, (NEnumItem**)malloc(sizeof(NEnumItem*)), 0); }
-#line 2580 "d_parser.tab.c"
+#line 403 "d_parser.y"
+                        { (yyval.enum_item_list) = CreateEnumItemList(); AddEnumItemToList((yyval.enum_item_list), CreateEnumItem((yyvsp[-2].string_val), 1, (yyvsp[0].int_val))); }
+#line 2582 "d_parser.tab.c"
     break;
 
   case 160: /* enum_body: enum_body ',' IDENT  */
-#line 399 "d_parser.y"
-                          { (yyval.enum_def) = (yyvsp[-2].enum_def); }
-#line 2586 "d_parser.tab.c"
+#line 404 "d_parser.y"
+                          { (yyval.enum_item_list) = (yyvsp[-2].enum_item_list); AddEnumItemToList((yyval.enum_item_list), CreateEnumItem((yyvsp[0].string_val), 0, 0)); }
+#line 2588 "d_parser.tab.c"
     break;
 
   case 161: /* enum_body: enum_body ',' IDENT '=' INTEGER  */
-#line 400 "d_parser.y"
-                                      { (yyval.enum_def) = (yyvsp[-4].enum_def); }
-#line 2592 "d_parser.tab.c"
+#line 405 "d_parser.y"
+                                      { (yyval.enum_item_list) = (yyvsp[-4].enum_item_list); AddEnumItemToList((yyval.enum_item_list), CreateEnumItem((yyvsp[-2].string_val), 1, (yyvsp[0].int_val))); }
+#line 2594 "d_parser.tab.c"
     break;
 
 
-#line 2596 "d_parser.tab.c"
+#line 2598 "d_parser.tab.c"
 
       default: break;
     }
@@ -2785,9 +2787,18 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 403 "d_parser.y"
+#line 408 "d_parser.y"
 
 
 void yyerror(const char *s) {
     fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
 }
+
+NExpr* CreateNewArrayExpr(NType *type, NExpr *expr)
+{
+    NExprList *list = CreateExprList();
+    AddExprToList(list, expr);
+    NExpr *result = CreateNewExpr(type, list->elements, list->count);
+    return result;
+}
+

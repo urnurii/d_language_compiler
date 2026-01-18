@@ -124,7 +124,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 14 "d_parser.y"
+#line 16 "d_parser.y"
 
     // Типы
     NType *type;
@@ -167,7 +167,7 @@ union YYSTYPE
     
     // Enum
     NEnumDef *enum_def;
-    NEnumItem *enum_item;
+    NEnumItemList *enum_item_list;
     
     // Элементы верхнего уровня
     NSourceItem *source_item;

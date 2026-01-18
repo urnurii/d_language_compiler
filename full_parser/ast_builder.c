@@ -510,28 +510,28 @@ void AddParamToList(NParamList *list, NParam *param) {
     list->params[list->count++] = param;
 }
 
-void FreeParamList(NParamList *list) {
-    if (list == NULL) return;
+// void FreeParamList(NParamList *list) {
+//     if (list == NULL) return;
     
-    for (int i = 0; i < list->count; i++) {
-        if (list->params[i] != NULL) {
-            if (list->params[i]->param_type != NULL) {
-                FreeType(list->params[i]->param_type);
-            }
-            if (list->params[i]->param_name != NULL) {
-                free(list->params[i]->param_name);
-            }
-            if (list->params[i]->default_value != NULL) {
-                FreeExpr(list->params[i]->default_value);
-            }
-            free(list->params[i]);
-        }
-    }
-    if (list->params != NULL) {
-        free(list->params);
-    }
-    free(list);
-}
+//     for (int i = 0; i < list->count; i++) {
+//         if (list->params[i] != NULL) {
+//             if (list->params[i]->param_type != NULL) {
+//                 FreeType(list->params[i]->param_type);
+//             }
+//             if (list->params[i]->param_name != NULL) {
+//                 free(list->params[i]->param_name);
+//             }
+//             if (list->params[i]->default_value != NULL) {
+//                 FreeExpr(list->params[i]->default_value);
+//             }
+//             free(list->params[i]);
+//         }
+//     }
+//     if (list->params != NULL) {
+//         free(list->params);
+//     }
+//     free(list);
+// }
 
 // ----- Функции для объявлений переменных -----
 
@@ -577,39 +577,39 @@ void AddInitDeclToList(NInitDeclList *list, NInitDecl *decl) {
     list->decls[list->count++] = decl;
 }
 
-void FreeInitDeclList(NInitDeclList *list) {
-    if (list == NULL) return;
+// void FreeInitDeclList(NInitDeclList *list) {
+//     if (list == NULL) return;
     
-    for (int i = 0; i < list->count; i++) {
-        if (list->decls[i] != NULL) {
-            if (list->decls[i]->name != NULL) {
-                free(list->decls[i]->name);
-            }
-            if (list->decls[i]->initializer != NULL) {
-                if (list->decls[i]->initializer->is_array == 0) {
-                    if (list->decls[i]->initializer->expr != NULL) {
-                        FreeExpr(list->decls[i]->initializer->expr);
-                    }
-                } else {
-                    for (int j = 0; j < list->decls[i]->initializer->array_init.count; j++) {
-                        if (list->decls[i]->initializer->array_init.elements[j] != NULL) {
-                            FreeExpr(list->decls[i]->initializer->array_init.elements[j]);
-                        }
-                    }
-                    if (list->decls[i]->initializer->array_init.elements != NULL) {
-                        free(list->decls[i]->initializer->array_init.elements);
-                    }
-                }
-                free(list->decls[i]->initializer);
-            }
-            free(list->decls[i]);
-        }
-    }
-    if (list->decls != NULL) {
-        free(list->decls);
-    }
-    free(list);
-}
+//     for (int i = 0; i < list->count; i++) {
+//         if (list->decls[i] != NULL) {
+//             if (list->decls[i]->name != NULL) {
+//                 free(list->decls[i]->name);
+//             }
+//             if (list->decls[i]->initializer != NULL) {
+//                 if (list->decls[i]->initializer->is_array == 0) {
+//                     if (list->decls[i]->initializer->expr != NULL) {
+//                         FreeExpr(list->decls[i]->initializer->expr);
+//                     }
+//                 } else {
+//                     for (int j = 0; j < list->decls[i]->initializer->array_init.count; j++) {
+//                         if (list->decls[i]->initializer->array_init.elements[j] != NULL) {
+//                             FreeExpr(list->decls[i]->initializer->array_init.elements[j]);
+//                         }
+//                     }
+//                     if (list->decls[i]->initializer->array_init.elements != NULL) {
+//                         free(list->decls[i]->initializer->array_init.elements);
+//                     }
+//                 }
+//                 free(list->decls[i]->initializer);
+//             }
+//             free(list->decls[i]);
+//         }
+//     }
+//     if (list->decls != NULL) {
+//         free(list->decls);
+//     }
+//     free(list);
+// }
 
 // ----- Функции для операторов -----
 

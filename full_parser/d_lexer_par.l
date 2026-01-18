@@ -13,8 +13,6 @@
 #include "tree_nodes.h"
 #include "d_parser.tab.h"
 
-int yylineno = 1;
-
 void add_class_name(const char* name);
 int is_class_name(const char* name);
 void reset_class_table();

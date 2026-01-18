@@ -8,6 +8,7 @@
 int yylex(void);
 int yyparse(void);
 void yyerror(const char *s);
+extern int yylineno;
 NExpr* CreateNewArrayExpr(NType *type, NExpr *expr);
 
 NProgram *root = NULL;
@@ -81,7 +82,8 @@ NProgram *root = NULL;
 %token <string_val> STR IDENT CLASSNAME
 %token <char_val> CHARVAL
 
-%type <type> type base_type array_decl
+%type <type> type base_type
+%type <array_decl> array_decl
 %type <expr> expr e_expr
 %type <expr_list> arg_list
 %type <initializer> initializer array_init

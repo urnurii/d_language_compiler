@@ -6,6 +6,8 @@
 static long g_node_id = 0;      // Счётчик ID для уникальности узлов
 static FILE *g_output = NULL;   // Текущий файл вывода
 
+static long VisualizeType(NType *type);
+
 static long GenerateNodeId(void) {
     return g_node_id++;
 }
