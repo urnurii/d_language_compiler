@@ -532,6 +532,12 @@ static long VisualizeStmt(NStmt *stmt) {
             DotPrintf("    node_%ld [label=\"var: %s\"];\n", var_id, 
                      EscapeString(stmt->value.foreach_stmt.var_name));
             DotPrintf("    node_%ld -> node_%ld [label=\"var\"];\n", node_id, var_id);
+            if (stmt->value.foreach_stmt.is_typed && stmt->value.foreach_stmt.var_type) {
+                long type_id = VisualizeType(stmt->value.foreach_stmt.var_type);
+                if (type_id >= 0) {
+                    DotPrintf("    node_%ld -> node_%ld [label=\"type\"];\n", var_id, type_id);
+                }
+            }
             
             if (coll_id >= 0) {
                 DotPrintf("    node_%ld -> node_%ld [label=\"collection\"];\n", node_id, coll_id);
