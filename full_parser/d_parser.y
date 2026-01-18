@@ -10,6 +10,7 @@ int yyparse(void);
 void yyerror(const char *s);
 extern int yylineno;
 NExpr* CreateNewArrayExpr(NType *type, NExpr *expr);
+void AppendSourceItemToRoot(NSourceItem *item);
 
 NProgram *root = NULL;
 %}
@@ -129,13 +130,13 @@ NProgram *root = NULL;
 %%
 
 program
-    : translation_unit { $$ = CreateProgram($1); root = $$; }
+    : translation_unit { $$ = root; }
     | %empty { $$ = CreateProgram(NULL); root = $$; }
     ;
 
 translation_unit
-    : source_item { $$ = $1; }
-    | translation_unit source_item { AddSourceItemToProgram(root, $2); $$ = $1; }
+    : source_item { AppendSourceItemToRoot($1); $$ = $1; }
+    | translation_unit source_item { AppendSourceItemToRoot($2); $$ = $1; }
     ;
 
 source_item
@@ -409,6 +410,15 @@ enum_body
 
 void yyerror(const char *s) {
     fprintf(stderr, "Parse error at line %d: %s\n", yylineno, s);
+}
+
+void AppendSourceItemToRoot(NSourceItem *item) {
+    if (!item) return;
+    if (!root) {
+        root = CreateProgram(item);
+    } else {
+        AddSourceItemToProgram(root, item);
+    }
 }
 
 NExpr* CreateNewArrayExpr(NType *type, NExpr *expr)
