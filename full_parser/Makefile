@@ -4,13 +4,13 @@
 # ============================================
 
 # Компиляторы и инструменты
-CC = gcc
+CC = C:/msys64/mingw64/bin/gcc.exe
 BISON = bison
 FLEX = flex
 
 # Флаги компилятора
 CFLAGS = -Wall -Wextra -std=c99 -g
-LDFLAGS = -lm
+LDFLAGS = -lm -static -static-libgcc
 
 # Целевой исполняемый файл
 TARGET = compiler.exe
