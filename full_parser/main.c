@@ -20,7 +20,7 @@ extern NProgram *root;
 // ----- Вспомогательные функции -----
 
 void print_usage(const char *program_name) {
-    fprintf(stderr, "Usage: %s <input_file.d>\n", program_name);
+    fprintf(stderr, "Usage: %s <input_file.d> [ast_output.dot]\n", program_name);
     fprintf(stderr, "Compiles a D-like language source file\n");
 }
 
@@ -92,7 +92,7 @@ int second_pass_and_parse(const char *filename) {
 
 // ----- Анализ AST -----
 
-int analyze_ast(void) {
+int analyze_ast(const char *dot_output_path) {
     fprintf(stdout, "\n[PHASE 3] AST analysis...\n");
     
     if (root == NULL) {
@@ -102,8 +102,10 @@ int analyze_ast(void) {
     
     fprintf(stdout, "[PHASE 3] AST root pointer: %p\n", (void *)root);
     
-    VisualizeASTToFile(root, "ast.dot");
-    fprintf(stdout, "[PHASE 3] AST DOT saved to ast.dot\n");
+    if (dot_output_path == NULL || dot_output_path[0] == '\0') {
+        dot_output_path = "ast.dot";
+    }
+    VisualizeASTToFile(root, dot_output_path);
     
     fprintf(stdout, "[PHASE 3] Analysis complete.\n");
     return 1;
@@ -111,9 +113,7 @@ int analyze_ast(void) {
 
 int main(int argc, char *argv[]) {
     fprintf(stdout, "\n");
-    fprintf(stdout, "============================================\n");
-    fprintf(stdout, "===  D-like Language Compiler v1.0  ===\n");
-    fprintf(stdout, "============================================\n\n");
+    fprintf(stdout, "-----  D-like Language Compiler v1.0  -----\n");
     
     // Обработка аргументов командной строки
     if (argc < 2) {
@@ -122,6 +122,7 @@ int main(int argc, char *argv[]) {
     }
     
     const char *input_filename = argv[1];
+    const char *dot_output_path = (argc >= 3) ? argv[2] : "ast.dot";
     fprintf(stdout, "Input file: %s\n\n", input_filename);
     
     // Первый проход
@@ -137,15 +138,14 @@ int main(int argc, char *argv[]) {
     }
     
     // Анализ AST
-    if (!analyze_ast()) {
+    if (!analyze_ast(dot_output_path)) {
         fprintf(stderr, "\nError: AST analysis failed!\n");
         return 4;
     }
     
     fprintf(stdout, "\n");
-    fprintf(stdout, "============================================\n");
-    fprintf(stdout, "===  Compilation successful! ===\n");
-    fprintf(stdout, "============================================\n\n");
+    fprintf(stdout, "-----  Compilation successful! -----\n");
+    fprintf(stdout, "\n");
     
     return 0;
 }

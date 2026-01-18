@@ -1,30 +1,23 @@
 
-============================================
-===  D-like Language Compiler v1.0  ===
-============================================
-
+-----  D-like Language Compiler v1.0  -----
 Input file: test_new_expressions_detailed.d
 
 [PHASE 1] First lexer pass: collecting class names...
 [PHASE 1] Complete. Class table populated:
 
-=== FOUND CLASSES (2 total) ===
+----- FOUND CLASSES (2 total) -----
   1. Object
   2. Exception
-================================
+-----------------------------------
 
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
 
 [PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 00000197e86cb0e0
+[PHASE 3] AST root pointer: 000002269bfab0e0
 AST visualization saved to 'ast.dot'
-To convert to PNG, run: dot -Tpng ast.dot -o ast.dot.png
-[PHASE 3] AST DOT saved to ast.dot
 [PHASE 3] Analysis complete.
 
-============================================
-===  Compilation successful! ===
-============================================
+-----  Compilation successful! -----
 

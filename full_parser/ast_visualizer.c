@@ -982,7 +982,6 @@ void VisualizeASTToFile(NProgram *program, const char *output_file) {
     g_output = NULL;
     
     printf("AST visualization saved to '%s'\n", output_file);
-    printf("To convert to PNG, run: dot -Tpng %s -o %s.png\n", output_file, output_file);
 }
 
 // Выводит DOT код в стандартный поток вывода

@@ -44,8 +44,6 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
     char tmp[8192];
     int string_pos = 0;
     int comment_pos = 0;
-    int value_int;
-    float value_float;
 %}
 
 <FIRST_PASS>"class"[ \t]+{IDENTIFIER}[ \t\n]*(\{|:) {
@@ -326,11 +324,11 @@ void reset_class_table() {
 }
 
 void print_class_table() {
-    printf("\n=== FOUND CLASSES (%d total) ===\n", classTable.count);
+    printf("\n----- FOUND CLASSES (%d total) -----\n", classTable.count);
     for (int i = 0; i < classTable.count; i++) {
         printf("  %d. %s\n", i + 1, classTable.names[i]);
     }
-    printf("================================\n\n");
+    printf("-----------------------------------\n\n");
 }
 
 void set_lexer_first_pass(void) {
