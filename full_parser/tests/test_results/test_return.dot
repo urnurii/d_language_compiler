@@ -1,0 +1,26 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="func: getValue()"];
+    node_2 [label="type: int"];
+    node_1 -> node_2 [label="return_type"];
+    node_3 [label="compound"];
+    node_4 [label="return"];
+    node_5 [label="int_lit"];
+    node_5 [label="int: 42"];
+    node_4 -> node_5 [label="value"];
+    node_3 -> node_4 [label="stmt_0"];
+    node_1 -> node_3 [label="body"];
+    node_0 -> node_1 [label="item_0"];
+    node_6 [label="func: doSomething()"];
+    node_7 [label="return_type: void"];
+    node_6 -> node_7 [label="return_type"];
+    node_8 [label="compound"];
+    node_9 [label="return"];
+    node_8 -> node_9 [label="stmt_0"];
+    node_6 -> node_8 [label="body"];
+    node_0 -> node_6 [label="item_1"];
+}
