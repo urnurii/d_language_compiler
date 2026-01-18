@@ -289,6 +289,10 @@ static long VisualizeExpr(NExpr *expr) {
             
         case EXPR_NEW: {
             DotPrintf("    node_%ld [label=\"new\"];\n", node_id);
+            long type_id = VisualizeType(expr->value.new_expr.type);
+            if (type_id >= 0) {
+                DotPrintf("    node_%ld -> node_%ld [label=\"type\"];\n", node_id, type_id);
+            }
             for (int i = 0; i < expr->value.new_expr.init_count; i++) {
                 long init_id = VisualizeExpr(expr->value.new_expr.init_exprs[i]);
                 if (init_id >= 0) {
