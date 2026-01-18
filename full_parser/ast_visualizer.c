@@ -624,6 +624,12 @@ static void VisualizeParams(long parent_id, NParamList *params, const char *edge
                 DotPrintf("    node_%ld -> node_%ld [label=\"type\"];\n", param_id, type_id);
             }
         }
+        if (param->default_value) {
+            long def_id = VisualizeExpr(param->default_value);
+            if (def_id >= 0) {
+                DotPrintf("    node_%ld -> node_%ld [label=\"default\"];\n", param_id, def_id);
+            }
+        }
     }
 }
 
