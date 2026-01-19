@@ -147,11 +147,38 @@ typedef enum {
 } SemanticErrorKind;
 
 typedef struct {
-    SemanticErrorKind kind;
-    char *message;        /* описание ошибки */
     int line;
     int column;
-    char *source_text;    /* строка из исходного кода (если возможно) */
+} SemanticPosition;
+
+typedef struct {
+    SemanticPosition start;
+    SemanticPosition end;
+} SemanticRange;
+
+typedef struct {
+    char *expected;
+    char *actual;
+    char *name;
+    char *signature;
+    char *details;
+} SemanticErrorContext;
+
+typedef struct {
+    SemanticErrorKind kind;
+    char *code;
+    char *message;
+    char *explanation;
+    int has_position;
+    SemanticPosition position;
+    int has_range;
+    SemanticRange range;
+    int has_related_position;
+    SemanticPosition related_position;
+    int has_related_range;
+    SemanticRange related_range;
+    SemanticErrorContext context;
+    char *source_text;
 } SemanticError;
 
 /* Список ошибок */
