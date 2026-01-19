@@ -1,0 +1,44 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="class: Child extends Object"];
+    node_3 [label="method: method()"];
+    node_4 [label="return_type: void"];
+    node_3 -> node_4 [label="return_type"];
+    node_5 [label="compound"];
+    node_6 [label="expr_stmt"];
+    node_7 [label="super"];
+    node_7 [label="super.field"];
+    node_6 -> node_7 [label="expr"];
+    node_5 -> node_6 [label="stmt_0"];
+    node_8 [label="expr_stmt"];
+    node_9 [label="super_method"];
+    node_9 [label="super.method: method"];
+    node_8 -> node_9 [label="expr"];
+    node_5 -> node_8 [label="stmt_1"];
+    node_10 [label="expr_stmt"];
+    node_11 [label="super_method"];
+    node_11 [label="super.method: method"];
+    node_12 [label="int_lit"];
+    node_12 [label="int: 1"];
+    node_11 -> node_12 [label="arg_0"];
+    node_10 -> node_11 [label="expr"];
+    node_5 -> node_10 [label="stmt_2"];
+    node_13 [label="expr_stmt"];
+    node_14 [label="super_method"];
+    node_14 [label="super.method: method"];
+    node_15 [label="int_lit"];
+    node_15 [label="int: 1"];
+    node_14 -> node_15 [label="arg_0"];
+    node_16 [label="int_lit"];
+    node_16 [label="int: 2"];
+    node_14 -> node_16 [label="arg_1"];
+    node_13 -> node_14 [label="expr"];
+    node_5 -> node_13 [label="stmt_3"];
+    node_3 -> node_5 [label="body"];
+    node_1 -> node_3 [label="member_0"];
+    node_0 -> node_1 [label="item_0"];
+}

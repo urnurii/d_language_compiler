@@ -1,0 +1,21 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="enum: Color"];
+    node_2 [label="item: Red"];
+    node_1 -> node_2 [label="item_0"];
+    node_3 [label="item: Green"];
+    node_1 -> node_3 [label="item_1"];
+    node_4 [label="item: Blue"];
+    node_1 -> node_4 [label="item_2"];
+    node_0 -> node_1 [label="item_0"];
+    node_5 [label="enum: Status"];
+    node_6 [label="item: Active = 1"];
+    node_5 -> node_6 [label="item_0"];
+    node_7 [label="item: Inactive = 0"];
+    node_5 -> node_7 [label="item_1"];
+    node_0 -> node_5 [label="item_1"];
+}

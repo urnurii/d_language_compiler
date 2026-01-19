@@ -1,0 +1,42 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="func: testSwitch()"];
+    node_2 [label="return_type: void"];
+    node_1 -> node_2 [label="return_type"];
+    node_3 [label="params"];
+    node_1 -> node_3 [label="params"];
+    node_4 [label="param: x"];
+    node_3 -> node_4 [label="param_0"];
+    node_5 [label="type: int"];
+    node_4 -> node_5 [label="type"];
+    node_6 [label="compound"];
+    node_7 [label="switch"];
+    node_8 [label="ident"];
+    node_8 [label="ident: x"];
+    node_7 -> node_8 [label="expr"];
+    node_9 [label="case"];
+    node_10 [label="int_lit"];
+    node_10 [label="int: 1"];
+    node_9 -> node_10 [label="value"];
+    node_7 -> node_9 [label="case_0"];
+    node_11 [label="break"];
+    node_9 -> node_11 [label="stmt_0"];
+    node_12 [label="case"];
+    node_13 [label="int_lit"];
+    node_13 [label="int: 2"];
+    node_12 -> node_13 [label="value"];
+    node_7 -> node_12 [label="case_1"];
+    node_14 [label="break"];
+    node_12 -> node_14 [label="stmt_0"];
+    node_15 [label="default"];
+    node_7 -> node_15 [label="case_2"];
+    node_16 [label="break"];
+    node_15 -> node_16 [label="stmt_0"];
+    node_6 -> node_7 [label="stmt_0"];
+    node_1 -> node_6 [label="body"];
+    node_0 -> node_1 [label="item_0"];
+}

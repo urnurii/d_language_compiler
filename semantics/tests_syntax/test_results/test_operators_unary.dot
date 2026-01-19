@@ -1,0 +1,43 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="global_decl"];
+    node_2 [label="type: int"];
+    node_1 -> node_2 [label="type"];
+    node_3 [label="var: a"];
+    node_1 -> node_3 [label="var_0"];
+    node_4 [label="unary_op"];
+    node_4 [label="unary: -"];
+    node_5 [label="ident"];
+    node_5 [label="ident: x"];
+    node_4 -> node_5 [label="operand"];
+    node_3 -> node_4 [label="init"];
+    node_0 -> node_1 [label="item_0"];
+    node_6 [label="global_decl"];
+    node_7 [label="type: int"];
+    node_6 -> node_7 [label="type"];
+    node_8 [label="var: b"];
+    node_6 -> node_8 [label="var_0"];
+    node_9 [label="unary_op"];
+    node_9 [label="unary: +"];
+    node_10 [label="ident"];
+    node_10 [label="ident: y"];
+    node_9 -> node_10 [label="operand"];
+    node_8 -> node_9 [label="init"];
+    node_0 -> node_6 [label="item_1"];
+    node_11 [label="global_decl"];
+    node_12 [label="type: bool"];
+    node_11 -> node_12 [label="type"];
+    node_13 [label="var: c"];
+    node_11 -> node_13 [label="var_0"];
+    node_14 [label="unary_op"];
+    node_14 [label="unary: !"];
+    node_15 [label="ident"];
+    node_15 [label="ident: flag"];
+    node_14 -> node_15 [label="operand"];
+    node_13 -> node_14 [label="init"];
+    node_0 -> node_11 [label="item_2"];
+}

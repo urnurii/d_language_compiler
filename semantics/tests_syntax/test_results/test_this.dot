@@ -1,0 +1,29 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="class: MyClass extends Object"];
+    node_3 [label="method: method()"];
+    node_4 [label="return_type: void"];
+    node_3 -> node_4 [label="return_type"];
+    node_5 [label="compound"];
+    node_6 [label="decl"];
+    node_6 [label="decl"];
+    node_7 [label="type: MyClass"];
+    node_6 -> node_7 [label="type"];
+    node_8 [label="var: obj"];
+    node_6 -> node_8 [label="var_0"];
+    node_9 [label="this"];
+    node_9 [label="this"];
+    node_8 -> node_9 [label="init"];
+    node_5 -> node_6 [label="stmt_0"];
+    node_3 -> node_5 [label="body"];
+    node_1 -> node_3 [label="member_0"];
+    node_11 [label="constructor"];
+    node_12 [label="compound"];
+    node_11 -> node_12 [label="body"];
+    node_1 -> node_11 [label="member_1"];
+    node_0 -> node_1 [label="item_0"];
+}

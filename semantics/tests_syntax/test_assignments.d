@@ -1,0 +1,12 @@
+void test() {
+    int a;
+    a = b;
+    int c = 10;
+    c += 5;
+    int d = 10;
+    d -= 3;
+    int e = 5;
+    e *= 2;
+    int f = 10;
+    f /= 2;
+}
