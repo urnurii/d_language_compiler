@@ -603,8 +603,13 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                     }
                 }
                 if (ctx->current_class != NULL) {
-                    if (ProcessClassMembers(member, ctx->current_class, ctx) != 0) {
-                        had_error = 1;
+                    if (ctx->current_class->field_count == 0 &&
+                        ctx->current_class->method_count == 0 &&
+                        ctx->current_class->constructor == NULL &&
+                        ctx->current_class->destructor == NULL) {
+                        if (ProcessClassMembers(member, ctx->current_class, ctx) != 0) {
+                            had_error = 1;
+                        }
                     }
                 }
                 while (member != NULL) {
