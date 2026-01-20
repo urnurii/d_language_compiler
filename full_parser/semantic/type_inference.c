@@ -6,6 +6,9 @@
 #include "error_reporting.h"
 #include "ast_builder.h"
 
+static int GetNumericRank(const NType *type, int *rank_out);
+static BaseType RankToBaseType(int rank);
+
 /* ============================================================================
    ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
    ============================================================================ */
@@ -236,15 +239,18 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type, 
         case OP_MINUS:
         case OP_MUL:
         case OP_DIV:
-            if (IsIntegralType(left_type) && IsIntegralType(right_type)) {
-                return CreateBaseType(TYPE_INT);
-            }
-            if (IsFloatingPointType(left_type) && IsFloatingPointType(right_type)) {
-                return CreateBaseType(TYPE_FLOAT);
-            }
-            if ((IsIntegralType(left_type) && IsFloatingPointType(right_type)) ||
-                (IsFloatingPointType(left_type) && IsIntegralType(right_type))) {
-                return CreateBaseType(TYPE_FLOAT);
+            if (IsNumericType(left_type) && IsNumericType(right_type)) {
+                int left_rank = 0;
+                int right_rank = 0;
+                int max_rank;
+                BaseType result_base;
+                if (!GetNumericRank(left_type, &left_rank) ||
+                    !GetNumericRank(right_type, &right_rank)) {
+                    return NULL;
+                }
+                max_rank = (left_rank > right_rank) ? left_rank : right_rank;
+                result_base = RankToBaseType(max_rank);
+                return CreateBaseType(result_base);
             }
             return NULL;
         case OP_EQ:
@@ -282,8 +288,9 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
             if (IsIntegralType(operand_type)) {
                 return CreateBaseType(TYPE_INT);
             }
-            if (IsFloatingPointType(operand_type)) {
-                return CreateBaseType(TYPE_FLOAT);
+            if (IsFloatingPointType(operand_type) &&
+                operand_type->kind == TYPE_KIND_BASE) {
+                return CreateBaseType(operand_type->base_type);
             }
             return NULL;
         case OP_NOT:
@@ -460,6 +467,46 @@ int IsArgumentCompatibleWithParameter(NType *param_type, NType *arg_type, int is
 /* ============================================================================
    СПЕЦИАЛЬНЫЕ ПРОВЕРКИ ТИПОВ
    ============================================================================ */
+
+static int GetNumericRank(const NType *type, int *rank_out) {
+    if (type == NULL || rank_out == NULL) {
+        return 0;
+    }
+    if (type->kind != TYPE_KIND_BASE) {
+        return 0;
+    }
+    switch (type->base_type) {
+        case TYPE_INT:
+        case TYPE_CHAR:
+            *rank_out = 1;
+            return 1;
+        case TYPE_FLOAT:
+            *rank_out = 2;
+            return 1;
+        case TYPE_DOUBLE:
+            *rank_out = 3;
+            return 1;
+        case TYPE_REAL:
+            *rank_out = 4;
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static BaseType RankToBaseType(int rank) {
+    switch (rank) {
+        case 4:
+            return TYPE_REAL;
+        case 3:
+            return TYPE_DOUBLE;
+        case 2:
+            return TYPE_FLOAT;
+        case 1:
+        default:
+            return TYPE_INT;
+    }
+}
 
 int IsNumericType(NType *type) {
 
