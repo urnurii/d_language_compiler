@@ -1663,7 +1663,13 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             }
             break;
         case STMT_COMPOUND:
+            if (PushScope(ctx, "block") != 0) {
+                return 1;
+            }
             AttributeStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx);
+            if (PopScope(ctx) != 0) {
+                return 1;
+            }
             break;
         case STMT_IF:
             AttributeExpressions(stmt->value.if_stmt.condition, ctx);
