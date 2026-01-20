@@ -414,10 +414,32 @@ int ProcessClassMembers(NClassMember *members, ClassInfo *class_info, SemanticCo
                 }
                 break;
             case CLASS_MEMBER_CTOR:
-                class_info->constructor = member->value.ctor;
+                if (class_info->constructor != NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "Duplicate constructor in class",
+                                                              0,
+                                                              0);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                } else {
+                    class_info->constructor = member->value.ctor;
+                }
                 break;
             case CLASS_MEMBER_DTOR:
-                class_info->destructor = member->value.dtor;
+                if (class_info->destructor != NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "Duplicate destructor in class",
+                                                              0,
+                                                              0);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                } else {
+                    class_info->destructor = member->value.dtor;
+                }
                 break;
             case CLASS_MEMBER_ENUM:
                 break;
