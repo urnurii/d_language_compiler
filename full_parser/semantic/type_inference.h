@@ -24,6 +24,7 @@
    Возвращает: новый NType объект с вычисленным типом или NULL при ошибке
    Использует: ReportError если не удаётся определить тип */
 NType* InferExpressionType(NExpr *expr, SemanticContext *ctx);
+NType* InferExpressionTypeSilent(NExpr *expr, SemanticContext *ctx);
 
 /* Определить тип для константы (литерала)
    INT -> TYPE_INT

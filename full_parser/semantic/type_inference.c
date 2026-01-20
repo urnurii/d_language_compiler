@@ -13,7 +13,17 @@ static BaseType RankToBaseType(int rank);
    ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
    ============================================================================ */
 
+static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int report_errors);
+
 NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
+    return InferExpressionTypeInternal(expr, ctx, 1);
+}
+
+NType* InferExpressionTypeSilent(NExpr *expr, SemanticContext *ctx) {
+    return InferExpressionTypeInternal(expr, ctx, 0);
+}
+
+static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int report_errors) {
 
     NType *left_type;
     NType *right_type;
@@ -36,7 +46,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
         case EXPR_IDENT: {
             Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
             if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedVariableError(expr->value.ident_name,
                                                                     expr->line,
                                                                     expr->column);
@@ -47,12 +57,12 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return CopyType(sym->info.var_info->type, ctx);
         }
         case EXPR_BINARY_OP:
-            left_type = InferExpressionType(expr->value.binary.left, ctx);
-            right_type = InferExpressionType(expr->value.binary.right, ctx);
+            left_type = InferExpressionTypeInternal(expr->value.binary.left, ctx, report_errors);
+            right_type = InferExpressionTypeInternal(expr->value.binary.right, ctx, report_errors);
             return InferBinaryOperationType(expr->value.binary.op, left_type, right_type, ctx);
         case EXPR_ASSIGN:
-            left_type = InferExpressionType(expr->value.binary.left, ctx);
-            right_type = InferExpressionType(expr->value.binary.right, ctx);
+            left_type = InferExpressionTypeInternal(expr->value.binary.left, ctx, report_errors);
+            right_type = InferExpressionTypeInternal(expr->value.binary.right, ctx, report_errors);
             if (left_type == NULL || right_type == NULL) {
                 return NULL;
             }
@@ -61,12 +71,12 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             return CopyType(left_type, ctx);
         case EXPR_UNARY_OP:
-            operand_type = InferExpressionType(expr->value.unary.operand, ctx);
+            operand_type = InferExpressionTypeInternal(expr->value.unary.operand, ctx, report_errors);
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
         case EXPR_FUNC_CALL: {
             FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
             if (func == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
                                                                     expr->line,
                                                                     expr->column);
@@ -80,7 +90,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return CopyType(func->return_type, ctx);
         }
         case EXPR_METHOD_CALL: {
-            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
+            NType *obj_type = InferExpressionTypeInternal(expr->value.member_access.object, ctx, report_errors);
             if (obj_type == NULL) {
                 return NULL;
             }
@@ -92,7 +102,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
             if (class_info == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedClassError(obj_type->class_name,
                                                                   expr->line,
                                                                   expr->column);
@@ -102,7 +112,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
             if (method == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
                                                                   obj_type->class_name,
                                                                   expr->line,
@@ -136,7 +146,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return CopyType(method->return_type, ctx);
         }
         case EXPR_MEMBER_ACCESS: {
-            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
+            NType *obj_type = InferExpressionTypeInternal(expr->value.member_access.object, ctx, report_errors);
             if (obj_type == NULL) {
                 return NULL;
             }
@@ -148,7 +158,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
             if (class_info == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedClassError(obj_type->class_name,
                                                                   expr->line,
                                                                   expr->column);
@@ -158,7 +168,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
             if (field == NULL) {
-                if (ctx != NULL && ctx->errors != NULL) {
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
                                                                 obj_type->class_name,
                                                                 expr->line,
@@ -170,7 +180,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return CopyType(field->type, ctx);
         }
         case EXPR_ARRAY_ACCESS: {
-            NType *array_type = InferExpressionType(expr->value.array_access.array, ctx);
+            NType *array_type = InferExpressionTypeInternal(expr->value.array_access.array, ctx, report_errors);
             if (array_type == NULL) {
                 return NULL;
             }
@@ -185,7 +195,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
         case EXPR_NEW:
             return CopyType(expr->value.new_expr.type, ctx);
         case EXPR_PAREN:
-            return InferExpressionType(expr->value.inner_expr, ctx);
+            return InferExpressionTypeInternal(expr->value.inner_expr, ctx, report_errors);
         case EXPR_THIS:
             if (ctx != NULL && ctx->current_class != NULL) {
                 return CreateClassType(ctx->current_class->name);
@@ -198,7 +208,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             }
             return NULL;
         default:
-            if (ctx != NULL && ctx->errors != NULL) {
+            if (report_errors && ctx != NULL && ctx->errors != NULL) {
                 SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
                                                      "Unsupported expression in type inference",
                                                      expr->line,

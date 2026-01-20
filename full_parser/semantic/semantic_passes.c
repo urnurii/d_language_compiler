@@ -926,7 +926,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                                 had_error = 1;
                             }
                             if (decl_type != NULL) {
-                                NType *expr_type = InferExpressionType(decl->initializer->expr, ctx);
+                                NType *expr_type = InferExpressionTypeSilent(decl->initializer->expr, ctx);
                                 if (expr_type != NULL && !CanAssign(decl_type, expr_type)) {
                                     if (ctx->errors != NULL) {
                                         SemanticError err = CreateTypeMismatchError(TypeToString(decl_type),
@@ -951,7 +951,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (cond != NULL) {
-                NType *cond_type = InferExpressionType(cond, ctx);
+                NType *cond_type = InferExpressionTypeSilent(cond, ctx);
                 if (cond_type != NULL && !CanBeCondition(cond_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateTypeMismatchError("bool or numeric",
@@ -978,7 +978,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (cond != NULL) {
-                NType *cond_type = InferExpressionType(cond, ctx);
+                NType *cond_type = InferExpressionTypeSilent(cond, ctx);
                 if (cond_type != NULL && !CanBeCondition(cond_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateTypeMismatchError("bool or numeric",
@@ -1005,7 +1005,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (cond != NULL) {
-                NType *cond_type = InferExpressionType(cond, ctx);
+                NType *cond_type = InferExpressionTypeSilent(cond, ctx);
                 if (cond_type != NULL && !CanBeCondition(cond_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateTypeMismatchError("bool or numeric",
@@ -1076,7 +1076,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                                     had_error = 1;
                                 }
                                 if (decl_type != NULL) {
-                                    NType *expr_type = InferExpressionType(decl->initializer->expr, ctx);
+                                    NType *expr_type = InferExpressionTypeSilent(decl->initializer->expr, ctx);
                                     if (expr_type != NULL && !CanAssign(decl_type, expr_type)) {
                                         if (ctx->errors != NULL) {
                                             SemanticError err = CreateTypeMismatchError(TypeToString(decl_type),
@@ -1098,7 +1098,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (cond != NULL) {
-                NType *cond_type = InferExpressionType(cond, ctx);
+                NType *cond_type = InferExpressionTypeSilent(cond, ctx);
                 if (cond_type != NULL && !CanBeCondition(cond_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateTypeMismatchError("bool or numeric",
@@ -1276,7 +1276,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                             continue;
                         }
                         if (param->param_type != NULL) {
-                            NType *arg_type = InferExpressionType(arg, ctx);
+                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
                             if (arg_type != NULL &&
                                 !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
                                 if (ctx->errors != NULL) {
@@ -1306,7 +1306,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 }
             }
             if (obj != NULL) {
-                NType *obj_type = InferExpressionType(obj, ctx);
+                NType *obj_type = InferExpressionTypeSilent(obj, ctx);
                 if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {
                     if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
@@ -1376,7 +1376,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                             continue;
                                         }
                                         if (param->param_type != NULL) {
-                                            NType *arg_type = InferExpressionType(arg, ctx);
+                                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
                                             if (arg_type != NULL &&
                                                 !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
                                                 if (ctx->errors != NULL) {
@@ -1414,7 +1414,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (obj != NULL) {
-                NType *obj_type = InferExpressionType(obj, ctx);
+                NType *obj_type = InferExpressionTypeSilent(obj, ctx);
                 if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {
                     if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
@@ -1490,7 +1490,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (array_expr != NULL) {
-                NType *array_type = InferExpressionType(array_expr, ctx);
+                NType *array_type = InferExpressionTypeSilent(array_expr, ctx);
                 if (array_type != NULL &&
                     array_type->kind != TYPE_KIND_BASE_ARRAY &&
                     array_type->kind != TYPE_KIND_CLASS_ARRAY) {
@@ -1506,7 +1506,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 }
             }
             if (index_expr != NULL) {
-                NType *index_type = InferExpressionType(index_expr, ctx);
+                NType *index_type = InferExpressionTypeSilent(index_expr, ctx);
                 if (index_type != NULL && !CanBeArrayIndex(index_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateInvalidArrayIndexError(TypeToString(index_type),
@@ -1518,7 +1518,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 }
             }
             if (index_end != NULL) {
-                NType *index_type = InferExpressionType(index_end, ctx);
+                NType *index_type = InferExpressionTypeSilent(index_end, ctx);
                 if (index_type != NULL && !CanBeArrayIndex(index_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateInvalidArrayIndexError(TypeToString(index_type),
@@ -1541,8 +1541,8 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (left != NULL && right != NULL) {
-                NType *left_type = InferExpressionType(left, ctx);
-                NType *right_type = InferExpressionType(right, ctx);
+                NType *left_type = InferExpressionTypeSilent(left, ctx);
+                NType *right_type = InferExpressionTypeSilent(right, ctx);
                 NType *result_type = InferBinaryOperationType(expr->value.binary.op,
                                                              left_type,
                                                              right_type,
@@ -1567,7 +1567,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (operand != NULL) {
-                NType *operand_type = InferExpressionType(operand, ctx);
+                NType *operand_type = InferExpressionTypeSilent(operand, ctx);
                 NType *result_type = InferUnaryOperationType(expr->value.unary.op, operand_type);
                 if (result_type == NULL && operand_type != NULL) {
                     if (ctx->errors != NULL) {
@@ -1604,8 +1604,8 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 break;
             }
             if (left != NULL && right != NULL) {
-                NType *left_type = InferExpressionType(left, ctx);
-                NType *right_type = InferExpressionType(right, ctx);
+                NType *left_type = InferExpressionTypeSilent(left, ctx);
+                NType *right_type = InferExpressionTypeSilent(right, ctx);
                 if (left_type != NULL && right_type != NULL && !CanAssign(left_type, right_type)) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateTypeMismatchError(TypeToString(left_type),
@@ -1732,7 +1732,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                     continue;
                                 }
                                 if (param->param_type != NULL) {
-                                    NType *arg_type = InferExpressionType(arg, ctx);
+                                    NType *arg_type = InferExpressionTypeSilent(arg, ctx);
                                     if (arg_type != NULL &&
                                         !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
                                         if (ctx->errors != NULL) {
@@ -1857,7 +1857,7 @@ int AttributeExpressions(NExpr *root, SemanticContext *ctx) {
             break;
     }
 
-    root->inferred_type = InferExpressionType(root, ctx);
+    root->inferred_type = InferExpressionTypeSilent(root, ctx);
     return 0;
 }
 
