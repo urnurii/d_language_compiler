@@ -102,6 +102,7 @@ typedef struct {
         FunctionInfo *func_info;
         ClassInfo *class_info;
         EnumInfo *enum_info;
+        EnumItemInfo *enum_item_info;
     } info;
     int scope_depth;      /* глубина области видимости (0 = глобальная) */
 } Symbol;

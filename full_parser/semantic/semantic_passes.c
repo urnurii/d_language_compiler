@@ -1715,6 +1715,15 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     }
                     had_error = 1;
                 }
+            } else if (sym->kind != SYMBOL_VARIABLE && sym->kind != SYMBOL_ENUM_ITEM) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "Identifier is not a variable",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
             } else if (!IsSymbolAccessible(sym, ctx)) {
                 if (ctx->errors != NULL) {
                     SemanticError err = CreateOutOfScopeError(expr->value.ident_name,

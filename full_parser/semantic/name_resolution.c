@@ -644,6 +644,23 @@ int AddEnumToContext(SemanticContext *ctx, EnumInfo *enum_info) {
     ctx->enums = grown;
     ctx->enums[ctx->enum_count] = enum_info;
     ctx->enum_count += 1;
+
+    if (enum_info->items != NULL) {
+        for (int i = 0; i < enum_info->item_count; i++) {
+            EnumItemInfo *item = enum_info->items[i];
+            if (item == NULL || item->name == NULL) {
+                continue;
+            }
+            memset(&sym, 0, sizeof(Symbol));
+            sym.kind = SYMBOL_ENUM_ITEM;
+            sym.name = item->name;
+            sym.info.enum_item_info = item;
+            sym.scope_depth = 0;
+            if (AddSymbolToTable(ctx, &sym) != 0) {
+                return 1;
+            }
+        }
+    }
     return 0;
 }
 

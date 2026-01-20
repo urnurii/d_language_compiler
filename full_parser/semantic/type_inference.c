@@ -55,6 +55,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_IDENT: {
             Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
             if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
+                if (sym != NULL && sym->kind == SYMBOL_ENUM_ITEM) {
+                    return CreateBaseType(TYPE_INT);
+                }
                 if (ctx != NULL && ctx->current_class != NULL) {
                     ClassInfo *owner = NULL;
                     FieldInfo *field = NULL;
