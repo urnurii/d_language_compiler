@@ -1810,16 +1810,22 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             if (left != NULL && right != NULL) {
                 NType *left_type = InferExpressionTypeSilent(left, ctx);
                 NType *right_type = InferExpressionTypeSilent(right, ctx);
-                if (left_type != NULL && right_type != NULL && !CanAssign(left_type, right_type)) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateTypeMismatchError(TypeToString(left_type),
-                                                                    TypeToString(right_type),
-                                                                    "in assignment",
-                                                                    expr->line,
-                                                                    expr->column);
-                        AddError(ctx->errors, &err);
+                if (left_type != NULL && right_type != NULL) {
+                    if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
+                        if (!CheckAppendAssignment(left_type, right_type, ctx, expr->line, expr->column)) {
+                            had_error = 1;
+                        }
+                    } else if (!CanAssign(left_type, right_type)) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateTypeMismatchError(TypeToString(left_type),
+                                                                        TypeToString(right_type),
+                                                                        "in assignment",
+                                                                        expr->line,
+                                                                        expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
                     }
-                    had_error = 1;
                 }
             }
             break;

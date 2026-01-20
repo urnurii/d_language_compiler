@@ -12,6 +12,11 @@ static const char *OpToString(OpType op);
 static int IsNullClassType(const NType *type);
 static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *right_type,
                                         SemanticContext *ctx, int line, int column);
+static int IsArrayType(const NType *type);
+static int IsDynamicArrayType(const NType *type);
+static void BuildElementType(const NType *array_type, NType *out);
+static void ReportAppendAssignError(NType *left_type, NType *right_type,
+                                    SemanticContext *ctx, int line, int column);
 
 /* ============================================================================
    ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
@@ -75,7 +80,11 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             if (left_type == NULL || right_type == NULL) {
                 return NULL;
             }
-            if (!CanAssign(left_type, right_type)) {
+            if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
+                if (!CheckAppendAssignment(left_type, right_type, ctx, expr->line, expr->column)) {
+                    return NULL;
+                }
+            } else if (!CanAssign(left_type, right_type)) {
                 return NULL;
             }
             return CopyType(left_type, ctx);
@@ -613,6 +622,97 @@ static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *righ
                                                       column);
         AddError(ctx->errors, &err);
     }
+}
+
+static int IsArrayType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY;
+}
+
+static int IsDynamicArrayType(const NType *type) {
+    if (!IsArrayType(type)) {
+        return 0;
+    }
+    if (type->array_decl == NULL) {
+        return 1;
+    }
+    return type->array_decl->has_size ? 0 : 1;
+}
+
+static void BuildElementType(const NType *array_type, NType *out) {
+    if (out == NULL) {
+        return;
+    }
+    memset(out, 0, sizeof(NType));
+    if (array_type == NULL) {
+        return;
+    }
+    if (array_type->kind == TYPE_KIND_BASE_ARRAY) {
+        out->kind = TYPE_KIND_BASE;
+        out->base_type = array_type->base_type;
+    } else if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
+        out->kind = TYPE_KIND_CLASS;
+        out->class_name = array_type->class_name;
+    }
+}
+
+static void ReportAppendAssignError(NType *left_type, NType *right_type,
+                                    SemanticContext *ctx, int line, int column) {
+    char left_copy[128];
+    char right_copy[128];
+    const char *left_str;
+    const char *right_str;
+
+    if (ctx == NULL || ctx->errors == NULL) {
+        return;
+    }
+
+    left_str = TypeToString(left_type);
+    right_str = TypeToString(right_type);
+
+    snprintf(left_copy, sizeof(left_copy), "%s", left_str ? left_str : "unknown");
+    snprintf(right_copy, sizeof(right_copy), "%s", right_str ? right_str : "unknown");
+
+    {
+        SemanticError err = CreateInvalidOperandsError("~=",
+                                                      left_copy,
+                                                      right_copy,
+                                                      line,
+                                                      column);
+        AddError(ctx->errors, &err);
+    }
+}
+
+int CheckAppendAssignment(NType *left_type, NType *right_type,
+                          SemanticContext *ctx, int line, int column) {
+    NType left_elem;
+    NType right_elem;
+
+    if (left_type == NULL || right_type == NULL) {
+        return 0;
+    }
+    if (!IsDynamicArrayType(left_type)) {
+        ReportAppendAssignError(left_type, right_type, ctx, line, column);
+        return 0;
+    }
+
+    BuildElementType(left_type, &left_elem);
+    if (!IsArrayType(right_type)) {
+        if (!CanAssign(&left_elem, right_type)) {
+            ReportAppendAssignError(left_type, right_type, ctx, line, column);
+            return 0;
+        }
+        return 1;
+    }
+
+    BuildElementType(right_type, &right_elem);
+    if (!AreTypesCompatible(&left_elem, &right_elem, 0)) {
+        ReportAppendAssignError(left_type, right_type, ctx, line, column);
+        return 0;
+    }
+    return 1;
 }
 
 int IsNumericType(NType *type) {

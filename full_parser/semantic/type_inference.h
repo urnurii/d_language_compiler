@@ -105,6 +105,8 @@ int CanAssign(NType *target_type, NType *source_type);
    
    Возвращает: 1 если совместимы, 0 если нет */
 int IsArgumentCompatibleWithParameter(NType *param_type, NType *arg_type, int is_ref);
+int CheckAppendAssignment(NType *left_type, NType *right_type,
+                          SemanticContext *ctx, int line, int column);
 
 /* СПЕЦИАЛЬНЫЕ ПРОВЕРКИ */
 
