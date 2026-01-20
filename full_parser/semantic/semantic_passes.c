@@ -130,6 +130,30 @@ static int IsInsideExactClass(SemanticContext *ctx, const NExpr *obj, const char
     return strcmp(ctx->current_class->name, target_class) == 0;
 }
 
+static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
+    if (left == NULL || right == NULL) {
+        return 0;
+    }
+    if (left->type != right->type) {
+        return 0;
+    }
+    switch (left->type) {
+        case EXPR_INT:
+            return left->value.int_value == right->value.int_value;
+        case EXPR_CHAR:
+            return left->value.char_value == right->value.char_value;
+        case EXPR_BOOL:
+            return left->value.int_value == right->value.int_value;
+        case EXPR_STRING:
+            if (left->value.string_value == NULL || right->value.string_value == NULL) {
+                return 0;
+            }
+            return strcmp(left->value.string_value, right->value.string_value) == 0;
+        default:
+            return 0;
+    }
+}
+
 /* ============================================================================
    ПЕРВЫЙ ПРОХОД: СБОР ВСЕХ ДЕКЛАРАЦИЙ
    ============================================================================ */
@@ -1250,8 +1274,14 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             break;
         }
         case STMT_SWITCH: {
-            if (CheckExpressions(stmt->value.switch_stmt.expr, ctx) != 0) {
+            NExpr *switch_expr = stmt->value.switch_stmt.expr;
+            NType *switch_type = NULL;
+            int seen_default = 0;
+            if (CheckExpressions(switch_expr, ctx) != 0) {
                 had_error = 1;
+            }
+            if (switch_expr != NULL) {
+                switch_type = InferExpressionTypeSilent(switch_expr, ctx);
             }
             ctx->switch_depth += 1;
             for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
@@ -1259,9 +1289,52 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                 if (item == NULL) {
                     continue;
                 }
-                if (item->case_expr != NULL) {
+                if (item->type == CASE_ITEM_DEFAULT) {
+                    if (seen_default) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                  "Duplicate default label in switch",
+                                                                  stmt->line,
+                                                                  stmt->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                    seen_default = 1;
+                } else if (item->case_expr != NULL) {
                     if (CheckExpressions(item->case_expr, ctx) != 0) {
                         had_error = 1;
+                    }
+                    if (switch_type != NULL) {
+                        NType *case_type = InferExpressionTypeSilent(item->case_expr, ctx);
+                        if (case_type != NULL && !TypesEqual(switch_type, case_type)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateTypeMismatchError(TypeToString(switch_type),
+                                                                            TypeToString(case_type),
+                                                                            "in switch case",
+                                                                            item->case_expr->line,
+                                                                            item->case_expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                    }
+                    for (int j = 0; j < i; j++) {
+                        NCaseItem *prev = stmt->value.switch_stmt.cases.items[j];
+                        if (prev == NULL || prev->type != CASE_ITEM_CASE || prev->case_expr == NULL) {
+                            continue;
+                        }
+                        if (IsDuplicateCaseExpr(prev->case_expr, item->case_expr)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                      "Duplicate case label in switch",
+                                                                      item->case_expr->line,
+                                                                      item->case_expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                            break;
+                        }
                     }
                 }
                 if (item->stmts != NULL) {
