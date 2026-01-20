@@ -1817,7 +1817,37 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             }
             break;
         case EXPR_SUPER:
+            if (ctx == NULL || ctx->current_class == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "super used outside of class",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            } else if (ctx->current_class->base_class == NULL) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateUndefinedClassError("super",
+                                                                  expr->line,
+                                                                  expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
+            break;
         case EXPR_THIS:
+            if (ctx == NULL || ctx->current_class == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "this used outside of class",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
+            break;
         case EXPR_INT:
         case EXPR_FLOAT:
         case EXPR_CHAR:
