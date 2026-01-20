@@ -53,6 +53,35 @@ static const char *OpToString(OpType op) {
     }
 }
 
+static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, const char *target_class) {
+    ClassInfo *cls;
+
+    if (ctx == NULL || current_class == NULL || target_class == NULL) {
+        return 0;
+    }
+    if (strcmp(current_class, target_class) == 0) {
+        return 1;
+    }
+    cls = LookupClass(ctx, current_class);
+    while (cls != NULL && cls->base_class != NULL) {
+        if (strcmp(cls->base_class, target_class) == 0) {
+            return 1;
+        }
+        cls = LookupClass(ctx, cls->base_class);
+    }
+    return 0;
+}
+
+static int IsInsideClassAccess(SemanticContext *ctx, const NExpr *obj, const char *target_class) {
+    if (ctx == NULL || ctx->current_class == NULL || target_class == NULL) {
+        return 0;
+    }
+    if (obj != NULL && (obj->type == EXPR_THIS || obj->type == EXPR_SUPER)) {
+        return 1;
+    }
+    return IsSameOrBaseClass(ctx, ctx->current_class->name, target_class);
+}
+
 /* ============================================================================
    ПЕРВЫЙ ПРОХОД: СБОР ВСЕХ ДЕКЛАРАЦИЙ
    ============================================================================ */
@@ -1264,7 +1293,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                             }
                             had_error = 1;
                         } else {
-                            int inside_class = 0;
+                            int inside_class = IsInsideClassAccess(ctx, obj, class_info->name);
                             if (!IsMethodAccessible(method, inside_class)) {
                                 if (ctx->errors != NULL) {
                                     SemanticError err = CreateAccessViolationError(method->name,
@@ -1350,8 +1379,8 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         }
                         had_error = 1;
                     } else {
-                        FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
-                        if (field == NULL) {
+                    FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
+                    if (field == NULL) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
                                                                             class_name,
@@ -1360,9 +1389,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                 AddError(ctx->errors, &err);
                             }
                             had_error = 1;
-                        } else {
-                            int inside_class = 0;
-                            if (!IsFieldAccessible(field, inside_class)) {
+                    } else {
+                        int inside_class = IsInsideClassAccess(ctx, obj, class_info->name);
+                        if (!IsFieldAccessible(field, inside_class)) {
                                 if (ctx->errors != NULL) {
                                     SemanticError err = CreateAccessViolationError(field->name,
                                                                                   AccessSpecToString(field->access),
@@ -1598,7 +1627,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     break;
                 }
                 {
-                    int inside_class = 0;
+                    int inside_class = IsInsideClassAccess(ctx, expr, base_info->name);
                     if (!IsMethodAccessible(method, inside_class)) {
                         if (ctx->errors != NULL) {
                             SemanticError err = CreateAccessViolationError(method->name,
