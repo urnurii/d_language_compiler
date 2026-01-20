@@ -204,6 +204,127 @@ static int CheckParamDefaultValues(NParamList *params, SemanticContext *ctx) {
     return had_error;
 }
 
+static int IsStringType(const NType *type) {
+    return type != NULL &&
+        type->kind == TYPE_KIND_BASE &&
+        type->base_type == TYPE_STRING;
+}
+
+static int IsCharType(const NType *type) {
+    return type != NULL &&
+        type->kind == TYPE_KIND_BASE &&
+        type->base_type == TYPE_CHAR;
+}
+
+static int IsIntType(const NType *type) {
+    return type != NULL &&
+        type->kind == TYPE_KIND_BASE &&
+        type->base_type == TYPE_INT;
+}
+
+static int ValidateFormatArguments(const char *func_name, NExpr **args, int arg_count,
+                                   SemanticContext *ctx, int line, int column) {
+    const char *fmt;
+    char specs[128];
+    int spec_count = 0;
+    int i = 0;
+    int had_error = 0;
+
+    if (arg_count <= 0 || args == NULL || args[0] == NULL) {
+        return 0;
+    }
+    if (args[0]->type != EXPR_STRING || args[0]->value.string_value == NULL) {
+        return 0;
+    }
+    fmt = args[0]->value.string_value;
+
+    while (fmt[i] != '\0') {
+        if (fmt[i] == '%') {
+            if (fmt[i + 1] == '%') {
+                i += 2;
+                continue;
+            }
+            if (fmt[i + 1] == '\0') {
+                if (ctx && ctx->errors) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "Incomplete format specifier",
+                                                          line,
+                                                          column);
+                    AddError(ctx->errors, &err);
+                }
+                return 1;
+            }
+            if (spec_count < (int)(sizeof(specs) / sizeof(specs[0]))) {
+                specs[spec_count++] = fmt[i + 1];
+            }
+            i += 2;
+            continue;
+        }
+        i += 1;
+    }
+
+    if (spec_count != arg_count - 1) {
+        if (ctx && ctx->errors) {
+            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                  "Format specifier count does not match arguments",
+                                                  line,
+                                                  column);
+            AddError(ctx->errors, &err);
+        }
+        had_error = 1;
+    }
+
+    for (int idx = 0; idx < spec_count && (idx + 1) < arg_count; idx++) {
+        char spec = specs[idx];
+        NExpr *arg = args[idx + 1];
+        NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+        const char *expected = NULL;
+        int ok = 1;
+
+        switch (spec) {
+            case 'd':
+                expected = "int";
+                ok = IsIntType(arg_type);
+                break;
+            case 'f':
+                expected = "float";
+                ok = IsFloatingPointType(arg_type);
+                break;
+            case 's':
+                expected = "string";
+                ok = IsStringType(arg_type);
+                break;
+            case 'c':
+                expected = "char";
+                ok = IsCharType(arg_type);
+                break;
+            default:
+                if (ctx && ctx->errors) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "Unsupported format specifier",
+                                                          line,
+                                                          column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+                continue;
+        }
+
+        if (!ok && ctx && ctx->errors && arg_type != NULL) {
+            SemanticError err = CreateTypeMismatchError(expected,
+                                                        TypeToString(arg_type),
+                                                        "in format argument",
+                                                        arg->line,
+                                                        arg->column);
+            AddError(ctx->errors, &err);
+            had_error = 1;
+        }
+    }
+
+    (void)func_name;
+    return had_error;
+}
+
 static FunctionInfo *FindFunctionInfoBySignature(SemanticContext *ctx, const NFuncDef *def) {
     if (ctx == NULL || def == NULL || def->func_name == NULL) {
         return NULL;
@@ -1899,6 +2020,17 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 }
                 for (int i = 0; i < expr->value.func_call.arg_count; i++) {
                     if (CheckExpression(expr->value.func_call.args[i], ctx) != 0) {
+                        had_error = 1;
+                    }
+                }
+                if (func->is_builtin &&
+                    (strcmp(func->name, "writef") == 0 || strcmp(func->name, "readf") == 0)) {
+                    if (ValidateFormatArguments(func->name,
+                                                expr->value.func_call.args,
+                                                expr->value.func_call.arg_count,
+                                                ctx,
+                                                expr->line,
+                                                expr->column) != 0) {
                         had_error = 1;
                     }
                 }
