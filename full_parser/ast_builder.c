@@ -19,6 +19,48 @@ char* DuplicateString(const char *str) {
     return dup;
 }
 
+static void InitExprAttrs(NExpr *expr) {
+    if (expr == NULL) return;
+    expr->resolved_symbol_id = -1;
+    expr->scope_id = -1;
+    expr->jvm_slot_index = -1;
+    expr->jvm_descriptor = NULL;
+    expr->inferred_type = NULL;
+    expr->jvm_ref_key.has_key = 0;
+    expr->jvm_ref_key.owner = NULL;
+    expr->jvm_ref_key.name = NULL;
+    expr->jvm_ref_key.descriptor = NULL;
+}
+
+static void InitStmtAttrs(NStmt *stmt) {
+    if (stmt == NULL) return;
+    stmt->scope_id = -1;
+}
+
+static void InitInitDeclAttrs(NInitDecl *decl) {
+    if (decl == NULL) return;
+    decl->resolved_symbol_id = -1;
+    decl->jvm_slot_index = -1;
+    decl->jvm_descriptor = NULL;
+}
+
+static void InitParamAttrs(NParam *param) {
+    if (param == NULL) return;
+    param->resolved_symbol_id = -1;
+    param->jvm_slot_index = -1;
+    param->jvm_descriptor = NULL;
+}
+
+static void InitFuncAttrs(NFuncDef *func) {
+    if (func == NULL) return;
+    func->jvm_descriptor = NULL;
+}
+
+static void InitMethodAttrs(NMethodDef *method) {
+    if (method == NULL) return;
+    method->jvm_descriptor = NULL;
+}
+
 // ----- Функции для типов -----
 
 NType* CreateBaseType(BaseType base_type) {
@@ -122,6 +164,7 @@ NExpr* CreateIdentExpr(const char *name) {
     expr->type = EXPR_IDENT;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.ident_name = DuplicateString(name);
     
     return expr;
@@ -137,6 +180,7 @@ NExpr* CreateIntExpr(int value) {
     expr->type = EXPR_INT;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.int_value = value;
     
     return expr;
@@ -152,6 +196,7 @@ NExpr* CreateFloatExpr(double value) {
     expr->type = EXPR_FLOAT;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.float_value = value;
     
     return expr;
@@ -167,6 +212,7 @@ NExpr* CreateCharExpr(char value) {
     expr->type = EXPR_CHAR;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.char_value = value;
     
     return expr;
@@ -182,6 +228,7 @@ NExpr* CreateStringExpr(const char *value) {
     expr->type = EXPR_STRING;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.string_value = DuplicateString(value);
     
     return expr;
@@ -197,6 +244,7 @@ NExpr* CreateBoolExpr(int value) {
     expr->type = EXPR_BOOL;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.int_value = value;
     
     return expr;
@@ -212,6 +260,7 @@ NExpr* CreateNullExpr(void) {
     expr->type = EXPR_NULL;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     
     return expr;
 }
@@ -226,6 +275,7 @@ NExpr* CreateNanExpr(void) {
     expr->type = EXPR_NAN;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     
     return expr;
 }
@@ -240,6 +290,7 @@ NExpr* CreateThisExpr(void) {
     expr->type = EXPR_THIS;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     
     return expr;
 }
@@ -271,6 +322,7 @@ NExpr* CreateUnaryOpExpr(OpType op, NExpr *operand) {
     expr->type = EXPR_UNARY_OP;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.unary.op = op;
     expr->value.unary.operand = operand;
     
@@ -287,6 +339,7 @@ NExpr* CreateBinaryOpExpr(OpType op, NExpr *left, NExpr *right) {
     expr->type = EXPR_BINARY_OP;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.binary.op = op;
     expr->value.binary.left = left;
     expr->value.binary.right = right;
@@ -304,6 +357,7 @@ NExpr* CreateAssignExpr(OpType op, NExpr *left, NExpr *right) {
     expr->type = EXPR_ASSIGN;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.binary.op = op;
     expr->value.binary.left = left;
     expr->value.binary.right = right;
@@ -323,6 +377,7 @@ NExpr* CreateArrayAccessExpr(NExpr *array, NExpr *index, NExpr *index_end) {
     expr->type = EXPR_ARRAY_ACCESS;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.array_access.array = array;
     expr->value.array_access.index = index;
     expr->value.array_access.index_end = index_end;
@@ -340,6 +395,7 @@ NExpr* CreateMemberAccessExpr(NExpr *object, const char *member_name) {
     expr->type = EXPR_MEMBER_ACCESS;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.member_access.object = object;
     expr->value.member_access.member_name = DuplicateString(member_name);
     expr->value.member_access.args = NULL;
@@ -358,6 +414,7 @@ NExpr* CreateMethodCallExpr(NExpr *object, const char *method_name, NExpr **args
     expr->type = EXPR_METHOD_CALL;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.member_access.object = object;
     expr->value.member_access.member_name = DuplicateString(method_name);
     expr->value.member_access.args = args;
@@ -376,6 +433,7 @@ NExpr* CreateFuncCallExpr(const char *func_name, NExpr **args, int arg_count) {
     expr->type = EXPR_FUNC_CALL;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.func_call.func_name = DuplicateString(func_name);
     expr->value.func_call.args = args;
     expr->value.func_call.arg_count = arg_count;
@@ -393,6 +451,7 @@ NExpr* CreateNewExpr(NType *type, NExpr **init_exprs, int init_count) {
     expr->type = EXPR_NEW;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.new_expr.type = type;
     expr->value.new_expr.init_exprs = init_exprs;
     expr->value.new_expr.init_count = init_count;
@@ -410,6 +469,7 @@ NExpr* CreateSuperExpr(const char *member_name) {
     expr->type = EXPR_SUPER;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.ident_name = DuplicateString(member_name);
     
     return expr;
@@ -425,6 +485,7 @@ NExpr* CreateSuperMethodCallExpr(const char *method_name, NExpr **args, int arg_
     expr->type = EXPR_SUPER_METHOD;
     expr->line = yylineno;
     expr->column = 0;
+    InitExprAttrs(expr);
     expr->value.member_access.object = NULL;
     expr->value.member_access.member_name = DuplicateString(method_name);
     expr->value.member_access.args = args;
@@ -477,6 +538,7 @@ NParam* CreateParam(NType *param_type, const char *param_name, int is_ref, NExpr
     param->param_name = DuplicateString(param_name);
     param->is_ref = is_ref;
     param->default_value = default_value;
+    InitParamAttrs(param);
     
     return param;
 }
@@ -544,6 +606,7 @@ NInitDecl* CreateInitDecl(const char *name, NInitializer *initializer) {
     
     decl->name = DuplicateString(name);
     decl->initializer = initializer;
+    InitInitDeclAttrs(decl);
     
     return decl;
 }
@@ -623,6 +686,7 @@ NStmt* CreateExprStmt(NExpr *expr) {
     stmt->type = STMT_EXPR;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.expr = expr;
     stmt->next = NULL;
     
@@ -639,6 +703,7 @@ NStmt* CreateDeclStmt(NType *decl_type, NInitDeclList *init_decls) {
     stmt->type = STMT_DECL;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.decl.decl_type = decl_type;
     stmt->value.decl.init_decls = init_decls;
     stmt->next = NULL;
@@ -656,6 +721,7 @@ NStmt* CreateCompoundStmt(NStmtList *stmt_list) {
     stmt->type = STMT_COMPOUND;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.stmt_list = stmt_list;
     stmt->next = NULL;
     
@@ -672,6 +738,7 @@ NStmt* CreateReturnStmt(NExpr *return_expr) {
     stmt->type = STMT_RETURN;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.expr = return_expr;
     stmt->next = NULL;
     
@@ -688,6 +755,7 @@ NStmt* CreateBreakStmt(void) {
     stmt->type = STMT_BREAK;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->next = NULL;
     
     return stmt;
@@ -703,6 +771,7 @@ NStmt* CreateContinueStmt(void) {
     stmt->type = STMT_CONTINUE;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->next = NULL;
     
     return stmt;
@@ -720,6 +789,7 @@ NStmt* CreateIfStmt(NExpr *condition, NStmt *then_stmt, NStmt *else_stmt) {
     stmt->type = STMT_IF;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.if_stmt.condition = condition;
     stmt->value.if_stmt.then_stmt = then_stmt;
     stmt->value.if_stmt.else_stmt = else_stmt;
@@ -740,6 +810,7 @@ NStmt* CreateWhileStmt(NExpr *condition, NStmt *body) {
     stmt->type = STMT_WHILE;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.while_stmt.condition = condition;
     stmt->value.while_stmt.body = body;
     stmt->next = NULL;
@@ -757,6 +828,7 @@ NStmt* CreateDoWhileStmt(NStmt *body, NExpr *condition) {
     stmt->type = STMT_DO_WHILE;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.do_while_stmt.body = body;
     stmt->value.do_while_stmt.condition = condition;
     stmt->next = NULL;
@@ -775,6 +847,7 @@ NStmt* CreateForStmt(NExpr *init_expr, NType *init_decl_type, NInitDeclList *ini
     stmt->type = STMT_FOR;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.for_stmt.init_expr = init_expr;
     stmt->value.for_stmt.init_decl_type = init_decl_type;
     stmt->value.for_stmt.init_decls = init_decls;
@@ -797,6 +870,7 @@ NStmt* CreateForeachStmt(int is_typed, NType *var_type, const char *var_name,
     stmt->type = STMT_FOREACH;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.foreach_stmt.is_typed = is_typed;
     stmt->value.foreach_stmt.var_type = var_type;
     stmt->value.foreach_stmt.var_name = DuplicateString(var_name);
@@ -817,6 +891,7 @@ NStmt* CreateSwitchStmt(NExpr *expr, NCaseItem **case_items, int case_count) {
     stmt->type = STMT_SWITCH;
     stmt->line = yylineno;
     stmt->column = 0;
+    InitStmtAttrs(stmt);
     stmt->value.switch_stmt.expr = expr;
     stmt->value.switch_stmt.cases.items = case_items;
     stmt->value.switch_stmt.cases.count = case_count;
@@ -936,6 +1011,7 @@ NFuncDef* CreateFuncDef(NType *return_type, const char *func_name,
     func->func_name = DuplicateString(func_name);
     func->params = params;
     func->body = body;
+    InitFuncAttrs(func);
     
     return func;
 }
@@ -959,6 +1035,7 @@ NMethodDef* CreateMethodDef(int is_override, NType *return_type, const char *met
     method->method_name = DuplicateString(method_name);
     method->params = params;
     method->body = body;
+    InitMethodAttrs(method);
     
     return method;
 }

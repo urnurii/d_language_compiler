@@ -104,6 +104,17 @@ typedef struct NExpr {
     ExprType type;
     int line;           // строка для ошибок
     int column;         // колонка для ошибок
+    int resolved_symbol_id;
+    int scope_id;
+    int jvm_slot_index;
+    char *jvm_descriptor;
+    struct NType *inferred_type;
+    struct {
+        int has_key;
+        char *owner;
+        char *name;
+        char *descriptor;
+    } jvm_ref_key;
     
     union {
         char *ident_name;          // EXPR_IDENT, EXPR_SUPER
@@ -172,6 +183,9 @@ typedef struct {
     char *param_name;
     int is_ref;              // 1 если параметр с ref
     NExpr *default_value;    // NULL если нет значения по умолчанию
+    int resolved_symbol_id;
+    int jvm_slot_index;
+    char *jvm_descriptor;
 } NParam;
 
 typedef struct {
@@ -184,6 +198,9 @@ typedef struct {
 typedef struct {
     char *name;
     NInitializer *initializer;  // NULL если нет инициализации
+    int resolved_symbol_id;
+    int jvm_slot_index;
+    char *jvm_descriptor;
 } NInitDecl;
 
 // Список объявлений init_decl_list
@@ -220,6 +237,7 @@ typedef struct NStmt {
     StmtType type;
     int line;
     int column;
+    int scope_id;
     
     union {
         NExpr *expr;  // STMT_EXPR, STMT_RETURN
@@ -314,6 +332,7 @@ typedef struct {
     char *func_name;
     NParamList *params;
     NStmt *body;          // составной оператор или NULL
+    char *jvm_descriptor;
 } NFuncDef;
 
 // Методы класса
@@ -323,6 +342,7 @@ typedef struct {
     char *method_name;
     NParamList *params;
     NStmt *body;
+    char *jvm_descriptor;
 } NMethodDef;
 
 // Конструктор и деструктор

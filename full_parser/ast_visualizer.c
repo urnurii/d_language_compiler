@@ -36,6 +36,157 @@ static const char* EscapeString(const char *str) {
             case '\t': buffer[j++] = '\\'; buffer[j++] = 't'; break;
             default:   buffer[j++] = str[i];
         }
+static void AppendAttr(char *buf, size_t size, const char *key, const char *value) {
+    size_t len;
+    if (buf == NULL || size == 0 || key == NULL || value == NULL || value[0] == '\0') {
+        return;
+    }
+    len = strlen(buf);
+    if (len + 1 < size && len > 0) {
+        buf[len++] = '\n';
+        buf[len] = '\0';
+    }
+    if (len < size) {
+        snprintf(buf + len, size - len, "%s=%s", key, value);
+    }
+}
+
+static void TypeToStringForAttr(NType *type, char *buf, size_t size) {
+    if (buf == NULL || size == 0) return;
+    if (type == NULL) {
+        snprintf(buf, size, "unknown");
+        return;
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        const char *base = BaseTypeToString(type->base_type);
+        if (type->kind == TYPE_KIND_BASE_ARRAY) {
+            if (type->array_decl && type->array_decl->has_size) {
+                snprintf(buf, size, "%s[%d]", base, type->array_decl->size);
+            } else {
+                snprintf(buf, size, "%s[]", base);
+            }
+        } else {
+            snprintf(buf, size, "%s", base);
+        }
+        return;
+    }
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        const char *name = type->class_name ? type->class_name : "class";
+        if (type->kind == TYPE_KIND_CLASS_ARRAY) {
+            if (type->array_decl && type->array_decl->has_size) {
+                snprintf(buf, size, "%s[%d]", name, type->array_decl->size);
+            } else {
+                snprintf(buf, size, "%s[]", name);
+            }
+        } else {
+            snprintf(buf, size, "%s", name);
+        }
+        return;
+    }
+    snprintf(buf, size, "unknown");
+}
+
+static void BuildExprAttr(const NExpr *expr, char *buf, size_t size) {
+    char tmp[256];
+    buf[0] = '\0';
+    if (expr == NULL) return;
+    if (expr->resolved_symbol_id >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", expr->resolved_symbol_id);
+        AppendAttr(buf, size, "sym", tmp);
+    }
+    if (expr->inferred_type != NULL) {
+        TypeToStringForAttr(expr->inferred_type, tmp, sizeof(tmp));
+        AppendAttr(buf, size, "type", tmp);
+    }
+    if (expr->scope_id >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", expr->scope_id);
+        AppendAttr(buf, size, "scope", tmp);
+    }
+    if (expr->jvm_slot_index >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", expr->jvm_slot_index);
+        AppendAttr(buf, size, "slot", tmp);
+    }
+    if (expr->jvm_descriptor != NULL) {
+        AppendAttr(buf, size, "desc", expr->jvm_descriptor);
+    }
+    if (expr->jvm_ref_key.has_key) {
+        const char *owner = expr->jvm_ref_key.owner ? expr->jvm_ref_key.owner : "?";
+        const char *name = expr->jvm_ref_key.name ? expr->jvm_ref_key.name : "?";
+        const char *desc = expr->jvm_ref_key.descriptor ? expr->jvm_ref_key.descriptor : "?";
+        snprintf(tmp, sizeof(tmp), "%s.%s:%s", owner, name, desc);
+        AppendAttr(buf, size, "ref", tmp);
+    }
+}
+
+static void BuildStmtAttr(const NStmt *stmt, char *buf, size_t size) {
+    char tmp[64];
+    buf[0] = '\0';
+    if (stmt == NULL) return;
+    if (stmt->scope_id >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", stmt->scope_id);
+        AppendAttr(buf, size, "scope", tmp);
+    }
+}
+
+static void BuildParamAttr(const NParam *param, char *buf, size_t size) {
+    char tmp[128];
+    buf[0] = '\0';
+    if (param == NULL) return;
+    if (param->resolved_symbol_id >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", param->resolved_symbol_id);
+        AppendAttr(buf, size, "sym", tmp);
+    }
+    if (param->jvm_slot_index >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", param->jvm_slot_index);
+        AppendAttr(buf, size, "slot", tmp);
+    }
+    if (param->jvm_descriptor != NULL) {
+        AppendAttr(buf, size, "desc", param->jvm_descriptor);
+    }
+}
+
+static void BuildInitDeclAttr(const NInitDecl *decl, char *buf, size_t size) {
+    char tmp[128];
+    buf[0] = '\0';
+    if (decl == NULL) return;
+    if (decl->resolved_symbol_id >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", decl->resolved_symbol_id);
+        AppendAttr(buf, size, "sym", tmp);
+    }
+    if (decl->jvm_slot_index >= 0) {
+        snprintf(tmp, sizeof(tmp), "%d", decl->jvm_slot_index);
+        AppendAttr(buf, size, "slot", tmp);
+    }
+    if (decl->jvm_descriptor != NULL) {
+        AppendAttr(buf, size, "desc", decl->jvm_descriptor);
+    }
+}
+
+static void BuildFuncAttr(const NFuncDef *func, char *buf, size_t size) {
+    buf[0] = '\0';
+    if (func == NULL) return;
+    if (func->jvm_descriptor != NULL) {
+        AppendAttr(buf, size, "desc", func->jvm_descriptor);
+    }
+}
+
+static void BuildMethodAttr(const NMethodDef *method, char *buf, size_t size) {
+    buf[0] = '\0';
+    if (method == NULL) return;
+    if (method->jvm_descriptor != NULL) {
+        AppendAttr(buf, size, "desc", method->jvm_descriptor);
+    }
+}
+
+static void EmitAttrNode(long parent_id, const char *attrs) {
+    long attr_id;
+    if (attrs == NULL || attrs[0] == '\0') return;
+    attr_id = GenerateNodeId();
+    DotPrintf("    node_%ld [label="attrs: %s", shape=note, fontsize=9];\n",
+             attr_id, EscapeString(attrs));
+    DotPrintf("    node_%ld -> node_%ld [style=dashed, label="attrs"];\n",
+             parent_id, attr_id);
+}
     }
     buffer[j] = '\0';
     return buffer;
@@ -317,10 +468,16 @@ static long VisualizeExpr(NExpr *expr) {
             break;
         }
             
-        default:
+    default:
             break;
     }
-    
+
+    {
+        char attrs[512];
+        BuildExprAttr(expr, attrs, sizeof(attrs));
+        EmitAttrNode(node_id, attrs);
+    }
+
     return node_id;
 }
 
@@ -392,6 +549,12 @@ static long VisualizeStmt(NStmt *stmt) {
                     DotPrintf("    node_%ld [label=\"var: %s\"];\n", var_id, 
                              EscapeString(init_decl->name));
                     DotPrintf("    node_%ld -> node_%ld [label=\"var_%d\"];\n", node_id, var_id, i);
+
+                    {
+                        char attrs[128];
+                        BuildInitDeclAttr(init_decl, attrs, sizeof(attrs));
+                        EmitAttrNode(var_id, attrs);
+                    }
                     
                     if (init_decl->initializer && init_decl->initializer->expr) {
                         long init_id = VisualizeExpr(init_decl->initializer->expr);
@@ -609,7 +772,13 @@ static long VisualizeStmt(NStmt *stmt) {
         default:
             break;
     }
-    
+
+    {
+        char attrs[128];
+        BuildStmtAttr(stmt, attrs, sizeof(attrs));
+        EmitAttrNode(node_id, attrs);
+    }
+
     return node_id;
 }
 
@@ -629,6 +798,12 @@ static void VisualizeParams(long parent_id, NParamList *params, const char *edge
         DotPrintf("    node_%ld [label=\"param: %s%s\"];\n", param_id, ref_str, 
                  EscapeString(param->param_name));
         DotPrintf("    node_%ld -> node_%ld [label=\"param_%d\"];\n", params_id, param_id, i);
+
+        {
+            char attrs[128];
+            BuildParamAttr(param, attrs, sizeof(attrs));
+            EmitAttrNode(param_id, attrs);
+        }
         
         if (param->param_type) {
             long type_id = VisualizeType(param->param_type);
@@ -653,6 +828,11 @@ static long VisualizeFunc(NFuncDef *func) {
     
     DotPrintf("    node_%ld [label=\"func: %s()\"];\n", func_id,
              EscapeString(func->func_name));
+    {
+        char attrs[128];
+        BuildFuncAttr(func, attrs, sizeof(attrs));
+        EmitAttrNode(func_id, attrs);
+    }
     if (func->return_type) {
         long ret_id = VisualizeType(func->return_type);
         if (ret_id >= 0) {
@@ -685,6 +865,11 @@ static long VisualizeMethod(NMethodDef *method) {
     const char *override_str = method->is_override ? "override " : "";
     DotPrintf("    node_%ld [label=\"method: %s%s()\"];\n", method_id, override_str,
              EscapeString(method->method_name));
+    {
+        char attrs[128];
+        BuildMethodAttr(method, attrs, sizeof(attrs));
+        EmitAttrNode(method_id, attrs);
+    }
     if (method->return_type) {
         long ret_id = VisualizeType(method->return_type);
         if (ret_id >= 0) {
@@ -785,6 +970,12 @@ static long VisualizeClass(NClassDef *class_def) {
                             DotPrintf("    node_%ld [label=\"var: %s\"];\n", var_id,
                                      EscapeString(init_decl->name));
                             DotPrintf("    node_%ld -> node_%ld [label=\"var_%d\"];\n", member_id, var_id, i);
+
+                            {
+                                char attrs[128];
+                                BuildInitDeclAttr(init_decl, attrs, sizeof(attrs));
+                                EmitAttrNode(var_id, attrs);
+                            }
                             
                             if (init_decl->initializer) {
                                 if (init_decl->initializer->is_array) {
@@ -900,6 +1091,12 @@ static void VisualizeProgram(NProgram *program) {
                             DotPrintf("    node_%ld [label=\"var: %s\"];\n", var_id,
                                      EscapeString(init_decl->name));
                             DotPrintf("    node_%ld -> node_%ld [label=\"var_%d\"];\n", decl_id, var_id, i);
+
+                            {
+                                char attrs[128];
+                                BuildInitDeclAttr(init_decl, attrs, sizeof(attrs));
+                                EmitAttrNode(var_id, attrs);
+                            }
                             
                             if (init_decl->initializer) {
                                 if (init_decl->initializer->is_array) {
