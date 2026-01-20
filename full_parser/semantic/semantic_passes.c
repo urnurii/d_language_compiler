@@ -1033,6 +1033,10 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             break;
         }
         case STMT_FOR: {
+            if (PushScope(ctx, "for") != 0) {
+                had_error = 1;
+                break;
+            }
             NExpr *cond = stmt->value.for_stmt.cond_expr;
             if (CheckExpressions(stmt->value.for_stmt.init_expr, ctx) != 0) {
                 had_error = 1;
@@ -1129,9 +1133,16 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             if (CheckStatement(stmt->value.for_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
+            if (PopScope(ctx) != 0) {
+                had_error = 1;
+            }
             break;
         }
         case STMT_FOREACH: {
+            if (PushScope(ctx, "foreach") != 0) {
+                had_error = 1;
+                break;
+            }
             if (CheckExpressions(stmt->value.foreach_stmt.collection, ctx) != 0) {
                 had_error = 1;
             }
@@ -1155,6 +1166,9 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                 }
             }
             if (CheckStatement(stmt->value.foreach_stmt.body, ctx, expected_return_type, return_seen) != 0) {
+                had_error = 1;
+            }
+            if (PopScope(ctx) != 0) {
                 had_error = 1;
             }
             break;
@@ -2048,6 +2062,9 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             AttributeExpressions(stmt->value.do_while_stmt.condition, ctx);
             break;
         case STMT_FOR:
+            if (PushScope(ctx, "for") != 0) {
+                return 1;
+            }
             AttributeExpressions(stmt->value.for_stmt.init_expr, ctx);
             if (stmt->value.for_stmt.init_decls) {
                 for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
@@ -2076,8 +2093,14 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             AttributeExpressions(stmt->value.for_stmt.cond_expr, ctx);
             AttributeExpressions(stmt->value.for_stmt.iter_expr, ctx);
             AttributeStatement(stmt->value.for_stmt.body, ctx);
+            if (PopScope(ctx) != 0) {
+                return 1;
+            }
             break;
         case STMT_FOREACH:
+            if (PushScope(ctx, "foreach") != 0) {
+                return 1;
+            }
             if (stmt->value.foreach_stmt.is_typed &&
                 stmt->value.foreach_stmt.var_type != NULL &&
                 stmt->value.foreach_stmt.var_name != NULL) {
@@ -2098,6 +2121,9 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             }
             AttributeExpressions(stmt->value.foreach_stmt.collection, ctx);
             AttributeStatement(stmt->value.foreach_stmt.body, ctx);
+            if (PopScope(ctx) != 0) {
+                return 1;
+            }
             break;
         case STMT_SWITCH:
             AttributeExpressions(stmt->value.switch_stmt.expr, ctx);
