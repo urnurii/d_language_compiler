@@ -8,6 +8,10 @@
 
 static int GetNumericRank(const NType *type, int *rank_out);
 static BaseType RankToBaseType(int rank);
+static const char *OpToString(OpType op);
+static int IsNullClassType(const NType *type);
+static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *right_type,
+                                        SemanticContext *ctx, int line, int column);
 
 /* ============================================================================
    ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
@@ -59,7 +63,12 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_BINARY_OP:
             left_type = InferExpressionTypeInternal(expr->value.binary.left, ctx, report_errors);
             right_type = InferExpressionTypeInternal(expr->value.binary.right, ctx, report_errors);
-            return InferBinaryOperationType(expr->value.binary.op, left_type, right_type, ctx);
+            return InferBinaryOperationType(expr->value.binary.op,
+                                            left_type,
+                                            right_type,
+                                            ctx,
+                                            expr->line,
+                                            expr->column);
         case EXPR_ASSIGN:
             left_type = InferExpressionTypeInternal(expr->value.binary.left, ctx, report_errors);
             right_type = InferExpressionTypeInternal(expr->value.binary.right, ctx, report_errors);
@@ -250,7 +259,8 @@ NType* InferLiteralType(NExpr *expr) {
     }
 }
 
-NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type, SemanticContext *ctx) {
+NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
+                                SemanticContext *ctx, int line, int column) {
 
     if (left_type == NULL || right_type == NULL) {
         return NULL;
@@ -277,12 +287,28 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type, 
             return NULL;
         case OP_EQ:
         case OP_NEQ:
+            if (!AreTypesCompatible(left_type, right_type, 0) &&
+                !(IsNullClassType(left_type) &&
+                  (right_type->kind == TYPE_KIND_CLASS || right_type->kind == TYPE_KIND_CLASS_ARRAY)) &&
+                !(IsNullClassType(right_type) &&
+                  (left_type->kind == TYPE_KIND_CLASS || left_type->kind == TYPE_KIND_CLASS_ARRAY))) {
+                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+            }
+            return CreateBaseType(TYPE_BOOL);
         case OP_LT:
         case OP_GT:
         case OP_LE:
         case OP_GE:
+            if (!IsNumericType(left_type) || !IsNumericType(right_type)) {
+                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+            }
+            return CreateBaseType(TYPE_BOOL);
         case OP_AND:
         case OP_OR:
+            if (!((IsBooleanType(left_type) && IsBooleanType(right_type)) ||
+                  (IsNumericType(left_type) && IsNumericType(right_type)))) {
+                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+            }
             return CreateBaseType(TYPE_BOOL);
         case OP_ASSIGN:
         case OP_PLUS_ASSIGN:
@@ -527,6 +553,65 @@ static BaseType RankToBaseType(int rank) {
         case 1:
         default:
             return TYPE_INT;
+    }
+}
+
+static const char *OpToString(OpType op) {
+    switch (op) {
+        case OP_PLUS: return "+";
+        case OP_MINUS: return "-";
+        case OP_MUL: return "*";
+        case OP_DIV: return "/";
+        case OP_LT: return "<";
+        case OP_GT: return ">";
+        case OP_LE: return "<=";
+        case OP_GE: return ">=";
+        case OP_EQ: return "==";
+        case OP_NEQ: return "!=";
+        case OP_AND: return "&&";
+        case OP_OR: return "||";
+        case OP_NOT: return "!";
+        case OP_ASSIGN: return "=";
+        case OP_PLUS_ASSIGN: return "+=";
+        case OP_MINUS_ASSIGN: return "-=";
+        case OP_MUL_ASSIGN: return "*=";
+        case OP_DIV_ASSIGN: return "/=";
+        case OP_BITWISE_NOT_ASSIGN: return "~=";
+        default: return "?";
+    }
+}
+
+static int IsNullClassType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_CLASS && type->class_name == NULL;
+}
+
+static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *right_type,
+                                        SemanticContext *ctx, int line, int column) {
+    char left_copy[128];
+    char right_copy[128];
+    const char *left_str;
+    const char *right_str;
+
+    if (ctx == NULL || ctx->errors == NULL) {
+        return;
+    }
+
+    left_str = TypeToString(left_type);
+    right_str = TypeToString(right_type);
+
+    snprintf(left_copy, sizeof(left_copy), "%s", left_str ? left_str : "unknown");
+    snprintf(right_copy, sizeof(right_copy), "%s", right_str ? right_str : "unknown");
+
+    {
+        SemanticError err = CreateInvalidOperandsError(OpToString(op),
+                                                      left_copy,
+                                                      right_copy,
+                                                      line,
+                                                      column);
+        AddError(ctx->errors, &err);
     }
 }
 

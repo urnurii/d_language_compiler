@@ -1746,9 +1746,11 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 NType *left_type = InferExpressionTypeSilent(left, ctx);
                 NType *right_type = InferExpressionTypeSilent(right, ctx);
                 NType *result_type = InferBinaryOperationType(expr->value.binary.op,
-                                                             left_type,
-                                                             right_type,
-                                                             ctx);
+                                                              left_type,
+                                                              right_type,
+                                                              ctx,
+                                                              expr->line,
+                                                              expr->column);
                 if (result_type == NULL && left_type != NULL && right_type != NULL) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateInvalidOperandsError(OpToString(expr->value.binary.op),
