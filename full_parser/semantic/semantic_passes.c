@@ -71,8 +71,17 @@ int ProcessSourceItems(NProgram *root, SemanticContext *ctx) {
     item = root->first_item;
     while (item != NULL) {
         if (item->type == SOURCE_ITEM_CLASS) {
-            if (ProcessClassDefinition(item->value.class_def, ctx) != 0) {
+            NClassDef *class_def = item->value.class_def;
+            if (ProcessClassDefinition(class_def, ctx) != 0) {
                 had_error = 1;
+            } else if (class_def && class_def->class_name) {
+                ClassInfo *class_info = LookupClass(ctx, class_def->class_name);
+                if (class_info != NULL && !class_info->members_processed) {
+                    if (ProcessClassMembers(class_def->members.first, class_info, ctx) != 0) {
+                        had_error = 1;
+                    }
+                    class_info->members_processed = 1;
+                }
             }
         }
         item = item->next;
