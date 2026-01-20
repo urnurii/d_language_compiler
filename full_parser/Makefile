@@ -12,12 +12,16 @@ TARGET = compiler.exe
 
 # Исходные файлы (главные)
 MAIN_SOURCES = main.c ast_builder.c ast_visualizer.c
+SEMANTIC_SOURCES = semantic/semantic_analyzer.c semantic/semantic_passes.c \
+	semantic/name_resolution.c semantic/type_inference.c \
+	semantic/error_reporting.c semantic/jvm_layout.c \
+	semantic/semantic_transforms.c
 
 # Сгенерированные файлы парсером и лексером
 GENERATED_SOURCES = d_parser.tab.c lex.yy.c
 
 # Все исходные файлы
-ALL_SOURCES = $(MAIN_SOURCES) $(GENERATED_SOURCES)
+ALL_SOURCES = $(MAIN_SOURCES) $(SEMANTIC_SOURCES) $(GENERATED_SOURCES)
 
 # Объектные файлы
 OBJECTS = $(ALL_SOURCES:.c=.o)

@@ -7,10 +7,12 @@
 #include "error_reporting.h"
 #include "semantic_passes.h"
 #include "jvm_layout.h"
+#include "semantic_transforms.h"
 
 static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
+static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
 
 /* ============================================================================
    СОЗДАНИЕ И ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА
@@ -120,6 +122,11 @@ int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
         return 1;
     }
 
+    if (FourthPassTransformAST(root, local_ctx) != 0) {
+        *ctx = local_ctx;
+        return 1;
+    }
+
     has_errors = HasErrors(local_ctx->errors);
     *ctx = local_ctx;
     return has_errors ? 1 : 0;
@@ -166,6 +173,20 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
         return 1;
     }
     (void)root;
+    return HasErrors(ctx->errors) ? 1 : 0;
+}
+
+/* ============================================================================
+   FOURTH PASS: AST TRANSFORMS FOR CODEGEN
+   ============================================================================ */
+
+static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx) {
+    if (ctx == NULL) {
+        return 1;
+    }
+    if (TransformProgram(root, ctx) != 0) {
+        return 1;
+    }
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
