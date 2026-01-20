@@ -27,9 +27,10 @@ static void InitExprAttrs(NExpr *expr) {
     expr->jvm_descriptor = NULL;
     expr->inferred_type = NULL;
     expr->jvm_ref_key.has_key = 0;
-    expr->jvm_ref_key.owner = NULL;
-    expr->jvm_ref_key.name = NULL;
-    expr->jvm_ref_key.descriptor = NULL;
+    expr->jvm_ref_key.owner_internal_name = NULL;
+    expr->jvm_ref_key.member_name = NULL;
+    expr->jvm_ref_key.member_descriptor = NULL;
+    expr->jvm_ref_key.kind = JVM_REF_FIELD;
 }
 
 static void InitStmtAttrs(NStmt *stmt) {

@@ -4,6 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef enum {
+    JVM_REF_FIELD,
+    JVM_REF_METHOD
+} JvmRefKind;
+
+typedef struct {
+    int has_key;
+    char *owner_internal_name;
+    char *member_name;
+    char *member_descriptor;
+    JvmRefKind kind;
+} JvmRefKey;
+
 // Базовые типы
 typedef enum {
     TYPE_INT,
@@ -109,12 +122,7 @@ typedef struct NExpr {
     int jvm_slot_index;
     char *jvm_descriptor;
     struct NType *inferred_type;
-    struct {
-        int has_key;
-        char *owner;
-        char *name;
-        char *descriptor;
-    } jvm_ref_key;
+    JvmRefKey jvm_ref_key;
     
     union {
         char *ident_name;          // EXPR_IDENT, EXPR_SUPER

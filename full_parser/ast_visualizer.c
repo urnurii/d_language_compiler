@@ -23,28 +23,35 @@ static void DotPrintf(const char *format, ...) {
 // Экранирует специальные символы для DOT
 static const char* EscapeString(const char *str) {
     if (!str) return "";
-    
+
     static char buffer[1024];
     int j = 0;
-    
+
     for (int i = 0; str[i] && j < 1022; i++) {
         switch (str[i]) {
-            case '"':  buffer[j++] = '\\'; buffer[j++] = '"'; break;
-            case '\\': buffer[j++] = '\\'; buffer[j++] = '\\'; break;
-            case '\n': buffer[j++] = '\\'; buffer[j++] = 'n'; break;
-            case '\r': buffer[j++] = '\\'; buffer[j++] = 'r'; break;
-            case '\t': buffer[j++] = '\\'; buffer[j++] = 't'; break;
+            case '"':  buffer[j++] = '\'; buffer[j++] = '"'; break;
+            case '\': buffer[j++] = '\'; buffer[j++] = '\'; break;
+            case '
+': buffer[j++] = '\'; buffer[j++] = 'n'; break;
+            case '': buffer[j++] = '\'; buffer[j++] = 'r'; break;
+            case '	': buffer[j++] = '\'; buffer[j++] = 't'; break;
             default:   buffer[j++] = str[i];
         }
+    }
+    buffer[j] = '';
+    return buffer;
+}
+
 static void AppendAttr(char *buf, size_t size, const char *key, const char *value) {
     size_t len;
-    if (buf == NULL || size == 0 || key == NULL || value == NULL || value[0] == '\0') {
+    if (buf == NULL || size == 0 || key == NULL || value == NULL || value[0] == '') {
         return;
     }
     len = strlen(buf);
     if (len + 1 < size && len > 0) {
-        buf[len++] = '\n';
-        buf[len] = '\0';
+        buf[len++] = '
+';
+        buf[len] = '';
     }
     if (len < size) {
         snprintf(buf + len, size - len, "%s=%s", key, value);
@@ -88,7 +95,7 @@ static void TypeToStringForAttr(NType *type, char *buf, size_t size) {
 
 static void BuildExprAttr(const NExpr *expr, char *buf, size_t size) {
     char tmp[256];
-    buf[0] = '\0';
+    buf[0] = '';
     if (expr == NULL) return;
     if (expr->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", expr->resolved_symbol_id);
@@ -110,17 +117,18 @@ static void BuildExprAttr(const NExpr *expr, char *buf, size_t size) {
         AppendAttr(buf, size, "desc", expr->jvm_descriptor);
     }
     if (expr->jvm_ref_key.has_key) {
-        const char *owner = expr->jvm_ref_key.owner ? expr->jvm_ref_key.owner : "?";
-        const char *name = expr->jvm_ref_key.name ? expr->jvm_ref_key.name : "?";
-        const char *desc = expr->jvm_ref_key.descriptor ? expr->jvm_ref_key.descriptor : "?";
-        snprintf(tmp, sizeof(tmp), "%s.%s:%s", owner, name, desc);
+        const char *owner = expr->jvm_ref_key.owner_internal_name ? expr->jvm_ref_key.owner_internal_name : "?";
+        const char *name = expr->jvm_ref_key.member_name ? expr->jvm_ref_key.member_name : "?";
+        const char *desc = expr->jvm_ref_key.member_descriptor ? expr->jvm_ref_key.member_descriptor : "?";
+        const char *kind = (expr->jvm_ref_key.kind == JVM_REF_METHOD) ? "method" : "field";
+        snprintf(tmp, sizeof(tmp), "%s %s.%s:%s", kind, owner, name, desc);
         AppendAttr(buf, size, "ref", tmp);
     }
 }
 
 static void BuildStmtAttr(const NStmt *stmt, char *buf, size_t size) {
     char tmp[64];
-    buf[0] = '\0';
+    buf[0] = '';
     if (stmt == NULL) return;
     if (stmt->scope_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", stmt->scope_id);
@@ -130,7 +138,7 @@ static void BuildStmtAttr(const NStmt *stmt, char *buf, size_t size) {
 
 static void BuildParamAttr(const NParam *param, char *buf, size_t size) {
     char tmp[128];
-    buf[0] = '\0';
+    buf[0] = '';
     if (param == NULL) return;
     if (param->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", param->resolved_symbol_id);
@@ -147,7 +155,7 @@ static void BuildParamAttr(const NParam *param, char *buf, size_t size) {
 
 static void BuildInitDeclAttr(const NInitDecl *decl, char *buf, size_t size) {
     char tmp[128];
-    buf[0] = '\0';
+    buf[0] = '';
     if (decl == NULL) return;
     if (decl->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", decl->resolved_symbol_id);
@@ -163,7 +171,7 @@ static void BuildInitDeclAttr(const NInitDecl *decl, char *buf, size_t size) {
 }
 
 static void BuildFuncAttr(const NFuncDef *func, char *buf, size_t size) {
-    buf[0] = '\0';
+    buf[0] = '';
     if (func == NULL) return;
     if (func->jvm_descriptor != NULL) {
         AppendAttr(buf, size, "desc", func->jvm_descriptor);
@@ -171,7 +179,7 @@ static void BuildFuncAttr(const NFuncDef *func, char *buf, size_t size) {
 }
 
 static void BuildMethodAttr(const NMethodDef *method, char *buf, size_t size) {
-    buf[0] = '\0';
+    buf[0] = '';
     if (method == NULL) return;
     if (method->jvm_descriptor != NULL) {
         AppendAttr(buf, size, "desc", method->jvm_descriptor);
@@ -180,11 +188,13 @@ static void BuildMethodAttr(const NMethodDef *method, char *buf, size_t size) {
 
 static void EmitAttrNode(long parent_id, const char *attrs) {
     long attr_id;
-    if (attrs == NULL || attrs[0] == '\0') return;
+    if (attrs == NULL || attrs[0] == '') return;
     attr_id = GenerateNodeId();
-    DotPrintf("    node_%ld [label="attrs: %s", shape=note, fontsize=9];\n",
+    DotPrintf("    node_%ld [label="attrs: %s", shape=note, fontsize=9];
+",
              attr_id, EscapeString(attrs));
-    DotPrintf("    node_%ld -> node_%ld [style=dashed, label="attrs"];\n",
+    DotPrintf("    node_%ld -> node_%ld [style=dashed, label="attrs"];
+",
              parent_id, attr_id);
 }
     }

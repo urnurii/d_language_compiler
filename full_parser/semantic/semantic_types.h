@@ -4,6 +4,8 @@
 #include <time.h>
 #include "tree_nodes.h"
 
+typedef struct JvmLayoutContext JvmLayoutContext;
+
 /* ============================================================================
    ТИПЫ ДЛЯ ТАБЛИЦ СИМВОЛОВ И УПРАВЛЕНИЯ ОБЛАСТЯМИ ВИДИМОСТИ
    ============================================================================ */
@@ -199,6 +201,7 @@ typedef struct {
     SymbolTable *global_symbols;  /* глобальные символы */
     ScopeStack *scope_stack;      /* стек областей видимости */
     ErrorList *errors;            /* список ошибок */
+    JvmLayoutContext *jvm;        /* JVM-attribution (descriptors/slots/RefKey) */
     int has_errors;               /* была ли хоть одна ошибка */
     /* Таблицы для быстрого поиска */
     ClassInfo **classes;          /* массив информации о классах */

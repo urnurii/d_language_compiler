@@ -6,6 +6,7 @@
 #include "type_inference.h"
 #include "error_reporting.h"
 #include "semantic_passes.h"
+#include "jvm_layout.h"
 
 static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
@@ -41,6 +42,14 @@ SemanticContext* CreateSemanticContext(void) {
     ctx->global_symbols = global;
     ctx->scope_stack = stack;
     ctx->errors = CreateErrorList();
+    ctx->jvm = CreateJvmLayoutContext();
+    if (ctx->jvm == NULL) {
+        DestroyErrorList(ctx->errors);
+        DestroyScopeStack(ctx->scope_stack);
+        DestroySymbolTable(ctx->global_symbols);
+        free(ctx);
+        return NULL;
+    }
     ctx->has_errors = 0;
     ctx->classes = NULL;
     ctx->class_count = 0;
@@ -59,6 +68,10 @@ void DestroySemanticContext(SemanticContext *ctx) {
 
     if (ctx->errors != NULL) {
         DestroyErrorList(ctx->errors);
+    }
+
+    if (ctx->jvm != NULL) {
+        DestroyJvmLayoutContext(ctx->jvm);
     }
 
     if (ctx->scope_stack != NULL) {
