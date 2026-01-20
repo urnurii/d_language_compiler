@@ -111,7 +111,12 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             operand_type = InferExpressionTypeInternal(expr->value.unary.operand, ctx, report_errors);
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
         case EXPR_FUNC_CALL: {
-            FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
+            int ambiguous = 0;
+            FunctionInfo *func = LookupFunctionOverload(ctx,
+                                                        expr->value.func_call.func_name,
+                                                        expr->value.func_call.args,
+                                                        expr->value.func_call.arg_count,
+                                                        &ambiguous);
             if (func == NULL) {
                 if (ctx != NULL && ctx->current_class != NULL) {
                     ClassInfo *current = ctx->current_class;
@@ -134,9 +139,22 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                     }
                 }
                 if (report_errors && ctx != NULL && ctx->errors != NULL) {
-                    SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
-                                                                    expr->line,
-                                                                    expr->column);
+                    SemanticError err;
+                    if (ambiguous) {
+                        err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                "Ambiguous function call",
+                                                expr->line,
+                                                expr->column);
+                    } else if (HasFunctionName(ctx, expr->value.func_call.func_name)) {
+                        err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                "No matching overload for function call",
+                                                expr->line,
+                                                expr->column);
+                    } else {
+                        err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
+                                                          expr->line,
+                                                          expr->column);
+                    }
                     AddError(ctx->errors, &err);
                 }
                 return NULL;

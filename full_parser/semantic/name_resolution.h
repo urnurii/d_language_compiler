@@ -81,6 +81,9 @@ int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info);
 /* Найти информацию о функции по имени
    Возвращает: указатель на FunctionInfo или NULL если не найдена */
 FunctionInfo* LookupFunction(SemanticContext *ctx, const char *name);
+FunctionInfo* LookupFunctionOverload(SemanticContext *ctx, const char *name,
+                                     NExpr **args, int arg_count, int *is_ambiguous);
+int HasFunctionName(SemanticContext *ctx, const char *name);
 
 /* Найти информацию о классе по имени
    Возвращает: указатель на ClassInfo или NULL если класс не найден */

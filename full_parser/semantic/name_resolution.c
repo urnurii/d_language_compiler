@@ -22,6 +22,22 @@ static char* DuplicateStringLocal(const char *str) {
     return copy;
 }
 
+static int IsValidLValueExprLocal(const NExpr *expr) {
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_IDENT:
+        case EXPR_MEMBER_ACCESS:
+        case EXPR_ARRAY_ACCESS:
+            return 1;
+        case EXPR_PAREN:
+            return IsValidLValueExprLocal(expr->value.inner_expr);
+        default:
+            return 0;
+    }
+}
+
 static int AreParamListsCompatible(const NParamList *a, const NParamList *b) {
     int count_a;
     int count_b;
@@ -59,6 +75,74 @@ static int AreFunctionSignaturesCompatible(const FunctionInfo *a, const Function
 
 static void FreeFunctionInfoShallow(FunctionInfo *info) {
     free(info);
+}
+
+static int CanMatchFunction(FunctionInfo *func, NExpr **args, int arg_count,
+                            SemanticContext *ctx, int *score_out) {
+    int expected;
+    int count;
+    int score = 0;
+
+    if (func == NULL) {
+        return 0;
+    }
+
+    expected = func->params ? func->params->count : 0;
+
+    if (func->allow_extra_args) {
+        if (arg_count < expected) {
+            return 0;
+        }
+    } else {
+        if (arg_count > expected) {
+            return 0;
+        }
+        if (arg_count < expected && func->params != NULL) {
+            for (int i = arg_count; i < expected; i++) {
+                NParam *param = func->params->params[i];
+                if (param == NULL || param->default_value == NULL) {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    if (func->params == NULL) {
+        if (score_out != NULL) {
+            *score_out = score;
+        }
+        return 1;
+    }
+
+    count = expected < arg_count ? expected : arg_count;
+    for (int i = 0; i < count; i++) {
+        NParam *param = func->params->params[i];
+        NExpr *arg = (args != NULL) ? args[i] : NULL;
+        NType *arg_type;
+        if (param == NULL || arg == NULL || param->param_type == NULL) {
+            return 0;
+        }
+        if (param->is_ref && !IsValidLValueExprLocal(arg)) {
+            return 0;
+        }
+        arg_type = InferExpressionTypeSilent(arg, ctx);
+        if (arg_type == NULL) {
+            return 0;
+        }
+        if (!IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+            return 0;
+        }
+        if (TypesEqual(param->param_type, arg_type)) {
+            score += 2;
+        } else {
+            score += 1;
+        }
+    }
+
+    if (score_out != NULL) {
+        *score_out = score;
+    }
+    return 1;
 }
 
 static Symbol* LookupSymbolInTable(SymbolTable *table, const char *name) {
@@ -387,6 +471,7 @@ int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
     Symbol sym;
     FunctionInfo **grown;
     Symbol *existing;
+    int has_function_symbol = 0;
 
     if (ctx == NULL || func_info == NULL || func_info->name == NULL) {
         return 1;
@@ -394,7 +479,7 @@ int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
 
     existing = LookupGlobalSymbol(ctx, func_info->name);
     if (existing != NULL) {
-        if (existing->kind != SYMBOL_FUNCTION || existing->info.func_info == NULL) {
+        if (existing->kind != SYMBOL_FUNCTION) {
             if (ctx->errors != NULL) {
                 SemanticError err = CreateDuplicateSymbolError(func_info->name,
                                                               func_info->line,
@@ -403,17 +488,21 @@ int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
             }
             return 1;
         }
-        if (!AreFunctionSignaturesCompatible(existing->info.func_info, func_info)) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                      "Function redeclared with different signature",
-                                                      func_info->line,
-                                                      func_info->column);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
+        has_function_symbol = 1;
+    }
+
+    for (int i = 0; i < ctx->function_count; i++) {
+        FunctionInfo *prev = ctx->functions[i];
+        if (prev == NULL || prev->name == NULL) {
+            continue;
         }
-        if (!existing->info.func_info->is_prototype && !func_info->is_prototype) {
+        if (strcmp(prev->name, func_info->name) != 0) {
+            continue;
+        }
+        if (!AreFunctionSignaturesCompatible(prev, func_info)) {
+            continue;
+        }
+        if (!prev->is_prototype && !func_info->is_prototype) {
             if (ctx->errors != NULL) {
                 SemanticError err = CreateDuplicateSymbolError(func_info->name,
                                                               func_info->line,
@@ -422,21 +511,23 @@ int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
             }
             return 1;
         }
-        if (existing->info.func_info->is_prototype && !func_info->is_prototype) {
-            existing->info.func_info->is_prototype = 0;
+        if (prev->is_prototype && !func_info->is_prototype) {
+            prev->is_prototype = 0;
         }
         FreeFunctionInfoShallow(func_info);
         return 0;
     }
 
-    memset(&sym, 0, sizeof(Symbol));
-    sym.kind = SYMBOL_FUNCTION;
-    sym.name = func_info->name;
-    sym.info.func_info = func_info;
-    sym.scope_depth = 0;
+    if (!has_function_symbol) {
+        memset(&sym, 0, sizeof(Symbol));
+        sym.kind = SYMBOL_FUNCTION;
+        sym.name = func_info->name;
+        sym.info.func_info = func_info;
+        sym.scope_depth = 0;
 
-    if (AddSymbolToTable(ctx, &sym) != 0) {
-        return 1;
+        if (AddSymbolToTable(ctx, &sym) != 0) {
+            return 1;
+        }
     }
 
     grown = (FunctionInfo**)realloc(ctx->functions,
@@ -574,6 +665,65 @@ FunctionInfo* LookupFunction(SemanticContext *ctx, const char *name) {
         }
     }
     return NULL;
+}
+
+int HasFunctionName(SemanticContext *ctx, const char *name) {
+    if (ctx == NULL || name == NULL) {
+        return 0;
+    }
+    if (ctx->functions == NULL) {
+        return 0;
+    }
+    for (int i = 0; i < ctx->function_count; i++) {
+        FunctionInfo *func = ctx->functions[i];
+        if (func != NULL && func->name != NULL && strcmp(func->name, name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+FunctionInfo* LookupFunctionOverload(SemanticContext *ctx, const char *name,
+                                     NExpr **args, int arg_count, int *is_ambiguous) {
+    FunctionInfo *best = NULL;
+    int best_score = -1;
+    int ambiguous = 0;
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = 0;
+    }
+    if (ctx == NULL || name == NULL || ctx->functions == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < ctx->function_count; i++) {
+        FunctionInfo *func = ctx->functions[i];
+        int score = 0;
+        if (func == NULL || func->name == NULL) {
+            continue;
+        }
+        if (strcmp(func->name, name) != 0) {
+            continue;
+        }
+        if (!CanMatchFunction(func, args, arg_count, ctx, &score)) {
+            continue;
+        }
+        if (score > best_score) {
+            best = func;
+            best_score = score;
+            ambiguous = 0;
+        } else if (score == best_score) {
+            ambiguous = 1;
+        }
+    }
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = ambiguous;
+    }
+    if (ambiguous) {
+        return NULL;
+    }
+    return best;
 }
 
 ClassInfo* LookupClass(SemanticContext *ctx, const char *name) {

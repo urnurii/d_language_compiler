@@ -204,6 +204,54 @@ static int CheckParamDefaultValues(NParamList *params, SemanticContext *ctx) {
     return had_error;
 }
 
+static FunctionInfo *FindFunctionInfoBySignature(SemanticContext *ctx, const NFuncDef *def) {
+    if (ctx == NULL || def == NULL || def->func_name == NULL) {
+        return NULL;
+    }
+    if (ctx->functions == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < ctx->function_count; i++) {
+        FunctionInfo *func = ctx->functions[i];
+        if (func == NULL || func->name == NULL) {
+            continue;
+        }
+        if (strcmp(func->name, def->func_name) != 0) {
+            continue;
+        }
+        if (!TypesEqual(func->return_type, def->return_type)) {
+            continue;
+        }
+        {
+            int params_a = (func->params != NULL) ? func->params->count : 0;
+            int params_b = (def->params != NULL) ? def->params->count : 0;
+            if (params_a != params_b) {
+                continue;
+            }
+            for (int j = 0; j < params_a; j++) {
+                NParam *pa = func->params->params[j];
+                NParam *pb = def->params->params[j];
+                if (pa == NULL || pb == NULL) {
+                    continue;
+                }
+                if (pa->is_ref != pb->is_ref) {
+                    params_a = -1;
+                    break;
+                }
+                if (!TypesEqual(pa->param_type, pb->param_type)) {
+                    params_a = -1;
+                    break;
+                }
+            }
+            if (params_a < 0) {
+                continue;
+            }
+        }
+        return func;
+    }
+    return NULL;
+}
+
 static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
     if (left == NULL || right == NULL) {
         return 0;
@@ -848,7 +896,7 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                 NFuncDef *func = item->value.func;
                 FunctionInfo *func_info = NULL;
                 if (func != NULL && func->func_name != NULL) {
-                    func_info = LookupFunction(ctx, func->func_name);
+                    func_info = FindFunctionInfoBySignature(ctx, func);
                 }
                 if (CheckFunctionBody(func ? func->body : NULL, func_info, ctx) != 0) {
                     had_error = 1;
@@ -1679,7 +1727,12 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             break;
         }
         case EXPR_FUNC_CALL: {
-            FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
+            int ambiguous = 0;
+            FunctionInfo *func = LookupFunctionOverload(ctx,
+                                                        expr->value.func_call.func_name,
+                                                        expr->value.func_call.args,
+                                                        expr->value.func_call.arg_count,
+                                                        &ambiguous);
             if (func == NULL && ctx->current_class != NULL) {
                 ClassInfo *owner = FindMethodOwnerInHierarchy(ctx,
                                                               ctx->current_class,
@@ -1774,9 +1827,22 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             }
             if (func == NULL) {
                 if (ctx->errors != NULL) {
-                    SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
-                                                                    expr->line,
-                                                                    expr->column);
+                    SemanticError err;
+                    if (ambiguous) {
+                        err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                "Ambiguous function call",
+                                                expr->line,
+                                                expr->column);
+                    } else if (HasFunctionName(ctx, expr->value.func_call.func_name)) {
+                        err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                "No matching overload for function call",
+                                                expr->line,
+                                                expr->column);
+                    } else {
+                        err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
+                                                          expr->line,
+                                                          expr->column);
+                    }
                     AddError(ctx->errors, &err);
                 }
                 had_error = 1;
