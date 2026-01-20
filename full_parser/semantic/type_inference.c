@@ -10,8 +10,6 @@ static int GetNumericRank(const NType *type, int *rank_out);
 static BaseType RankToBaseType(int rank);
 static const char *OpToString(OpType op);
 static int IsNullClassType(const NType *type);
-static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *right_type,
-                                        SemanticContext *ctx, int line, int column);
 static int IsArrayType(const NType *type);
 static int IsDynamicArrayType(const NType *type);
 static void BuildElementType(const NType *array_type, NType *out);
@@ -334,6 +332,9 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
     if (left_type == NULL || right_type == NULL) {
         return NULL;
     }
+    (void)ctx;
+    (void)line;
+    (void)column;
 
     switch (op) {
         case OP_PLUS:
@@ -361,7 +362,7 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
                   (right_type->kind == TYPE_KIND_CLASS || right_type->kind == TYPE_KIND_CLASS_ARRAY)) &&
                 !(IsNullClassType(right_type) &&
                   (left_type->kind == TYPE_KIND_CLASS || left_type->kind == TYPE_KIND_CLASS_ARRAY))) {
-                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+                return NULL;
             }
             return CreateBaseType(TYPE_BOOL);
         case OP_LT:
@@ -369,14 +370,14 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
         case OP_LE:
         case OP_GE:
             if (!IsNumericType(left_type) || !IsNumericType(right_type)) {
-                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+                return NULL;
             }
             return CreateBaseType(TYPE_BOOL);
         case OP_AND:
         case OP_OR:
             if (!((IsBooleanType(left_type) && IsBooleanType(right_type)) ||
                   (IsNumericType(left_type) && IsNumericType(right_type)))) {
-                ReportInvalidBinaryOperands(op, left_type, right_type, ctx, line, column);
+                return NULL;
             }
             return CreateBaseType(TYPE_BOOL);
         case OP_ASSIGN:
@@ -658,33 +659,6 @@ static int IsNullClassType(const NType *type) {
         return 0;
     }
     return type->kind == TYPE_KIND_CLASS && type->class_name == NULL;
-}
-
-static void ReportInvalidBinaryOperands(OpType op, NType *left_type, NType *right_type,
-                                        SemanticContext *ctx, int line, int column) {
-    char left_copy[128];
-    char right_copy[128];
-    const char *left_str;
-    const char *right_str;
-
-    if (ctx == NULL || ctx->errors == NULL) {
-        return;
-    }
-
-    left_str = TypeToString(left_type);
-    right_str = TypeToString(right_type);
-
-    snprintf(left_copy, sizeof(left_copy), "%s", left_str ? left_str : "unknown");
-    snprintf(right_copy, sizeof(right_copy), "%s", right_str ? right_str : "unknown");
-
-    {
-        SemanticError err = CreateInvalidOperandsError(OpToString(op),
-                                                      left_copy,
-                                                      right_copy,
-                                                      line,
-                                                      column);
-        AddError(ctx->errors, &err);
-    }
 }
 
 static int IsArrayType(const NType *type) {
