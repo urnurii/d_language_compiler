@@ -1812,6 +1812,22 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             if (stmt->value.decl.init_decls) {
                 for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->name && stmt->value.decl.decl_type) {
+                        VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                        if (var != NULL) {
+                            memset(var, 0, sizeof(VariableInfo));
+                            var->name = decl->name;
+                            var->type = stmt->value.decl.decl_type;
+                            var->is_initialized = (decl->initializer != NULL);
+                            var->is_param = 0;
+                            var->is_ref = 0;
+                            var->line = stmt->line;
+                            var->column = stmt->column;
+                            if (AddLocalVariable(ctx, var) != 0) {
+                                free(var);
+                            }
+                        }
+                    }
                     if (decl && decl->initializer && decl->initializer->expr) {
                         AttributeExpressions(decl->initializer->expr, ctx);
                     }
@@ -1845,6 +1861,22 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             if (stmt->value.for_stmt.init_decls) {
                 for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->name && stmt->value.for_stmt.init_decl_type) {
+                        VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                        if (var != NULL) {
+                            memset(var, 0, sizeof(VariableInfo));
+                            var->name = decl->name;
+                            var->type = stmt->value.for_stmt.init_decl_type;
+                            var->is_initialized = (decl->initializer != NULL);
+                            var->is_param = 0;
+                            var->is_ref = 0;
+                            var->line = stmt->line;
+                            var->column = stmt->column;
+                            if (AddLocalVariable(ctx, var) != 0) {
+                                free(var);
+                            }
+                        }
+                    }
                     if (decl && decl->initializer && decl->initializer->expr) {
                         AttributeExpressions(decl->initializer->expr, ctx);
                     }
@@ -1855,6 +1887,24 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             AttributeStatement(stmt->value.for_stmt.body, ctx);
             break;
         case STMT_FOREACH:
+            if (stmt->value.foreach_stmt.is_typed &&
+                stmt->value.foreach_stmt.var_type != NULL &&
+                stmt->value.foreach_stmt.var_name != NULL) {
+                VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                if (var != NULL) {
+                    memset(var, 0, sizeof(VariableInfo));
+                    var->name = stmt->value.foreach_stmt.var_name;
+                    var->type = stmt->value.foreach_stmt.var_type;
+                    var->is_initialized = 1;
+                    var->is_param = 0;
+                    var->is_ref = 0;
+                    var->line = stmt->line;
+                    var->column = stmt->column;
+                    if (AddLocalVariable(ctx, var) != 0) {
+                        free(var);
+                    }
+                }
+            }
             AttributeExpressions(stmt->value.foreach_stmt.collection, ctx);
             AttributeStatement(stmt->value.foreach_stmt.body, ctx);
             break;
