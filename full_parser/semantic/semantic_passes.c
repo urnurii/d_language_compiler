@@ -130,6 +130,19 @@ static int IsInsideExactClass(SemanticContext *ctx, const NExpr *obj, const char
     return strcmp(ctx->current_class->name, target_class) == 0;
 }
 
+static NType *GetForeachElementType(NType *collection_type) {
+    if (collection_type == NULL) {
+        return NULL;
+    }
+    if (collection_type->kind == TYPE_KIND_BASE_ARRAY) {
+        return CreateBaseType(collection_type->base_type);
+    }
+    if (collection_type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return CreateClassType(collection_type->class_name);
+    }
+    return NULL;
+}
+
 static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
     if (left == NULL || right == NULL) {
         return 0;
@@ -1237,12 +1250,28 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             break;
         }
         case STMT_FOREACH: {
+            NType *collection_type = NULL;
+            NType *element_type = NULL;
             if (PushScope(ctx, "foreach") != 0) {
                 had_error = 1;
                 break;
             }
             if (CheckExpressions(stmt->value.foreach_stmt.collection, ctx) != 0) {
                 had_error = 1;
+            }
+            if (stmt->value.foreach_stmt.collection != NULL) {
+                collection_type = InferExpressionTypeSilent(stmt->value.foreach_stmt.collection, ctx);
+                element_type = GetForeachElementType(collection_type);
+                if (collection_type != NULL && element_type == NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "foreach collection must be an array",
+                                                              stmt->value.foreach_stmt.collection->line,
+                                                              stmt->value.foreach_stmt.collection->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
             }
             if (stmt->value.foreach_stmt.is_typed && stmt->value.foreach_stmt.var_type != NULL &&
                 stmt->value.foreach_stmt.var_name != NULL) {
@@ -1260,6 +1289,47 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     var->column = stmt->column;
                     if (AddLocalVariable(ctx, var) != 0) {
                         had_error = 1;
+                    }
+                }
+                if (element_type != NULL &&
+                    !CanAssign(stmt->value.foreach_stmt.var_type, element_type)) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateTypeMismatchError(TypeToString(stmt->value.foreach_stmt.var_type),
+                                                                    TypeToString(element_type),
+                                                                    "in foreach",
+                                                                    stmt->line,
+                                                                    stmt->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
+            } else if (!stmt->value.foreach_stmt.is_typed &&
+                       stmt->value.foreach_stmt.var_name != NULL) {
+                if (element_type == NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "Cannot infer foreach variable type",
+                                                              stmt->line,
+                                                              stmt->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                } else {
+                    VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                    if (var == NULL) {
+                        had_error = ReportOutOfMemory(ctx);
+                    } else {
+                        memset(var, 0, sizeof(VariableInfo));
+                        var->name = stmt->value.foreach_stmt.var_name;
+                        var->type = element_type;
+                        var->is_initialized = 1;
+                        var->is_param = 0;
+                        var->is_ref = 0;
+                        var->line = stmt->line;
+                        var->column = stmt->column;
+                        if (AddLocalVariable(ctx, var) != 0) {
+                            had_error = 1;
+                        }
                     }
                 }
             }
@@ -2283,21 +2353,31 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
             if (PushScope(ctx, "foreach") != 0) {
                 return 1;
             }
-            if (stmt->value.foreach_stmt.is_typed &&
-                stmt->value.foreach_stmt.var_type != NULL &&
-                stmt->value.foreach_stmt.var_name != NULL) {
-                VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
-                if (var != NULL) {
-                    memset(var, 0, sizeof(VariableInfo));
-                    var->name = stmt->value.foreach_stmt.var_name;
-                    var->type = stmt->value.foreach_stmt.var_type;
-                    var->is_initialized = 1;
-                    var->is_param = 0;
-                    var->is_ref = 0;
-                    var->line = stmt->line;
-                    var->column = stmt->column;
-                    if (AddLocalVariable(ctx, var) != 0) {
-                        free(var);
+            {
+                NType *collection_type = NULL;
+                NType *element_type = NULL;
+                NType *var_type = NULL;
+                if (stmt->value.foreach_stmt.is_typed) {
+                    var_type = stmt->value.foreach_stmt.var_type;
+                } else if (stmt->value.foreach_stmt.collection != NULL) {
+                    collection_type = InferExpressionTypeSilent(stmt->value.foreach_stmt.collection, ctx);
+                    element_type = GetForeachElementType(collection_type);
+                    var_type = element_type;
+                }
+                if (var_type != NULL && stmt->value.foreach_stmt.var_name != NULL) {
+                    VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                    if (var != NULL) {
+                        memset(var, 0, sizeof(VariableInfo));
+                        var->name = stmt->value.foreach_stmt.var_name;
+                        var->type = var_type;
+                        var->is_initialized = 1;
+                        var->is_param = 0;
+                        var->is_ref = 0;
+                        var->line = stmt->line;
+                        var->column = stmt->column;
+                        if (AddLocalVariable(ctx, var) != 0) {
+                            free(var);
+                        }
                     }
                 }
             }
