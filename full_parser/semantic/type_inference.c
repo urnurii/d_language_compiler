@@ -599,6 +599,10 @@ NType* CopyType(NType *type, SemanticContext *ctx) {
     return copy;
 }
 
+NType* CopyTypeNoContext(NType *type) {
+    return CopyType(type, NULL);
+}
+
 int TypesEqual(NType *type1, NType *type2) {
 
     if (type1 == NULL && type2 == NULL) {

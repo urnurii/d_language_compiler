@@ -146,6 +146,7 @@ int CanBeCondition(NType *type);
    
    Возвращает: новый NType с копией информации или NULL при ошибке */
 NType* CopyType(NType *type, SemanticContext *ctx);
+NType* CopyTypeNoContext(NType *type);
 
 /* Сравнить два типа на полное совпадение
    Учитывает: базовый тип, размерность массива, имя класса
