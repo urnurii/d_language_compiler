@@ -266,6 +266,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             if (array_type == NULL) {
                 return NULL;
             }
+            if (expr->value.array_access.index_end != NULL) {
+                return CopyType(array_type, ctx);
+            }
             if (array_type->kind == TYPE_KIND_BASE_ARRAY) {
                 return CreateBaseType(array_type->base_type);
             }

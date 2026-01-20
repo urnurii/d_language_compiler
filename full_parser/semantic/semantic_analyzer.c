@@ -14,6 +14,7 @@ static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
+static int RegisterBuiltinClasses(SemanticContext *ctx);
 static int RegisterBuiltinFunctions(SemanticContext *ctx);
 
 static void ReportAddLocalFailure(SemanticContext *ctx, const char *name, int line, int column) {
@@ -118,6 +119,11 @@ SemanticContext* CreateSemanticContext(void) {
     ctx->function_count = 0;
     ctx->enums = NULL;
     ctx->enum_count = 0;
+
+    if (RegisterBuiltinClasses(ctx) != 0) {
+        DestroySemanticContext(ctx);
+        return NULL;
+    }
 
     if (RegisterBuiltinFunctions(ctx) != 0) {
         DestroySemanticContext(ctx);
@@ -422,6 +428,40 @@ static int RegisterBuiltinFunctions(SemanticContext *ctx) {
         return 1;
     }
     if (AddBuiltinFunction(ctx, "writef", NULL, CreateSingleStringParam("fmt"), 1) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static int RegisterBuiltinClasses(SemanticContext *ctx) {
+    ClassInfo *info;
+
+    if (ctx == NULL) {
+        return 1;
+    }
+    if (LookupClass(ctx, "Object") != NULL) {
+        return 0;
+    }
+
+    info = (ClassInfo*)malloc(sizeof(ClassInfo));
+    if (info == NULL) {
+        return 1;
+    }
+    memset(info, 0, sizeof(ClassInfo));
+    info->name = "Object";
+    info->base_class = NULL;
+    info->fields = NULL;
+    info->field_count = 0;
+    info->methods = NULL;
+    info->method_count = 0;
+    info->constructor = NULL;
+    info->destructor = NULL;
+    info->members_processed = 1;
+    info->line = 0;
+    info->column = 0;
+
+    if (AddClassToContext(ctx, info) != 0) {
+        free(info);
         return 1;
     }
     return 0;

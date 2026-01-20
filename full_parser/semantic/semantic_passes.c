@@ -537,6 +537,10 @@ int ProcessClassDefinition(NClassDef *class_def, SemanticContext *ctx) {
     memset(info, 0, sizeof(ClassInfo));
     info->name = class_def->class_name;
     info->base_class = class_def->base_class_name;
+    if (info->base_class == NULL && info->name != NULL &&
+        strcmp(info->name, "Object") != 0) {
+        info->base_class = "Object";
+    }
     info->fields = NULL;
     info->field_count = 0;
     info->methods = NULL;
@@ -1295,8 +1299,36 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     if (decl->initializer != NULL) {
                         if (decl->initializer->is_array) {
                             for (int j = 0; j < decl->initializer->array_init.count; j++) {
-                                if (CheckExpressions(decl->initializer->array_init.elements[j], ctx) != 0) {
+                                NExpr *elem = decl->initializer->array_init.elements[j];
+                                if (CheckExpressions(elem, ctx) != 0) {
                                     had_error = 1;
+                                }
+                                if (decl_type != NULL && elem != NULL) {
+                                    NType *expr_type = InferExpressionTypeSilent(elem, ctx);
+                                    if (expr_type != NULL) {
+                                        NType *elem_type = GetForeachElementType(decl_type);
+                                        if (elem_type == NULL) {
+                                            if (ctx->errors != NULL) {
+                                                SemanticError err = CreateTypeMismatchError("array",
+                                                                                            TypeToString(decl_type),
+                                                                                            "in array initializer",
+                                                                                            elem->line,
+                                                                                            elem->column);
+                                                AddError(ctx->errors, &err);
+                                            }
+                                            had_error = 1;
+                                        } else if (!CanAssign(elem_type, expr_type)) {
+                                            if (ctx->errors != NULL) {
+                                                SemanticError err = CreateTypeMismatchError(TypeToString(elem_type),
+                                                                                            TypeToString(expr_type),
+                                                                                            "in array initializer",
+                                                                                            elem->line,
+                                                                                            elem->column);
+                                                AddError(ctx->errors, &err);
+                                            }
+                                            had_error = 1;
+                                        }
+                                    }
                                 }
                             }
                         } else {
