@@ -145,7 +145,7 @@ int CheckFunctionBody(NStmt *func_body, FunctionInfo *func_info, SemanticContext
    
    Использует: CheckStatement для каждого оператора
    Ошибки: все ошибки, обнаруженные при проверке операторов */
-int CheckStatements(NStmt *stmts, SemanticContext *ctx);
+int CheckStatements(NStmt *stmts, SemanticContext *ctx, NType *expected_return_type, int *return_seen);
 
 /* Проверить один оператор
    
@@ -154,7 +154,7 @@ int CheckStatements(NStmt *stmts, SemanticContext *ctx);
    
    Использует: CheckExpression (для STMT_EXPR), CheckStatement (рекурсивно)
    Ошибки: все ошибки, обнаруженные в операторе и его подоператорах */
-int CheckStatement(NStmt *stmt, SemanticContext *ctx);
+int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_type, int *return_seen);
 
 /* Проверить все выражения в дереве
    Разрешает имена переменных, проверяет вызовы функций, проверяет типы

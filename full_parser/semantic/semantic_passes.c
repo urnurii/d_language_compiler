@@ -784,6 +784,7 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
 int CheckFunctionBody(NStmt *func_body, FunctionInfo *func_info, SemanticContext *ctx) {
 
     int had_error = 0;
+    int return_seen = 0;
     const char *scope_name = (func_info && func_info->name) ? func_info->name : "function";
 
     if (func_body == NULL) {
@@ -824,7 +825,18 @@ int CheckFunctionBody(NStmt *func_body, FunctionInfo *func_info, SemanticContext
         }
     }
 
-    if (CheckStatements(func_body, ctx) != 0) {
+    if (CheckStatements(func_body, ctx, func_info ? func_info->return_type : NULL, &return_seen) != 0) {
+        had_error = 1;
+    }
+
+    if (func_info != NULL && func_info->return_type != NULL && !return_seen) {
+        if (ctx->errors != NULL) {
+            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                 "Missing return in non-void function",
+                                                 func_body->line,
+                                                 func_body->column);
+            AddError(ctx->errors, &err);
+        }
         had_error = 1;
     }
 
@@ -835,7 +847,7 @@ int CheckFunctionBody(NStmt *func_body, FunctionInfo *func_info, SemanticContext
     return had_error;
 }
 
-int CheckStatements(NStmt *stmts, SemanticContext *ctx) {
+int CheckStatements(NStmt *stmts, SemanticContext *ctx, NType *expected_return_type, int *return_seen) {
 
     int had_error = 0;
     NStmt *stmt = stmts;
@@ -848,7 +860,7 @@ int CheckStatements(NStmt *stmts, SemanticContext *ctx) {
     }
 
     while (stmt != NULL) {
-        if (CheckStatement(stmt, ctx) != 0) {
+        if (CheckStatement(stmt, ctx, expected_return_type, return_seen) != 0) {
             had_error = 1;
         }
         stmt = stmt->next;
@@ -857,7 +869,7 @@ int CheckStatements(NStmt *stmts, SemanticContext *ctx) {
     return had_error;
 }
 
-int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
+int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_type, int *return_seen) {
 
     int had_error = 0;
 
@@ -964,10 +976,10 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                     had_error = 1;
                 }
             }
-            if (CheckStatement(stmt->value.if_stmt.then_stmt, ctx) != 0) {
+            if (CheckStatement(stmt->value.if_stmt.then_stmt, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
-            if (CheckStatement(stmt->value.if_stmt.else_stmt, ctx) != 0) {
+            if (CheckStatement(stmt->value.if_stmt.else_stmt, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
             break;
@@ -991,14 +1003,14 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                     had_error = 1;
                 }
             }
-            if (CheckStatement(stmt->value.while_stmt.body, ctx) != 0) {
+            if (CheckStatement(stmt->value.while_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
             break;
         }
         case STMT_DO_WHILE: {
             NExpr *cond = stmt->value.do_while_stmt.condition;
-            if (CheckStatement(stmt->value.do_while_stmt.body, ctx) != 0) {
+            if (CheckStatement(stmt->value.do_while_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
             if (CheckExpressions(cond, ctx) != 0) {
@@ -1114,7 +1126,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
             if (CheckExpressions(stmt->value.for_stmt.iter_expr, ctx) != 0) {
                 had_error = 1;
             }
-            if (CheckStatement(stmt->value.for_stmt.body, ctx) != 0) {
+            if (CheckStatement(stmt->value.for_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
             break;
@@ -1142,7 +1154,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                     }
                 }
             }
-            if (CheckStatement(stmt->value.foreach_stmt.body, ctx) != 0) {
+            if (CheckStatement(stmt->value.foreach_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
             break;
@@ -1162,7 +1174,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                     }
                 }
                 if (item->stmts != NULL) {
-                    if (CheckStatements(item->stmts->first, ctx) != 0) {
+                    if (CheckStatements(item->stmts->first, ctx, expected_return_type, return_seen) != 0) {
                         had_error = 1;
                     }
                 }
@@ -1173,6 +1185,55 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
             if (CheckExpressions(stmt->value.expr, ctx) != 0) {
                 had_error = 1;
             }
+            if (return_seen != NULL) {
+                *return_seen = 1;
+            }
+            if (expected_return_type == NULL) {
+                if (stmt->value.expr != NULL) {
+                    NType *ret_type = InferExpressionTypeSilent(stmt->value.expr, ctx);
+                    if (ret_type != NULL && ctx->errors != NULL) {
+                        SemanticError err = CreateTypeMismatchError("void",
+                                                                    TypeToString(ret_type),
+                                                                    "in return",
+                                                                    stmt->line,
+                                                                    stmt->column);
+                        AddError(ctx->errors, &err);
+                    } else if (ret_type == NULL && ctx->errors != NULL) {
+                        SemanticError err = CreateTypeMismatchError("void",
+                                                                    "unknown",
+                                                                    "in return",
+                                                                    stmt->line,
+                                                                    stmt->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
+            } else {
+                if (stmt->value.expr == NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateTypeMismatchError(TypeToString(expected_return_type),
+                                                                    "void",
+                                                                    "in return",
+                                                                    stmt->line,
+                                                                    stmt->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                } else {
+                    NType *ret_type = InferExpressionTypeSilent(stmt->value.expr, ctx);
+                    if (ret_type != NULL && !CanAssign(expected_return_type, ret_type)) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateTypeMismatchError(TypeToString(expected_return_type),
+                                                                        TypeToString(ret_type),
+                                                                        "in return",
+                                                                        stmt->line,
+                                                                        stmt->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                }
+            }
             break;
         case STMT_BREAK:
         case STMT_CONTINUE:
@@ -1182,7 +1243,10 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
                 had_error = 1;
                 break;
             }
-            if (CheckStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx) != 0) {
+            if (CheckStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL,
+                                ctx,
+                                expected_return_type,
+                                return_seen) != 0) {
                 had_error = 1;
             }
             if (PopScope(ctx) != 0) {
