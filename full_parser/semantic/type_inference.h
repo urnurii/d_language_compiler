@@ -50,7 +50,7 @@ NType* InferLiteralType(NExpr *expr);
    - результат тип левого операнда
    
    Возвращает: результирующий тип или NULL если операция недопустима */
-NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type);
+NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type, SemanticContext *ctx);
 
 /* Определить тип для унарной операции
    Для унарного минуса и плюса (-expr, +expr):

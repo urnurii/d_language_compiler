@@ -46,7 +46,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
         case EXPR_BINARY_OP:
             left_type = InferExpressionType(expr->value.binary.left, ctx);
             right_type = InferExpressionType(expr->value.binary.right, ctx);
-            return InferBinaryOperationType(expr->value.binary.op, left_type, right_type);
+            return InferBinaryOperationType(expr->value.binary.op, left_type, right_type, ctx);
         case EXPR_ASSIGN:
             left_type = InferExpressionType(expr->value.binary.left, ctx);
             right_type = InferExpressionType(expr->value.binary.right, ctx);
@@ -225,7 +225,7 @@ NType* InferLiteralType(NExpr *expr) {
     }
 }
 
-NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type) {
+NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type, SemanticContext *ctx) {
 
     if (left_type == NULL || right_type == NULL) {
         return NULL;
