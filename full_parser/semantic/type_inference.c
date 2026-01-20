@@ -390,7 +390,10 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
             }
             return NULL;
         case OP_NOT:
-            return CreateBaseType(TYPE_BOOL);
+            if (IsBooleanType(operand_type) || IsNumericType(operand_type)) {
+                return CreateBaseType(TYPE_BOOL);
+            }
+            return NULL;
         default:
             return NULL;
     }
