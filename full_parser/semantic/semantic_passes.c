@@ -322,6 +322,18 @@ int ProcessFieldDeclaration(NInitDeclList *init_decls, NType *field_type,
         field->line = 0;
         field->column = 0;
 
+        if (LookupClassField(class_info, field->name) != NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateDuplicateSymbolError(field->name,
+                                                              field->line,
+                                                              field->column);
+                AddError(ctx->errors, &err);
+            }
+            free(field);
+            had_error = 1;
+            continue;
+        }
+
         grown = (FieldInfo**)realloc(class_info->fields,
                                      sizeof(FieldInfo*) * (size_t)(class_info->field_count + 1));
         if (grown == NULL) {
@@ -439,6 +451,16 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
                 }
             }
         }
+    }
+
+    if (LookupClassMethod(class_info, method_def->method_name) != NULL) {
+        if (ctx->errors != NULL) {
+            SemanticError err = CreateDuplicateSymbolError(method_def->method_name,
+                                                          0,
+                                                          0);
+            AddError(ctx->errors, &err);
+        }
+        return 1;
     }
 
     info = (MethodInfo*)malloc(sizeof(MethodInfo));
