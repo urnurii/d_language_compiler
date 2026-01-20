@@ -87,6 +87,9 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
                 return NULL;
             }
+            if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                return NULL;
+            }
             ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
             if (class_info == NULL) {
                 if (ctx != NULL && ctx->errors != NULL) {
@@ -138,6 +141,9 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
                 return NULL;
             }
             if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                return NULL;
+            }
+            if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
                 return NULL;
             }
             ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);

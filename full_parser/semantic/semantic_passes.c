@@ -1271,6 +1271,17 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 NType *obj_type = InferExpressionType(obj, ctx);
                 if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                    if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
+                                                                          TypeToString(obj_type),
+                                                                          expr->line,
+                                                                          expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                        break;
+                    }
                     const char *class_name = obj_type->class_name;
                     ClassInfo *class_info = LookupClass(ctx, class_name);
                     if (class_info == NULL) {
@@ -1368,6 +1379,17 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 NType *obj_type = InferExpressionType(obj, ctx);
                 if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                    if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
+                                                                         TypeToString(obj_type),
+                                                                         expr->line,
+                                                                         expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                        break;
+                    }
                     const char *class_name = obj_type->class_name;
                     ClassInfo *class_info = LookupClass(ctx, class_name);
                     if (class_info == NULL) {
