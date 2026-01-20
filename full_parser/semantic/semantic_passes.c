@@ -53,6 +53,28 @@ static const char *OpToString(OpType op) {
     }
 }
 
+static int ValidateArraySizeType(const NType *type, SemanticContext *ctx, int line, int column) {
+    const int max_size = 1000000;
+    if (type == NULL || type->array_decl == NULL || !type->array_decl->has_size) {
+        return 1;
+    }
+    if (type->array_decl->size < 0) {
+        if (ctx && ctx->errors) {
+            SemanticError err = CreateInvalidArraySizeError("negative size", line, column);
+            AddError(ctx->errors, &err);
+        }
+        return 0;
+    }
+    if (type->array_decl->size > max_size) {
+        if (ctx && ctx->errors) {
+            SemanticError err = CreateInvalidArraySizeError("size exceeds limit", line, column);
+            AddError(ctx->errors, &err);
+        }
+        return 0;
+    }
+    return 1;
+}
+
 static int IsValidLValueExpr(NExpr *expr) {
     if (expr == NULL) {
         return 0;
@@ -182,6 +204,18 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
         return 1;
     }
 
+    if (!ValidateArraySizeType(func_def->return_type, ctx, 0, 0)) {
+        return 1;
+    }
+    if (func_def->params != NULL) {
+        for (int i = 0; i < func_def->params->count; i++) {
+            NParam *param = func_def->params->params[i];
+            if (param != NULL && !ValidateArraySizeType(param->param_type, ctx, 0, 0)) {
+                return 1;
+            }
+        }
+    }
+
     if (func_def->return_type != NULL &&
         (func_def->return_type->kind == TYPE_KIND_CLASS ||
          func_def->return_type->kind == TYPE_KIND_CLASS_ARRAY)) {
@@ -300,6 +334,9 @@ int ProcessFieldDeclaration(NInitDeclList *init_decls, NType *field_type,
         return 1;
     }
 
+    if (!ValidateArraySizeType(field_type, ctx, 0, 0)) {
+        return 1;
+    }
     if (field_type->kind == TYPE_KIND_CLASS || field_type->kind == TYPE_KIND_CLASS_ARRAY) {
         if (LookupClass(ctx, field_type->class_name) == NULL) {
             if (ctx->errors != NULL) {
@@ -371,6 +408,18 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
     }
     if (class_info == NULL || ctx == NULL) {
         return 1;
+    }
+
+    if (!ValidateArraySizeType(method_def->return_type, ctx, 0, 0)) {
+        return 1;
+    }
+    if (method_def->params != NULL) {
+        for (int i = 0; i < method_def->params->count; i++) {
+            NParam *param = method_def->params->params[i];
+            if (param != NULL && !ValidateArraySizeType(param->param_type, ctx, 0, 0)) {
+                return 1;
+            }
+        }
     }
 
     if (method_def->return_type != NULL &&
@@ -581,6 +630,9 @@ int ProcessGlobalVariables(NType *type, NInitDeclList *init_decls, SemanticConte
         return 1;
     }
 
+    if (!ValidateArraySizeType(type, ctx, 0, 0)) {
+        return 1;
+    }
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
         if (LookupClass(ctx, type->class_name) == NULL) {
             if (ctx->errors != NULL) {
@@ -899,6 +951,9 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
         case STMT_DECL: {
             NType *decl_type = stmt->value.decl.decl_type;
             NInitDeclList *init_decls = stmt->value.decl.init_decls;
+            if (!ValidateArraySizeType(decl_type, ctx, stmt->line, stmt->column)) {
+                had_error = 1;
+            }
             if (decl_type != NULL &&
                 (decl_type->kind == TYPE_KIND_CLASS || decl_type->kind == TYPE_KIND_CLASS_ARRAY)) {
                 if (LookupClass(ctx, decl_type->class_name) == NULL) {
@@ -1058,6 +1113,9 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             if (stmt->value.for_stmt.init_decl_type != NULL) {
                 NType *decl_type = stmt->value.for_stmt.init_decl_type;
                 NInitDeclList *init_decls = stmt->value.for_stmt.init_decls;
+                if (!ValidateArraySizeType(decl_type, ctx, stmt->line, stmt->column)) {
+                    had_error = 1;
+                }
                 if (decl_type->kind == TYPE_KIND_CLASS || decl_type->kind == TYPE_KIND_CLASS_ARRAY) {
                     if (LookupClass(ctx, decl_type->class_name) == NULL) {
                         if (ctx->errors != NULL) {
