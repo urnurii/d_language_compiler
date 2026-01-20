@@ -312,6 +312,18 @@ int AreTypesCompatible(NType *type1, NType *type2, int strict) {
         if (type1->kind != type2->kind) {
             return 0;
         }
+        if (type1->array_decl != NULL || type2->array_decl != NULL) {
+            if (type1->array_decl == NULL || type2->array_decl == NULL) {
+                return 0;
+            }
+            if (type1->array_decl->has_size != type2->array_decl->has_size) {
+                return 0;
+            }
+            if (type1->array_decl->has_size &&
+                type1->array_decl->size != type2->array_decl->size) {
+                return 0;
+            }
+        }
         if (type1->kind == TYPE_KIND_BASE_ARRAY) {
             NType elem1;
             NType elem2;
@@ -370,6 +382,18 @@ int CanAssign(NType *target_type, NType *source_type) {
         (source_type->kind == TYPE_KIND_BASE_ARRAY || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
         if (target_type->kind != source_type->kind) {
             return 0;
+        }
+        if (target_type->array_decl != NULL || source_type->array_decl != NULL) {
+            if (target_type->array_decl == NULL || source_type->array_decl == NULL) {
+                return 0;
+            }
+            if (target_type->array_decl->has_size != source_type->array_decl->has_size) {
+                return 0;
+            }
+            if (target_type->array_decl->has_size &&
+                target_type->array_decl->size != source_type->array_decl->size) {
+                return 0;
+            }
         }
         if (target_type->kind == TYPE_KIND_BASE_ARRAY) {
             NType elem_t;
