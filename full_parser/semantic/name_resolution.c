@@ -400,18 +400,6 @@ int AddClassToContext(SemanticContext *ctx, ClassInfo *class_info) {
         return 1;
     }
 
-    if (class_info->base_class != NULL) {
-        if (LookupClass(ctx, class_info->base_class) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateInvalidBaseClassError(class_info->base_class,
-                                                               class_info->line,
-                                                               class_info->column);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
-    }
-
     memset(&sym, 0, sizeof(Symbol));
     sym.kind = SYMBOL_CLASS;
     sym.name = class_info->name;

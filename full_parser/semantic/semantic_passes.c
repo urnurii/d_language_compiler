@@ -70,6 +70,16 @@ int ProcessSourceItems(NProgram *root, SemanticContext *ctx) {
 
     item = root->first_item;
     while (item != NULL) {
+        if (item->type == SOURCE_ITEM_CLASS) {
+            if (ProcessClassDefinition(item->value.class_def, ctx) != 0) {
+                had_error = 1;
+            }
+        }
+        item = item->next;
+    }
+
+    item = root->first_item;
+    while (item != NULL) {
         switch (item->type) {
             case SOURCE_ITEM_FUNC:
                 if (ProcessFunctionDefinition(item->value.func, ctx) != 0) {
@@ -77,9 +87,6 @@ int ProcessSourceItems(NProgram *root, SemanticContext *ctx) {
                 }
                 break;
             case SOURCE_ITEM_CLASS:
-                if (ProcessClassDefinition(item->value.class_def, ctx) != 0) {
-                    had_error = 1;
-                }
                 break;
             case SOURCE_ITEM_DECL:
                 if (ProcessGlobalVariables(item->value.decl.item_type,
@@ -142,7 +149,6 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
 
 int ProcessClassDefinition(NClassDef *class_def, SemanticContext *ctx) {
     ClassInfo *info;
-    int had_error = 0;
 
     if (class_def == NULL) {
         return 0;
@@ -166,25 +172,6 @@ int ProcessClassDefinition(NClassDef *class_def, SemanticContext *ctx) {
     info->destructor = NULL;
     info->line = 0;
     info->column = 0;
-
-    if (info->base_class != NULL) {
-        if (LookupClass(ctx, info->base_class) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateInvalidBaseClassError(info->base_class,
-                                                               0,
-                                                               0);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
-    }
-
-    if (ProcessClassMembers(class_def->members.first, info, ctx) != 0) {
-        had_error = 1;
-    }
-    if (had_error) {
-        return 1;
-    }
 
     return AddClassToContext(ctx, info);
 }
@@ -603,6 +590,22 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                 ClassInfo *saved_class = ctx->current_class;
                 if (class_def != NULL && class_def->class_name != NULL) {
                     ctx->current_class = LookupClass(ctx, class_def->class_name);
+                }
+                if (ctx->current_class != NULL && ctx->current_class->base_class != NULL) {
+                    if (LookupClass(ctx, ctx->current_class->base_class) == NULL) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateInvalidBaseClassError(ctx->current_class->base_class,
+                                                                           0,
+                                                                           0);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                }
+                if (ctx->current_class != NULL) {
+                    if (ProcessClassMembers(member, ctx->current_class, ctx) != 0) {
+                        had_error = 1;
+                    }
                 }
                 while (member != NULL) {
                     if (member->type == CLASS_MEMBER_FIELD) {
