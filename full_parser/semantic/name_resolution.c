@@ -1,74 +1,341 @@
+﻿
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include "name_resolution.h"
 #include "error_reporting.h"
 
-/* ============================================================================
-   УПРАВЛЕНИЕ ТАБЛИЦЕЙ СИМВОЛОВ
-   ============================================================================ */
+static char* DuplicateStringLocal(const char *str) {
+    size_t len;
+    char *copy;
 
-int AddSymbolToTable(SemanticContext *ctx, const Symbol *symbol) {
-    /* TODO: Добавить символ в таблицу
-       - Проверить, что символ не дублируется в текущей области
-       - Если дублируется - добавить ошибку и вернуть 1
-       - Выделить память для копии символа
-       - Скопировать символ в таблицу
-       - Увеличить счётчик
-       - Вернуть 0
-       Использует: LookupSymbol (для проверки дублирования),
-                   CreateDuplicateSymbolError, AddError */
+    if (str == NULL) {
+        return NULL;
+    }
+    len = strlen(str);
+    copy = (char*)malloc(len + 1);
+    if (copy == NULL) {
+        return NULL;
+    }
+    memcpy(copy, str, len + 1);
+    return copy;
+}
+
+static Symbol* LookupSymbolInTable(SymbolTable *table, const char *name) {
+    int i;
+
+    if (table == NULL || name == NULL) {
+        return NULL;
+    }
+
+    for (i = 0; i < table->count; i++) {
+        Symbol *sym = table->symbols[i];
+        if (sym != NULL && sym->name != NULL && strcmp(sym->name, name) == 0) {
+            return sym;
+        }
+    }
+    return NULL;
+}
+
+static int AddSymbolToTableInternal(SymbolTable *table, const Symbol *symbol, SemanticContext *ctx) {
+    Symbol *stored;
+    Symbol **grown;
+
+    if (table == NULL || symbol == NULL || symbol->name == NULL) {
+        return 1;
+    }
+
+    if (LookupSymbolInTable(table, symbol->name) != NULL) {
+        if (ctx != NULL && ctx->errors != NULL) {
+            SemanticError err = CreateDuplicateSymbolError(symbol->name, 0, 0);
+            AddError(ctx->errors, &err);
+        }
+        return 1;
+    }
+
+    if (table->count >= table->capacity) {
+        int new_capacity = (table->capacity == 0) ? 8 : table->capacity * 2;
+        grown = (Symbol**)realloc(table->symbols, sizeof(Symbol*) * (size_t)new_capacity);
+        if (grown == NULL) {
+            return 1;
+        }
+        table->symbols = grown;
+        table->capacity = new_capacity;
+    }
+
+    stored = (Symbol*)malloc(sizeof(Symbol));
+    if (stored == NULL) {
+        return 1;
+    }
+    memset(stored, 0, sizeof(Symbol));
+
+    stored->kind = symbol->kind;
+    stored->name = DuplicateStringLocal(symbol->name);
+    stored->info = symbol->info;
+    stored->scope_depth = symbol->scope_depth;
+
+    if (stored->name == NULL) {
+        free(stored);
+        return 1;
+    }
+
+    table->symbols[table->count++] = stored;
     return 0;
 }
 
+SymbolTable* CreateSymbolTable(int initial_capacity) {
+    SymbolTable *table;
+    int cap = (initial_capacity > 0) ? initial_capacity : 8;
+
+    table = (SymbolTable*)malloc(sizeof(SymbolTable));
+    if (table == NULL) {
+        return NULL;
+    }
+    table->count = 0;
+    table->capacity = cap;
+    table->symbols = (Symbol**)malloc(sizeof(Symbol*) * (size_t)table->capacity);
+    if (table->symbols == NULL) {
+        free(table);
+        return NULL;
+    }
+    return table;
+}
+
+void DestroySymbolTable(SymbolTable *table) {
+    int i;
+
+    if (table == NULL) {
+        return;
+    }
+
+    for (i = 0; i < table->count; i++) {
+        Symbol *sym = table->symbols[i];
+        if (sym != NULL) {
+            free(sym->name);
+            free(sym);
+        }
+    }
+    free(table->symbols);
+    free(table);
+}
+
+Scope* CreateScope(const char *scope_name, int depth, Scope *parent) {
+    Scope *scope = (Scope*)malloc(sizeof(Scope));
+    if (scope == NULL) {
+        return NULL;
+    }
+    scope->depth = depth;
+    scope->scope_name = DuplicateStringLocal(scope_name);
+    scope->locals = CreateSymbolTable(8);
+    scope->parent = parent;
+    if (scope->locals == NULL) {
+        free(scope->scope_name);
+        free(scope);
+        return NULL;
+    }
+    return scope;
+}
+
+void DestroyScope(Scope *scope) {
+    if (scope == NULL) {
+        return;
+    }
+    free(scope->scope_name);
+    if (scope->locals != NULL) {
+        DestroySymbolTable(scope->locals);
+    }
+    free(scope);
+}
+
+ScopeStack* CreateScopeStack(SymbolTable *global_table) {
+    ScopeStack *stack;
+    Scope *global_scope;
+
+    stack = (ScopeStack*)malloc(sizeof(ScopeStack));
+    if (stack == NULL) {
+        return NULL;
+    }
+    stack->count = 0;
+    stack->capacity = 8;
+    stack->scopes = (Scope**)malloc(sizeof(Scope*) * (size_t)stack->capacity);
+    if (stack->scopes == NULL) {
+        free(stack);
+        return NULL;
+    }
+
+    stack->global = global_table;
+    global_scope = (Scope*)malloc(sizeof(Scope));
+    if (global_scope == NULL) {
+        free(stack->scopes);
+        free(stack);
+        return NULL;
+    }
+    global_scope->depth = 0;
+    global_scope->scope_name = DuplicateStringLocal("global");
+    global_scope->locals = global_table;
+    global_scope->parent = NULL;
+
+    stack->scopes[0] = global_scope;
+    stack->count = 1;
+    return stack;
+}
+
+void DestroyScopeStack(ScopeStack *stack) {
+    int i;
+
+    if (stack == NULL) {
+        return;
+    }
+
+    for (i = stack->count - 1; i >= 0; i--) {
+        Scope *scope = stack->scopes[i];
+        if (scope == NULL) {
+            continue;
+        }
+        if (scope->depth == 0) {
+            free(scope->scope_name);
+            free(scope);
+        } else {
+            DestroyScope(scope);
+        }
+    }
+    free(stack->scopes);
+    free(stack);
+}
+
+/* ============================================================================
+   SYMBOL TABLE MANAGEMENT
+   ============================================================================ */
+
+int AddSymbolToTable(SemanticContext *ctx, const Symbol *symbol) {
+    if (ctx == NULL || ctx->global_symbols == NULL) {
+        return 1;
+    }
+    return AddSymbolToTableInternal(ctx->global_symbols, symbol, ctx);
+}
+
 Symbol* LookupSymbol(SemanticContext *ctx, const char *name) {
-    /* TODO: Найти символ в таблице с учётом scope
-       - Начать с текущего scope
-       - Если не найдено - перейти к родительскому scope
-       - Продолжать пока не найдём или не закончатся области
-       - Вернуть найденный Symbol или NULL
-       Использует: GetCurrentScope */
+    Scope *scope;
+    Symbol *found;
+
+    if (ctx == NULL || name == NULL) {
+        return NULL;
+    }
+
+    scope = GetCurrentScope(ctx);
+    while (scope != NULL) {
+        found = LookupSymbolInTable(scope->locals, name);
+        if (found != NULL) {
+            return found;
+        }
+        scope = scope->parent;
+    }
+
+    if (ctx->global_symbols != NULL) {
+        return LookupSymbolInTable(ctx->global_symbols, name);
+    }
+
     return NULL;
 }
 
 Symbol* LookupGlobalSymbol(SemanticContext *ctx, const char *name) {
-    /* TODO: Найти символ ТОЛЬКО в глобальной таблице
-       - Пройти по ctx->global_symbols->symbols
-       - Найти символ с нужным именем
-       - Вернуть найденный Symbol или NULL */
-    return NULL;
+    if (ctx == NULL || ctx->global_symbols == NULL) {
+        return NULL;
+    }
+    return LookupSymbolInTable(ctx->global_symbols, name);
 }
 
 /* ============================================================================
-   УПРАВЛЕНИЕ ОБЛАСТЯМИ ВИДИМОСТИ
+   SCOPE STACK MANAGEMENT
    ============================================================================ */
 
 int PushScope(SemanticContext *ctx, const char *scope_name) {
-    /* TODO: Создать новую область видимости
-       - Выделить память для новой Scope
-       - Установить depth = текущий depth + 1
-       - Установить scope_name
-       - Создать новую таблицу символов для локальных переменных
-       - Установить parent на текущую область
-       - Добавить в стек ctx->scope_stack
-       - Вернуть 0 если успешно, 1 при ошибке памяти */
+    ScopeStack *stack;
+    Scope *parent;
+    Scope *scope;
+    Scope **grown;
+
+    if (ctx == NULL || ctx->scope_stack == NULL) {
+        return 1;
+    }
+
+    stack = ctx->scope_stack;
+    parent = GetCurrentScope(ctx);
+    scope = CreateScope(scope_name, parent ? parent->depth + 1 : 1, parent);
+    if (scope == NULL) {
+        return 1;
+    }
+
+    if (stack->count >= stack->capacity) {
+        int new_capacity = stack->capacity * 2;
+        grown = (Scope**)realloc(stack->scopes, sizeof(Scope*) * (size_t)new_capacity);
+        if (grown == NULL) {
+            DestroyScope(scope);
+            return 1;
+        }
+        stack->scopes = grown;
+        stack->capacity = new_capacity;
+    }
+
+    stack->scopes[stack->count++] = scope;
     return 0;
 }
 
 int PopScope(SemanticContext *ctx) {
-    /* TODO: Вернуться к родительской области
-       - Если это не глобальная область (depth > 0)
-       - Удалить текущую область из стека
-       - Освободить её память
-       - Вернуть 0 если успешно, 1 если ошибка */
+    ScopeStack *stack;
+    Scope *scope;
+
+    if (ctx == NULL || ctx->scope_stack == NULL) {
+        return 1;
+    }
+
+    stack = ctx->scope_stack;
+    if (stack->count <= 1) {
+        return 1;
+    }
+
+    scope = stack->scopes[stack->count - 1];
+    stack->scopes[stack->count - 1] = NULL;
+    stack->count -= 1;
+
+    if (scope != NULL) {
+        DestroyScope(scope);
+    }
+
     return 0;
 }
 
 Scope* GetCurrentScope(SemanticContext *ctx) {
-    /* TODO: Получить текущую область видимости
-       - Вернуть последний элемент в ctx->scope_stack->scopes
-       - Или NULL если стек пуст */
-    return NULL;
+    if (ctx == NULL || ctx->scope_stack == NULL || ctx->scope_stack->count == 0) {
+        return NULL;
+    }
+    return ctx->scope_stack->scopes[ctx->scope_stack->count - 1];
+}
+
+/* ============================================================================
+   CONTEXT HELPERS
+   ============================================================================ */
+
+int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info) {
+    Scope *scope;
+    Symbol sym;
+
+    if (ctx == NULL || var_info == NULL || var_info->name == NULL) {
+        return 1;
+    }
+
+    scope = GetCurrentScope(ctx);
+    if (scope == NULL || scope->locals == NULL) {
+        return 1;
+    }
+
+    memset(&sym, 0, sizeof(Symbol));
+    sym.kind = SYMBOL_VARIABLE;
+    sym.name = var_info->name;
+    sym.info.var_info = var_info;
+    sym.scope_depth = scope->depth;
+
+    return AddSymbolToTableInternal(scope->locals, &sym, ctx);
 }
 
 /* ============================================================================
@@ -112,18 +379,6 @@ int AddEnumToContext(SemanticContext *ctx, EnumInfo *enum_info) {
        - Вернуть 0 если успешно
        Использует: CreateDuplicateSymbolError, CreateEnumDuplicateItemError,
                    AddSymbolToTable */
-    return 0;
-}
-
-int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info) {
-    /* TODO: Добавить локальную переменную в текущий scope
-       - Получить текущий scope (GetCurrentScope)
-       - Проверить, что переменная не дублируется в текущей области
-       - Если дублируется - добавить ошибку и вернуть 1
-       - Создать Symbol с типом SYMBOL_VARIABLE
-       - Добавить в локальную таблицу текущего scope
-       - Вернуть 0 если успешно
-       Использует: GetCurrentScope, CreateDuplicateSymbolError, AddSymbolToTable */
     return 0;
 }
 

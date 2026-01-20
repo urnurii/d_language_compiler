@@ -7,6 +7,17 @@
    УПРАВЛЕНИЕ ТАБЛИЦАМИ СИМВОЛОВ И РАЗРЕШЕНИЕ ИМЁН
    ============================================================================ */
 
+/* СОЗДАНИЕ И ОЧИСТКА БАЗОВЫХ СТРУКТУР */
+
+SymbolTable* CreateSymbolTable(int initial_capacity);
+void DestroySymbolTable(SymbolTable *table);
+
+ScopeStack* CreateScopeStack(SymbolTable *global_table);
+void DestroyScopeStack(ScopeStack *stack);
+
+Scope* CreateScope(const char *scope_name, int depth, Scope *parent);
+void DestroyScope(Scope *scope);
+
 /* УПРАВЛЕНИЕ ТАБЛИЦЕЙ СИМВОЛОВ */
 
 /* Добавить символ в глобальную таблицу

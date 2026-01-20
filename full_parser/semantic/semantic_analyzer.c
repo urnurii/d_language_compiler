@@ -18,48 +18,28 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 SemanticContext* CreateSemanticContext(void) {
     SemanticContext *ctx = (SemanticContext*)malloc(sizeof(SemanticContext));
     SymbolTable *global = NULL;
-    ScopeStack *scopes = NULL;
+    ScopeStack *stack = NULL;
 
     if (ctx == NULL) {
         return NULL;
     }
     memset(ctx, 0, sizeof(SemanticContext));
 
-    global = (SymbolTable*)malloc(sizeof(SymbolTable));
+    global = CreateSymbolTable(16);
     if (global == NULL) {
         free(ctx);
         return NULL;
     }
-    global->count = 0;
-    global->capacity = 16;
-    global->symbols = (Symbol**)malloc(sizeof(Symbol*) * (size_t)global->capacity);
-    if (global->symbols == NULL) {
-        free(global);
-        free(ctx);
-        return NULL;
-    }
 
-    scopes = (ScopeStack*)malloc(sizeof(ScopeStack));
-    if (scopes == NULL) {
-        free(global->symbols);
-        free(global);
+    stack = CreateScopeStack(global);
+    if (stack == NULL) {
+        DestroySymbolTable(global);
         free(ctx);
         return NULL;
     }
-    scopes->count = 0;
-    scopes->capacity = 8;
-    scopes->scopes = (Scope**)malloc(sizeof(Scope*) * (size_t)scopes->capacity);
-    if (scopes->scopes == NULL) {
-        free(scopes);
-        free(global->symbols);
-        free(global);
-        free(ctx);
-        return NULL;
-    }
-    scopes->global = global;
 
     ctx->global_symbols = global;
-    ctx->scope_stack = scopes;
+    ctx->scope_stack = stack;
     ctx->errors = CreateErrorList();
     ctx->has_errors = 0;
     ctx->classes = NULL;
@@ -82,13 +62,11 @@ void DestroySemanticContext(SemanticContext *ctx) {
     }
 
     if (ctx->scope_stack != NULL) {
-        free(ctx->scope_stack->scopes);
-        free(ctx->scope_stack);
+        DestroyScopeStack(ctx->scope_stack);
     }
 
     if (ctx->global_symbols != NULL) {
-        free(ctx->global_symbols->symbols);
-        free(ctx->global_symbols);
+        DestroySymbolTable(ctx->global_symbols);
     }
 
     free(ctx->classes);
