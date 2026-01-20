@@ -4,6 +4,7 @@
 #include "tree_nodes.h"
 #include "ast_builder.h"
 #include "ast_visualizer.h"
+#include "semantic/semantic_analyzer.h"
 
 extern int yylex(void);
 extern int yyparse(void);
@@ -137,6 +138,19 @@ int main(int argc, char *argv[]) {
         return 3;
     }
     
+    // Семантический анализ
+    {
+        SemanticContext *sem_ctx = NULL;
+        int sem_result = AnalyzeProgram(root, &sem_ctx);
+        PrintSemanticErrors(sem_ctx);
+        if (sem_result != 0) {
+            fprintf(stderr, "\nError: Semantic analysis failed!\n");
+            DestroySemanticContext(sem_ctx);
+            return 5;
+        }
+        DestroySemanticContext(sem_ctx);
+    }
+
     // Анализ AST
     if (!analyze_ast(dot_output_path)) {
         fprintf(stderr, "\nError: AST analysis failed!\n");

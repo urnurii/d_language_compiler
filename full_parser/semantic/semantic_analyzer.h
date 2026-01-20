@@ -13,44 +13,11 @@ SemanticContext* CreateSemanticContext(void);
 /* Уничтожение контекста анализа */
 void DestroySemanticContext(SemanticContext *ctx);
 
-/* ГЛАВНАЯ ФУНКЦИЯ АНАЛИЗА */
-/* Выполняет полный семантический анализ программы
-   Входные данные: готовое AST из парсера (root)
-   Выходные данные: контекст анализа с таблицами символов, атрибутированное AST
-   Возвращает: 0 если ошибок нет, 1 если есть ошибки */
+/* ГЛАВНАЯ ТОЧКА ВХОДА СЕМАНТИКИ
+   Выполняет полный семантический анализ программы.
+   Вход: готовое AST (root).
+   Выход: контекст анализа (ctx_out), 0 если ошибок нет, 1 если есть ошибки. */
 int AnalyzeProgram(NProgram *root, SemanticContext **ctx);
-
-/* ПЕРВЫЙ ПРОХОД: СБОР ДЕКЛАРАЦИЙ */
-/* Собирает все объявления верхнего уровня:
-   - Функции
-   - Классы (с их полями и методами)
-   - Глобальные переменные
-   - Enum'ы
-   
-   Использует: AddSymbolToTable, AddClassToContext
-   Ошибки: дублирование имён, неопределённые базовые классы */
-int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
-
-/* ВТОРОЙ ПРОХОД: ПРОВЕРКА ДЕКЛАРАЦИЙ И ИСПОЛЬЗОВАНИЯ */
-/* Проходит по всему дереву и проверяет:
-   - Использование переменных (разрешение имён)
-   - Использование функций
-   - Использование методов
-   - Совместимость типов
-   
-   Использует: LookupSymbol, CheckExpressionTypes, CheckFunctionCall
-   Ошибки: undefined variable, function not found, type mismatch и т.д. */
-int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
-
-/* ТРЕТИЙ ПРОХОД: АТРИБУТИРОВАНИЕ AST */
-/* Добавляет информацию в узлы дерева:
-   - Вычисленные типы выражений
-   - Индексы символов в таблице для быстрого доступа при генерации кода
-   - Информацию о scope'е
-   
-   Использует: InferExpressionType, AttributeExpressions
-   Результат: готовое AST для генератора кода */
-int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 
 /* ВЫВОД ОШИБОК */
 /* Выводит все найденные семантические ошибки в stderr

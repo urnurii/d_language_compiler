@@ -7,28 +7,94 @@
 #include "error_reporting.h"
 #include "semantic_passes.h"
 
+static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
+static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
+static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
+
 /* ============================================================================
    СОЗДАНИЕ И ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА
    ============================================================================ */
 
 SemanticContext* CreateSemanticContext(void) {
-    /* TODO: Создать новый SemanticContext
-       - Выделить память
-       - Инициализировать global_symbols таблицу
-       - Инициализировать scope_stack с глобальной областью
-       - Инициализировать error_list
-       - Инициализировать массивы для классов, функций, enum'ов
-       Возвращает: указатель на новый контекст или NULL при ошибке */
-    return NULL;
+    SemanticContext *ctx = (SemanticContext*)malloc(sizeof(SemanticContext));
+    SymbolTable *global = NULL;
+    ScopeStack *scopes = NULL;
+
+    if (ctx == NULL) {
+        return NULL;
+    }
+    memset(ctx, 0, sizeof(SemanticContext));
+
+    global = (SymbolTable*)malloc(sizeof(SymbolTable));
+    if (global == NULL) {
+        free(ctx);
+        return NULL;
+    }
+    global->count = 0;
+    global->capacity = 16;
+    global->symbols = (Symbol**)malloc(sizeof(Symbol*) * (size_t)global->capacity);
+    if (global->symbols == NULL) {
+        free(global);
+        free(ctx);
+        return NULL;
+    }
+
+    scopes = (ScopeStack*)malloc(sizeof(ScopeStack));
+    if (scopes == NULL) {
+        free(global->symbols);
+        free(global);
+        free(ctx);
+        return NULL;
+    }
+    scopes->count = 0;
+    scopes->capacity = 8;
+    scopes->scopes = (Scope**)malloc(sizeof(Scope*) * (size_t)scopes->capacity);
+    if (scopes->scopes == NULL) {
+        free(scopes);
+        free(global->symbols);
+        free(global);
+        free(ctx);
+        return NULL;
+    }
+    scopes->global = global;
+
+    ctx->global_symbols = global;
+    ctx->scope_stack = scopes;
+    ctx->errors = CreateErrorList();
+    ctx->has_errors = 0;
+    ctx->classes = NULL;
+    ctx->class_count = 0;
+    ctx->functions = NULL;
+    ctx->function_count = 0;
+    ctx->enums = NULL;
+    ctx->enum_count = 0;
+
+    return ctx;
 }
 
 void DestroySemanticContext(SemanticContext *ctx) {
-    /* TODO: Очистить и освободить память контекста
-       - Освободить global_symbols
-       - Освободить scope_stack и все scopes в нём
-       - Освободить error_list
-       - Освободить массивы классов, функций, enum'ов
-       - Освободить сам контекст */
+    if (ctx == NULL) {
+        return;
+    }
+
+    if (ctx->errors != NULL) {
+        DestroyErrorList(ctx->errors);
+    }
+
+    if (ctx->scope_stack != NULL) {
+        free(ctx->scope_stack->scopes);
+        free(ctx->scope_stack);
+    }
+
+    if (ctx->global_symbols != NULL) {
+        free(ctx->global_symbols->symbols);
+        free(ctx->global_symbols);
+    }
+
+    free(ctx->classes);
+    free(ctx->functions);
+    free(ctx->enums);
+    free(ctx);
 }
 
 /* ============================================================================
@@ -36,65 +102,80 @@ void DestroySemanticContext(SemanticContext *ctx) {
    ============================================================================ */
 
 int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
-    /* TODO: Главная функция, которая выполняет полный анализ
-       1. Создать контекст (CreateSemanticContext)
-       2. Выполнить первый проход (FirstPassCollectDeclarations)
-       3. Если были ошибки на первом проходе - вернуть 1
-       4. Выполнить второй проход (SecondPassCheckSemantics)
-       5. Если были ошибки на втором проходе - вернуть 1
-       6. Выполнить третий проход (ThirdPassAttributeAST)
-       7. Сохранить контекст в *ctx
-       8. Вернуть 0 если всё OK, 1 если есть ошибки
-       Использует: CreateSemanticContext, FirstPassCollectDeclarations,
-                   SecondPassCheckSemantics, ThirdPassAttributeAST */
-    return 0;
+    SemanticContext *local_ctx;
+    int has_errors;
+
+    if (ctx == NULL) {
+        return 1;
+    }
+
+    local_ctx = CreateSemanticContext();
+    if (local_ctx == NULL) {
+        return 1;
+    }
+
+    if (FirstPassCollectDeclarations(root, local_ctx) != 0) {
+        *ctx = local_ctx;
+        return 1;
+    }
+
+    if (SecondPassCheckSemantics(root, local_ctx) != 0) {
+        *ctx = local_ctx;
+        return 1;
+    }
+
+    if (ThirdPassAttributeAST(root, local_ctx) != 0) {
+        *ctx = local_ctx;
+        return 1;
+    }
+
+    has_errors = HasErrors(local_ctx->errors);
+    *ctx = local_ctx;
+    return has_errors ? 1 : 0;
 }
 
 /* ============================================================================
    ГЛАВНАЯ ФУНКЦИЯ ПЕРВОГО ПРОХОДА
    ============================================================================ */
 
-int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx) {
-    /* TODO: Собрать все объявления верхнего уровня
-       - Пройти по root->items (список source_item)
-       - Для каждого source_item определить тип (FUNC, CLASS, DECL, ENUM)
-       - Вызвать соответствующую функцию обработки
-       - Собрать все ошибки и вернуть результат
-       Использует: ProcessSourceItems, ProcessFunctionDefinition,
-                   ProcessClassDefinition, ProcessGlobalVariables, ProcessEnumDefinition
-       Возвращает: 0 если OK, 1 если есть ошибки */
-    return 0;
+static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx) {
+    if (ctx == NULL) {
+        return 1;
+    }
+
+    if (ProcessSourceItems(root, ctx) != 0) {
+        return 1;
+    }
+
+    return HasErrors(ctx->errors) ? 1 : 0;
 }
 
 /* ============================================================================
    ГЛАВНАЯ ФУНКЦИЯ ВТОРОГО ПРОХОДА
    ============================================================================ */
 
-int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx) {
-    /* TODO: Проверить всё использование имён и типов
-       - Пройти по всему дереву
-       - Разрешить все имена переменных (LookupSymbol)
-       - Проверить все вызовы функций
-       - Проверить все типы операций
-       - Собрать все ошибки и вернуть результат
-       Использует: CheckAllSemantics
-       Возвращает: 0 если OK, 1 если есть ошибки */
-    return 0;
+static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx) {
+    if (ctx == NULL) {
+        return 1;
+    }
+
+    if (CheckAllSemantics(root, ctx) != 0) {
+        return 1;
+    }
+
+    return HasErrors(ctx->errors) ? 1 : 0;
 }
 
 /* ============================================================================
    ГЛАВНАЯ ФУНКЦИЯ ТРЕТЬЕГО ПРОХОДА
    ============================================================================ */
 
-int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
-    /* TODO: Атрибутировать дерево типами и информацией о scope
-       - Пройти по всему дереву
-       - Добавить вычисленные типы в узлы выражений
-       - Добавить информацию о scope в узлы операторов
-       - Добавить индексы символов в таблицах для быстрого доступа
-       Использует: AttributeExpressions, AttributeStatements
-       Возвращает: 0 если OK, 1 если есть ошибки */
-    return 0;
+static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
+    if (ctx == NULL) {
+        return 1;
+    }
+    (void)root;
+    return HasErrors(ctx->errors) ? 1 : 0;
 }
 
 /* ============================================================================
@@ -102,12 +183,10 @@ int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
    ============================================================================ */
 
 void PrintSemanticErrors(SemanticContext *ctx) {
-    /* TODO: Вывести все семантические ошибки
-       - Если есть ошибки - вывести каждую в формате:
-         "SEMANTIC ERROR at line X, column Y: message"
-       - Если нет ошибок - вывести:
-         "No semantic errors found"
-       Использует: PrintAllErrors */
+    if (ctx == NULL) {
+        return;
+    }
+    PrintAllErrors(ctx->errors);
 }
 
 void PrintSymbolTables(SemanticContext *ctx) {
