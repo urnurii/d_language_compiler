@@ -1395,7 +1395,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         }
                         had_error = 1;
                     } else {
-                        MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
+                        MethodInfo *method = LookupClassMethodInHierarchy(ctx,
+                                                                          class_info,
+                                                                          expr->value.member_access.member_name);
                         if (method == NULL) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
@@ -1503,7 +1505,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         }
                         had_error = 1;
                     } else {
-                    FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
+                    FieldInfo *field = LookupClassFieldInHierarchy(ctx,
+                                                                   class_info,
+                                                                   expr->value.member_access.member_name);
                     if (field == NULL) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
@@ -1749,7 +1753,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     had_error = 1;
                     break;
                 }
-                MethodInfo *method = LookupClassMethod(base_info, expr->value.member_access.member_name);
+                MethodInfo *method = LookupClassMethodInHierarchy(ctx,
+                                                                  base_info,
+                                                                  expr->value.member_access.member_name);
                 if (method == NULL) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,

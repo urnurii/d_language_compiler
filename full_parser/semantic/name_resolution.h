@@ -95,12 +95,14 @@ EnumInfo* LookupEnum(SemanticContext *ctx, const char *name);
    field_name: имя поля для поиска
    Возвращает: указатель на FieldInfo или NULL если поле не найдено */
 FieldInfo* LookupClassField(ClassInfo *class_info, const char *field_name);
+FieldInfo* LookupClassFieldInHierarchy(SemanticContext *ctx, ClassInfo *class_info, const char *field_name);
 
 /* Найти метод класса по имени
    class_info: информация о классе
    method_name: имя метода для поиска
    Возвращает: указатель на MethodInfo или NULL если метод не найден */
 MethodInfo* LookupClassMethod(ClassInfo *class_info, const char *method_name);
+MethodInfo* LookupClassMethodInHierarchy(SemanticContext *ctx, ClassInfo *class_info, const char *method_name);
 
 /* Найти элемент enum по имени
    enum_info: информация об enum

@@ -556,6 +556,21 @@ FieldInfo* LookupClassField(ClassInfo *class_info, const char *field_name) {
     return NULL;
 }
 
+FieldInfo* LookupClassFieldInHierarchy(SemanticContext *ctx, ClassInfo *class_info, const char *field_name) {
+    ClassInfo *current = class_info;
+    while (current != NULL) {
+        FieldInfo *field = LookupClassField(current, field_name);
+        if (field != NULL) {
+            return field;
+        }
+        if (current->base_class == NULL || ctx == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
+    }
+    return NULL;
+}
+
 MethodInfo* LookupClassMethod(ClassInfo *class_info, const char *method_name) {
     if (class_info == NULL || method_name == NULL) {
         return NULL;
@@ -568,6 +583,21 @@ MethodInfo* LookupClassMethod(ClassInfo *class_info, const char *method_name) {
         if (method != NULL && method->name != NULL && strcmp(method->name, method_name) == 0) {
             return method;
         }
+    }
+    return NULL;
+}
+
+MethodInfo* LookupClassMethodInHierarchy(SemanticContext *ctx, ClassInfo *class_info, const char *method_name) {
+    ClassInfo *current = class_info;
+    while (current != NULL) {
+        MethodInfo *method = LookupClassMethod(current, method_name);
+        if (method != NULL) {
+            return method;
+        }
+        if (current->base_class == NULL || ctx == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
     }
     return NULL;
 }

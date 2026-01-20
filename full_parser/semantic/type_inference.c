@@ -110,7 +110,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                 }
                 return NULL;
             }
-            MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
+            MethodInfo *method = LookupClassMethodInHierarchy(ctx,
+                                                              class_info,
+                                                              expr->value.member_access.member_name);
             if (method == NULL) {
                 if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
@@ -136,7 +138,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             if (base_info == NULL) {
                 return NULL;
             }
-            MethodInfo *method = LookupClassMethod(base_info, expr->value.member_access.member_name);
+            MethodInfo *method = LookupClassMethodInHierarchy(ctx,
+                                                              base_info,
+                                                              expr->value.member_access.member_name);
             if (method == NULL) {
                 return NULL;
             }
@@ -166,7 +170,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                 }
                 return NULL;
             }
-            FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
+            FieldInfo *field = LookupClassFieldInHierarchy(ctx,
+                                                           class_info,
+                                                           expr->value.member_access.member_name);
             if (field == NULL) {
                 if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
