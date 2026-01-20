@@ -41,7 +41,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
                 }
                 return NULL;
             }
-            return CopyType(sym->info.var_info->type);
+            return CopyType(sym->info.var_info->type, ctx);
         }
         case EXPR_BINARY_OP:
             left_type = InferExpressionType(expr->value.binary.left, ctx);
@@ -56,7 +56,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             if (!CanAssign(left_type, right_type)) {
                 return NULL;
             }
-            return CopyType(left_type);
+            return CopyType(left_type, ctx);
         case EXPR_UNARY_OP:
             operand_type = InferExpressionType(expr->value.unary.operand, ctx);
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
@@ -74,7 +74,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             if (func->return_type == NULL) {
                 return CreateBaseType(TYPE_VOID);
             }
-            return CopyType(func->return_type);
+            return CopyType(func->return_type, ctx);
         }
         case EXPR_METHOD_CALL: {
             NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
@@ -108,7 +108,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             if (method->return_type == NULL) {
                 return CreateBaseType(TYPE_VOID);
             }
-            return CopyType(method->return_type);
+            return CopyType(method->return_type, ctx);
         }
         case EXPR_SUPER_METHOD: {
             ClassInfo *current = (ctx != NULL) ? ctx->current_class : NULL;
@@ -127,7 +127,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             if (method->return_type == NULL) {
                 return CreateBaseType(TYPE_VOID);
             }
-            return CopyType(method->return_type);
+            return CopyType(method->return_type, ctx);
         }
         case EXPR_MEMBER_ACCESS: {
             NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
@@ -158,7 +158,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
                 }
                 return NULL;
             }
-            return CopyType(field->type);
+            return CopyType(field->type, ctx);
         }
         case EXPR_ARRAY_ACCESS: {
             NType *array_type = InferExpressionType(expr->value.array_access.array, ctx);
@@ -174,7 +174,7 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return NULL;
         }
         case EXPR_NEW:
-            return CopyType(expr->value.new_expr.type);
+            return CopyType(expr->value.new_expr.type, ctx);
         case EXPR_PAREN:
             return InferExpressionType(expr->value.inner_expr, ctx);
         case EXPR_THIS:
@@ -262,7 +262,7 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type) 
         case OP_MUL_ASSIGN:
         case OP_DIV_ASSIGN:
             if (CanAssign(left_type, right_type)) {
-                return CopyType(left_type);
+                return CopyType(left_type, ctx);
             }
             return NULL;
         default:
@@ -522,7 +522,7 @@ int CanBeCondition(NType *type) {
     return 0;
 }
 
-NType* CopyType(NType *type) {
+NType* CopyType(NType *type, SemanticContext *ctx) {
 
     NType *copy;
     NArrayDecl *array_copy = NULL;
@@ -533,6 +533,10 @@ NType* CopyType(NType *type) {
 
     copy = (NType*)malloc(sizeof(NType));
     if (copy == NULL) {
+        if (ctx != NULL && ctx->errors != NULL) {
+            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", 0, 0);
+            AddError(ctx->errors, &err);
+        }
         return NULL;
     }
     memset(copy, 0, sizeof(NType));
@@ -542,6 +546,10 @@ NType* CopyType(NType *type) {
     if (type->class_name != NULL) {
         copy->class_name = (char*)malloc(strlen(type->class_name) + 1);
         if (copy->class_name == NULL) {
+            if (ctx != NULL && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", 0, 0);
+                AddError(ctx->errors, &err);
+            }
             free(copy);
             return NULL;
         }
@@ -551,6 +559,10 @@ NType* CopyType(NType *type) {
     if (type->array_decl != NULL) {
         array_copy = (NArrayDecl*)malloc(sizeof(NArrayDecl));
         if (array_copy == NULL) {
+            if (ctx != NULL && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", 0, 0);
+                AddError(ctx->errors, &err);
+            }
             free(copy->class_name);
             free(copy);
             return NULL;

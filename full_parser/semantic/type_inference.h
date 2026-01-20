@@ -145,7 +145,7 @@ int CanBeCondition(NType *type);
    Нужна для сохранения типов в структурах узлов AST
    
    Возвращает: новый NType с копией информации или NULL при ошибке */
-NType* CopyType(NType *type);
+NType* CopyType(NType *type, SemanticContext *ctx);
 
 /* Сравнить два типа на полное совпадение
    Учитывает: базовый тип, размерность массива, имя класса
