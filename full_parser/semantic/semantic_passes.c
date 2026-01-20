@@ -600,6 +600,10 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
             case SOURCE_ITEM_CLASS: {
                 NClassDef *class_def = item->value.class_def;
                 NClassMember *member = class_def ? class_def->members.first : NULL;
+                ClassInfo *saved_class = ctx->current_class;
+                if (class_def != NULL && class_def->class_name != NULL) {
+                    ctx->current_class = LookupClass(ctx, class_def->class_name);
+                }
                 while (member != NULL) {
                     if (member->type == CLASS_MEMBER_FIELD) {
                         NInitDeclList *init_decls = member->value.field.init_decls;
@@ -660,6 +664,7 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                     }
                     member = member->next;
                 }
+                ctx->current_class = saved_class;
                 break;
             }
             case SOURCE_ITEM_DECL: {

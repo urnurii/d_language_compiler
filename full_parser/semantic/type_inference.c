@@ -111,21 +111,16 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             return CopyType(method->return_type);
         }
         case EXPR_SUPER_METHOD: {
-            if (expr->value.member_access.object == NULL) {
+            ClassInfo *current = (ctx != NULL) ? ctx->current_class : NULL;
+            ClassInfo *base_info;
+            if (current == NULL || current->base_class == NULL) {
                 return NULL;
             }
-            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
-            if (obj_type == NULL) {
+            base_info = LookupClass(ctx, current->base_class);
+            if (base_info == NULL) {
                 return NULL;
             }
-            if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
-                return NULL;
-            }
-            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
-            if (class_info == NULL) {
-                return NULL;
-            }
-            MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
+            MethodInfo *method = LookupClassMethod(base_info, expr->value.member_access.member_name);
             if (method == NULL) {
                 return NULL;
             }
@@ -183,8 +178,15 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
         case EXPR_PAREN:
             return InferExpressionType(expr->value.inner_expr, ctx);
         case EXPR_THIS:
+            if (ctx != NULL && ctx->current_class != NULL) {
+                return CreateClassType(ctx->current_class->name);
+            }
             return NULL;
         case EXPR_SUPER:
+            if (ctx != NULL && ctx->current_class != NULL &&
+                ctx->current_class->base_class != NULL) {
+                return CreateClassType(ctx->current_class->base_class);
+            }
             return NULL;
         default:
             if (ctx != NULL && ctx->errors != NULL) {

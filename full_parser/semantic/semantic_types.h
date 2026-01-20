@@ -203,6 +203,7 @@ typedef struct {
     ErrorList *errors;            /* список ошибок */
     JvmLayoutContext *jvm;        /* JVM-attribution (descriptors/slots/RefKey) */
     int has_errors;               /* была ли хоть одна ошибка */
+    ClassInfo *current_class;     /* текущий класс (для this/super) */
     /* Таблицы для быстрого поиска */
     ClassInfo **classes;          /* массив информации о классах */
     int class_count;
