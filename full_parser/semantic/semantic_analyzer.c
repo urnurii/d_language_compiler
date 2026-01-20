@@ -8,11 +8,13 @@
 #include "semantic_passes.h"
 #include "jvm_layout.h"
 #include "semantic_transforms.h"
+#include "ast_builder.h"
 
 static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
+static int RegisterBuiltinFunctions(SemanticContext *ctx);
 
 static void ReportAddLocalFailure(SemanticContext *ctx, const char *name, int line, int column) {
     Scope *scope;
@@ -116,6 +118,11 @@ SemanticContext* CreateSemanticContext(void) {
     ctx->function_count = 0;
     ctx->enums = NULL;
     ctx->enum_count = 0;
+
+    if (RegisterBuiltinFunctions(ctx) != 0) {
+        DestroySemanticContext(ctx);
+        return NULL;
+    }
 
     return ctx;
 }
@@ -361,6 +368,63 @@ void PrintSemanticErrors(SemanticContext *ctx) {
         return;
     }
     PrintAllErrors(ctx->errors);
+}
+
+static int AddBuiltinFunction(SemanticContext *ctx, const char *name, NType *return_type,
+                              NParamList *params, int allow_extra_args) {
+    FunctionInfo *info;
+
+    if (ctx == NULL || name == NULL) {
+        return 1;
+    }
+
+    info = (FunctionInfo*)malloc(sizeof(FunctionInfo));
+    if (info == NULL) {
+        return 1;
+    }
+    memset(info, 0, sizeof(FunctionInfo));
+    info->name = (char *)name;
+    info->return_type = return_type;
+    info->params = params;
+    info->is_prototype = 0;
+    info->is_builtin = 1;
+    info->allow_extra_args = allow_extra_args;
+    info->line = 0;
+    info->column = 0;
+
+    if (AddFunctionToContext(ctx, info) != 0) {
+        free(info);
+        return 1;
+    }
+    return 0;
+}
+
+static NParamList *CreateSingleStringParam(const char *name) {
+    NParamList *params = CreateParamList();
+    if (params == NULL) {
+        return NULL;
+    }
+    AddParamToList(params, CreateParam(CreateBaseType(TYPE_STRING), (char *)name, 0, NULL));
+    return params;
+}
+
+static int RegisterBuiltinFunctions(SemanticContext *ctx) {
+    if (AddBuiltinFunction(ctx, "readln", CreateBaseType(TYPE_STRING), NULL, 0) != 0) {
+        return 1;
+    }
+    if (AddBuiltinFunction(ctx, "readf", CreateBaseType(TYPE_INT), CreateSingleStringParam("fmt"), 1) != 0) {
+        return 1;
+    }
+    if (AddBuiltinFunction(ctx, "write", NULL, NULL, 1) != 0) {
+        return 1;
+    }
+    if (AddBuiltinFunction(ctx, "writeln", NULL, NULL, 1) != 0) {
+        return 1;
+    }
+    if (AddBuiltinFunction(ctx, "writef", NULL, CreateSingleStringParam("fmt"), 1) != 0) {
+        return 1;
+    }
+    return 0;
 }
 
 

@@ -1613,7 +1613,19 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             } else {
                 int expected = func->params ? func->params->count : 0;
                 int actual = expr->value.func_call.arg_count;
-                if (actual > expected) {
+                if (func->allow_extra_args) {
+                    if (actual < expected) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateWrongArgCountError(func->name,
+                                                                        expected,
+                                                                        actual,
+                                                                        expr->line,
+                                                                        expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                } else if (actual > expected) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateWrongArgCountError(func->name,
                                                                     expected,

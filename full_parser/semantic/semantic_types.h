@@ -36,6 +36,8 @@ typedef struct {
     NType *return_type;   /* тип возвращаемого значения (NULL для void) */
     NParamList *params;   /* список параметров */
     int is_prototype;     /* 1 если есть только прототип (нет тела) */
+    int is_builtin;       /* 1 если это встроенная функция */
+    int allow_extra_args; /* 1 если допускаются дополнительные аргументы */
     int line;             /* строка объявления */
     int column;           /* колонка объявления */
 } FunctionInfo;
