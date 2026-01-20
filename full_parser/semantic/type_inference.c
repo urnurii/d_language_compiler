@@ -2,81 +2,257 @@
 #include <string.h>
 #include <stdio.h>
 #include "type_inference.h"
+#include "name_resolution.h"
 #include "error_reporting.h"
+#include "ast_builder.h"
 
 /* ============================================================================
    ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
    ============================================================================ */
 
 NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
-    /* TODO: Вычислить тип выражения
-       - Если expr == NULL - вернуть NULL
-       - В зависимости от expr->expr_type вызвать нужную функцию:
-         - EXPR_INT, EXPR_FLOAT, EXPR_CHAR, EXPR_STRING, EXPR_BOOL, EXPR_NULL, EXPR_NAN:
-           InferLiteralType
-         - EXPR_IDENT: найти в таблице символов, вернуть тип переменной
-         - EXPR_BINARY_OP: InferBinaryOperationType
-         - EXPR_UNARY_OP: InferUnaryOperationType
-         - EXPR_FUNC_CALL: найти функцию, вернуть её возвращаемый тип
-         - EXPR_METHOD_CALL: найти метод, вернуть его тип
-         - EXPR_MEMBER_ACCESS: найти поле, вернуть его тип
-         - EXPR_ARRAY_ACCESS: найти тип массива, вернуть тип элемента
-         - EXPR_NEW: вернуть тип класса
-         - EXPR_PAREN: вернуть тип выражения в скобках
-         - EXPR_THIS: вернуть тип текущего класса
-         - Другое: сообщить ошибку и вернуть NULL
-       - Использует: CopyType для сохранения типа (нельзя возвращать указатель на временный тип)
-       Ошибки: undefined variable, undefined function, type mismatch */
-    return NULL;
+
+    NType *left_type;
+    NType *right_type;
+    NType *operand_type;
+    NType *result_type;
+
+    if (expr == NULL) {
+        return NULL;
+    }
+
+    switch (expr->type) {
+        case EXPR_INT:
+        case EXPR_FLOAT:
+        case EXPR_CHAR:
+        case EXPR_STRING:
+        case EXPR_BOOL:
+        case EXPR_NULL:
+        case EXPR_NAN:
+            return InferLiteralType(expr);
+        case EXPR_IDENT: {
+            Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
+            if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateUndefinedVariableError(expr->value.ident_name,
+                                                                    expr->line,
+                                                                    expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            return CopyType(sym->info.var_info->type);
+        }
+        case EXPR_BINARY_OP:
+            left_type = InferExpressionType(expr->value.binary.left, ctx);
+            right_type = InferExpressionType(expr->value.binary.right, ctx);
+            return InferBinaryOperationType(expr->value.binary.op, left_type, right_type);
+        case EXPR_UNARY_OP:
+            operand_type = InferExpressionType(expr->value.unary.operand, ctx);
+            return InferUnaryOperationType(expr->value.unary.op, operand_type);
+        case EXPR_FUNC_CALL: {
+            FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
+            if (func == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
+                                                                    expr->line,
+                                                                    expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            if (func->return_type == NULL) {
+                return CreateBaseType(TYPE_VOID);
+            }
+            return CopyType(func->return_type);
+        }
+        case EXPR_METHOD_CALL: {
+            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
+            if (obj_type == NULL) {
+                return NULL;
+            }
+            if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                return NULL;
+            }
+            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+            if (class_info == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateUndefinedClassError(obj_type->class_name,
+                                                                  expr->line,
+                                                                  expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
+            if (method == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
+                                                                  obj_type->class_name,
+                                                                  expr->line,
+                                                                  expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            if (method->return_type == NULL) {
+                return CreateBaseType(TYPE_VOID);
+            }
+            return CopyType(method->return_type);
+        }
+        case EXPR_MEMBER_ACCESS: {
+            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
+            if (obj_type == NULL) {
+                return NULL;
+            }
+            if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                return NULL;
+            }
+            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+            if (class_info == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateUndefinedClassError(obj_type->class_name,
+                                                                  expr->line,
+                                                                  expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            FieldInfo *field = LookupClassField(class_info, expr->value.member_access.member_name);
+            if (field == NULL) {
+                if (ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
+                                                                obj_type->class_name,
+                                                                expr->line,
+                                                                expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
+            return CopyType(field->type);
+        }
+        case EXPR_ARRAY_ACCESS: {
+            NType *array_type = InferExpressionType(expr->value.array_access.array, ctx);
+            if (array_type == NULL) {
+                return NULL;
+            }
+            if (array_type->kind == TYPE_KIND_BASE_ARRAY) {
+                return CreateBaseType(array_type->base_type);
+            }
+            if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                return CreateClassType(array_type->class_name);
+            }
+            return NULL;
+        }
+        case EXPR_NEW:
+            return CopyType(expr->value.new_expr.type);
+        case EXPR_PAREN:
+            return InferExpressionType(expr->value.inner_expr, ctx);
+        case EXPR_THIS:
+            return NULL;
+        default:
+            if (ctx != NULL && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                     "Unsupported expression in type inference",
+                                                     expr->line,
+                                                     expr->column);
+                AddError(ctx->errors, &err);
+            }
+            return NULL;
+    }
 }
 
 NType* InferLiteralType(NExpr *expr) {
-    /* TODO: Вычислить тип литерального значения
-       - В зависимости от expr->expr_type:
-         - EXPR_INT: CreateBaseType(TYPE_INT)
-         - EXPR_FLOAT: CreateBaseType(TYPE_FLOAT)
-         - EXPR_CHAR: CreateBaseType(TYPE_CHAR)
-         - EXPR_STRING: CreateBaseType(TYPE_STRING)
-         - EXPR_BOOL: CreateBaseType(TYPE_BOOL)
-         - EXPR_NULL: CreateClassType(NULL) или специальный тип
-         - EXPR_NAN: CreateBaseType(TYPE_FLOAT)
-       - Возвращает: новый NType объект */
-    return NULL;
+
+    if (expr == NULL) {
+        return NULL;
+    }
+    switch (expr->type) {
+        case EXPR_INT:
+            return CreateBaseType(TYPE_INT);
+        case EXPR_FLOAT:
+            return CreateBaseType(TYPE_FLOAT);
+        case EXPR_CHAR:
+            return CreateBaseType(TYPE_CHAR);
+        case EXPR_STRING:
+            return CreateBaseType(TYPE_STRING);
+        case EXPR_BOOL:
+            return CreateBaseType(TYPE_BOOL);
+        case EXPR_NULL:
+            return CreateClassType(NULL);
+        case EXPR_NAN:
+            return CreateBaseType(TYPE_FLOAT);
+        default:
+            return NULL;
+    }
 }
 
 NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type) {
-    /* TODO: Вычислить тип результата бинарной операции
-       - Для арифметических операций (+, -, *, /):
-         - int + int -> int
-         - float + float -> float
-         - int + float -> float (проверить совместимость и вернуть float)
-         - Другие комбинации -> ошибка
-       - Для сравнений и логических операций (==, !=, <, >, <=, >=, &&, ||):
-         - результат всегда bool
-       - Для присваивания (=, +=, -=, *=, /=):
-         - результат тип левого операнда (если совместимо)
-       - Для битовых операций (если поддерживаются): int only
-       
-       Возвращает: новый NType для результата или NULL если операция неправильная
-       Использует: AreTypesCompatible, CreateBaseType, CopyType */
-    return NULL;
+
+    if (left_type == NULL || right_type == NULL) {
+        return NULL;
+    }
+
+    switch (op) {
+        case OP_PLUS:
+        case OP_MINUS:
+        case OP_MUL:
+        case OP_DIV:
+            if (IsIntegralType(left_type) && IsIntegralType(right_type)) {
+                return CreateBaseType(TYPE_INT);
+            }
+            if (IsFloatingPointType(left_type) && IsFloatingPointType(right_type)) {
+                return CreateBaseType(TYPE_FLOAT);
+            }
+            if ((IsIntegralType(left_type) && IsFloatingPointType(right_type)) ||
+                (IsFloatingPointType(left_type) && IsIntegralType(right_type))) {
+                return CreateBaseType(TYPE_FLOAT);
+            }
+            return NULL;
+        case OP_EQ:
+        case OP_NEQ:
+        case OP_LT:
+        case OP_GT:
+        case OP_LE:
+        case OP_GE:
+        case OP_AND:
+        case OP_OR:
+            return CreateBaseType(TYPE_BOOL);
+        case OP_ASSIGN:
+        case OP_PLUS_ASSIGN:
+        case OP_MINUS_ASSIGN:
+        case OP_MUL_ASSIGN:
+        case OP_DIV_ASSIGN:
+            if (CanAssign(left_type, right_type)) {
+                return CopyType(left_type);
+            }
+            return NULL;
+        default:
+            return NULL;
+    }
 }
 
 NType* InferUnaryOperationType(OpType op, NType *operand_type) {
-    /* TODO: Вычислить тип результата унарной операции
-       - Для унарного минуса (-expr):
-         - -int -> int
-         - -float -> float
-         - Другие типы -> ошибка
-       - Для унарного плюса (+expr):
-         - +int -> int
-         - +float -> float
-       - Для логического НЕ (!expr):
-         - !любой_тип -> bool
-       
-       Возвращает: новый NType для результата или NULL если операция неправильная
-       Использует: CreateBaseType, CopyType */
-    return NULL;
+
+    if (operand_type == NULL) {
+        return NULL;
+    }
+
+    switch (op) {
+        case OP_MINUS:
+        case OP_PLUS:
+            if (IsIntegralType(operand_type)) {
+                return CreateBaseType(TYPE_INT);
+            }
+            if (IsFloatingPointType(operand_type)) {
+                return CreateBaseType(TYPE_FLOAT);
+            }
+            return NULL;
+        case OP_NOT:
+            return CreateBaseType(TYPE_BOOL);
+        default:
+            return NULL;
+    }
 }
 
 /* ============================================================================
@@ -84,42 +260,81 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
    ============================================================================ */
 
 int AreTypesCompatible(NType *type1, NType *type2, int strict) {
-    /* TODO: Проверить совместимость двух типов
-       - Если strict == 1: типы должны быть идентичны (TypesEqual)
-       - Если strict == 0: допускаются преобразования:
-         - int совместим с float (для чтения)
-         - float совместим с int только если нет потери данных (в строгом смысле - нет)
-         - Одинаковые типы всегда совместимы
-         - Для классов: учитывать наследование (если тип1 - базовый класс тип2)
-       
-       Возвращает: 1 если совместимы, 0 если нет
-       Использует: TypesEqual, IsNumericType */
+
+    if (type1 == NULL || type2 == NULL) {
+        return 0;
+    }
+
+    if (strict) {
+        return TypesEqual(type1, type2);
+    }
+
+    if (TypesEqual(type1, type2)) {
+        return 1;
+    }
+
+    if (IsNumericType(type1) && IsNumericType(type2)) {
+        return 1;
+    }
+
+    if ((type1->kind == TYPE_KIND_CLASS || type1->kind == TYPE_KIND_CLASS_ARRAY) &&
+        (type2->kind == TYPE_KIND_CLASS || type2->kind == TYPE_KIND_CLASS_ARRAY)) {
+        if (type1->class_name != NULL && type2->class_name != NULL &&
+            strcmp(type1->class_name, type2->class_name) == 0) {
+            return 1;
+        }
+        return 0;
+    }
+
     return 0;
 }
 
 int CanAssign(NType *target_type, NType *source_type) {
-    /* TODO: Проверить, может ли source_type быть присвоен target_type
-       - Правила D:
-         - Одинаковые типы: да
-         - source = int, target = float: да
-         - source = float, target = int: нет (потеря данных)
-         - source = производный класс, target = базовый класс: да
-         - source = NULL, target = класс: да
-         - Другие комбинации: нет
-       
-       Возвращает: 1 если можно, 0 если нет
-       Использует: TypesEqual, IsIntegralType, IsFloatingPointType */
+
+    if (target_type == NULL || source_type == NULL) {
+        return 0;
+    }
+
+    if (TypesEqual(target_type, source_type)) {
+        return 1;
+    }
+
+    if (IsFloatingPointType(target_type) && IsIntegralType(source_type)) {
+        return 1;
+    }
+
+    if (IsIntegralType(target_type) && IsFloatingPointType(source_type)) {
+        return 0;
+    }
+
+    if ((target_type->kind == TYPE_KIND_CLASS || target_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+        (source_type->kind == TYPE_KIND_CLASS || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+        if (target_type->class_name != NULL && source_type->class_name != NULL &&
+            strcmp(target_type->class_name, source_type->class_name) == 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    if ((target_type->kind == TYPE_KIND_CLASS || target_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+        source_type->kind == TYPE_KIND_CLASS && source_type->class_name == NULL) {
+        return 1;
+    }
+
     return 0;
 }
 
 int IsArgumentCompatibleWithParameter(NType *param_type, NType *arg_type, int is_ref) {
-    /* TODO: Проверить совместимость аргумента с параметром
-       - Если is_ref == 1: требуется точное совпадение типов
-       - Если is_ref == 0: допускаются преобразования (AreTypesCompatible)
-       
-       Возвращает: 1 если совместимы, 0 если нет
-       Использует: TypesEqual, AreTypesCompatible */
-    return 0;
+
+    if (param_type == NULL || arg_type == NULL) {
+        return 0;
+    }
+
+    if (is_ref) {
+        return TypesEqual(param_type, arg_type);
+    }
+
+    return AreTypesCompatible(param_type, arg_type, 0);
 }
 
 /* ============================================================================
@@ -127,84 +342,208 @@ int IsArgumentCompatibleWithParameter(NType *param_type, NType *arg_type, int is
    ============================================================================ */
 
 int IsNumericType(NType *type) {
-    /* TODO: Проверить, является ли тип числовым
-       - Числовые типы: TYPE_INT, TYPE_FLOAT, TYPE_DOUBLE, TYPE_REAL, TYPE_CHAR
-       - Вернуть 1 если числовой, 0 если нет */
+
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_INT:
+            case TYPE_FLOAT:
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+            case TYPE_CHAR:
+                return 1;
+            default:
+                return 0;
+        }
+    }
     return 0;
 }
 
 int IsIntegralType(NType *type) {
-    /* TODO: Проверить, является ли тип целым числом
-       - Целые типы: TYPE_INT, TYPE_CHAR
-       - Вернуть 1 если целый, 0 если нет */
+
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_INT:
+            case TYPE_CHAR:
+                return 1;
+            default:
+                return 0;
+        }
+    }
     return 0;
 }
 
 int IsFloatingPointType(NType *type) {
-    /* TODO: Проверить, является ли тип с плавающей точкой
-       - Типы: TYPE_FLOAT, TYPE_DOUBLE, TYPE_REAL
-       - Вернуть 1 если float, 0 если нет */
+
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_FLOAT:
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+                return 1;
+            default:
+                return 0;
+        }
+    }
     return 0;
 }
 
 int IsBooleanType(NType *type) {
-    /* TODO: Проверить, является ли тип булевым
-       - Тип: TYPE_BOOL
-       - Вернуть 1 если bool, 0 если нет */
+
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        return type->base_type == TYPE_BOOL ? 1 : 0;
+    }
     return 0;
 }
 
 int CanBeArrayIndex(NType *type) {
-    /* TODO: Проверить, может ли тип использоваться как индекс массива
-       - Индекс должен быть целым числом: TYPE_INT, TYPE_CHAR
-       - Вернуть 1 если может, 0 если нет
-       Использует: IsIntegralType */
-    return 0;
+
+    return IsIntegralType(type);
 }
 
 int CanBeCondition(NType *type) {
-    /* TODO: Проверить, может ли тип использоваться как условие
-       - Условие должно быть boolean или числовым типом
-       - TYPE_BOOL, TYPE_INT, TYPE_CHAR, TYPE_FLOAT и т.д.
-       - Вернуть 1 если может, 0 если нет
-       Использует: IsBooleanType, IsNumericType */
+
+    if (type == NULL) {
+        return 0;
+    }
+    if (IsBooleanType(type)) {
+        return 1;
+    }
+    if (IsNumericType(type)) {
+        return 1;
+    }
     return 0;
 }
 
-/* ============================================================================
-   СОЗДАНИЕ И КОПИРОВАНИЕ ТИПОВ
-   ============================================================================ */
-
 NType* CopyType(NType *type) {
-    /* TODO: Создать глубокую копию типа
-       - Если type == NULL - вернуть NULL
-       - Выделить память для новой NType
-       - Скопировать все поля (base_type, kind, тип класса, размерность массива)
-       - Если это класс - скопировать имя класса
-       - Если это массив - скопировать информацию о размере
-       - Вернуть новый NType или NULL при ошибке памяти */
-    return NULL;
+
+    NType *copy;
+    NArrayDecl *array_copy = NULL;
+
+    if (type == NULL) {
+        return NULL;
+    }
+
+    copy = (NType*)malloc(sizeof(NType));
+    if (copy == NULL) {
+        return NULL;
+    }
+    memset(copy, 0, sizeof(NType));
+    copy->kind = type->kind;
+    copy->base_type = type->base_type;
+
+    if (type->class_name != NULL) {
+        copy->class_name = (char*)malloc(strlen(type->class_name) + 1);
+        if (copy->class_name == NULL) {
+            free(copy);
+            return NULL;
+        }
+        strcpy(copy->class_name, type->class_name);
+    }
+
+    if (type->array_decl != NULL) {
+        array_copy = (NArrayDecl*)malloc(sizeof(NArrayDecl));
+        if (array_copy == NULL) {
+            free(copy->class_name);
+            free(copy);
+            return NULL;
+        }
+        array_copy->has_size = type->array_decl->has_size;
+        array_copy->size = type->array_decl->size;
+        copy->array_decl = array_copy;
+    }
+
+    return copy;
 }
 
 int TypesEqual(NType *type1, NType *type2) {
-    /* TODO: Проверить, идентичны ли два типа
-       - Если оба NULL - равны
-       - Если один NULL, другой нет - не равны
-       - Проверить base_type
-       - Проверить kind (является ли классом)
-       - Если класс - проверить имена классов (strcmp)
-       - Проверить размерность массива (array_size, is_array)
-       - Вернуть 1 если идентичны, 0 если нет */
-    return 0;
+
+    if (type1 == NULL && type2 == NULL) {
+        return 1;
+    }
+    if (type1 == NULL || type2 == NULL) {
+        return 0;
+    }
+
+    if (type1->kind != type2->kind) {
+        return 0;
+    }
+    if (type1->base_type != type2->base_type) {
+        return 0;
+    }
+
+    if (type1->kind == TYPE_KIND_CLASS || type1->kind == TYPE_KIND_CLASS_ARRAY) {
+        if (type1->class_name == NULL && type2->class_name == NULL) {
+            return 1;
+        }
+        if (type1->class_name == NULL || type2->class_name == NULL) {
+            return 0;
+        }
+        if (strcmp(type1->class_name, type2->class_name) != 0) {
+            return 0;
+        }
+    }
+
+    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY) ||
+        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY)) {
+        if (type1->array_decl == NULL && type2->array_decl == NULL) {
+            return 1;
+        }
+        if (type1->array_decl == NULL || type2->array_decl == NULL) {
+            return 0;
+        }
+        if (type1->array_decl->has_size != type2->array_decl->has_size) {
+            return 0;
+        }
+        if (type1->array_decl->has_size &&
+            type1->array_decl->size != type2->array_decl->size) {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 const char* TypeToString(NType *type) {
-    /* TODO: Преобразовать тип в строку для вывода ошибок
-       - Если type == NULL - вернуть "unknown"
-       - Для базовых типов: "int", "float", "string", "char", "bool", "double", "real", "void"
-       - Для классов: имя класса
-       - Для массивов: добавить "[]" в конец (например, "int[]", "MyClass[]")
-       - Использовать статическую переменную или malloc для результата
-       - Вернуть указатель на строку (не должна быть освобождена пользователем) */
-    return "unknown";
+
+    static char buffer[128];
+    const char *base = "unknown";
+
+    if (type == NULL) {
+        return "unknown";
+    }
+
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        base = (type->class_name != NULL) ? type->class_name : "class";
+    } else if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_INT: base = "int"; break;
+            case TYPE_FLOAT: base = "float"; break;
+            case TYPE_STRING: base = "string"; break;
+            case TYPE_CHAR: base = "char"; break;
+            case TYPE_BOOL: base = "bool"; break;
+            case TYPE_DOUBLE: base = "double"; break;
+            case TYPE_REAL: base = "real"; break;
+            case TYPE_VOID: base = "void"; break;
+            default: base = "unknown"; break;
+        }
+    }
+
+    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        snprintf(buffer, sizeof(buffer), "%s[]", base);
+        return buffer;
+    }
+
+    return base;
 }

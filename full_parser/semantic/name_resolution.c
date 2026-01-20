@@ -343,42 +343,160 @@ int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info) {
    ============================================================================ */
 
 int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
-    /* TODO: Добавить функцию в контекст
-       - Проверить, что функция не дублируется (LookupGlobalSymbol)
-       - Если дублируется - добавить ошибку и вернуть 1
-       - Создать Symbol с типом SYMBOL_FUNCTION
-       - Добавить в глобальную таблицу (AddSymbolToTable)
-       - Добавить в ctx->functions для быстрого доступа
-       - Вернуть 0 если успешно
-       Использует: CreateDuplicateSymbolError, AddSymbolToTable */
+    
+    Symbol sym;
+    FunctionInfo **grown;
+
+    if (ctx == NULL || func_info == NULL || func_info->name == NULL) {
+        return 1;
+    }
+
+    if (LookupGlobalSymbol(ctx, func_info->name) != NULL) {
+        if (ctx->errors != NULL) {
+            SemanticError err = CreateDuplicateSymbolError(func_info->name,
+                                                          func_info->line,
+                                                          func_info->column);
+            AddError(ctx->errors, &err);
+        }
+        return 1;
+    }
+
+    memset(&sym, 0, sizeof(Symbol));
+    sym.kind = SYMBOL_FUNCTION;
+    sym.name = func_info->name;
+    sym.info.func_info = func_info;
+    sym.scope_depth = 0;
+
+    if (AddSymbolToTable(ctx, &sym) != 0) {
+        return 1;
+    }
+
+    grown = (FunctionInfo**)realloc(ctx->functions,
+                                    sizeof(FunctionInfo*) * (size_t)(ctx->function_count + 1));
+    if (grown == NULL) {
+        return 1;
+    }
+    ctx->functions = grown;
+    ctx->functions[ctx->function_count] = func_info;
+    ctx->function_count += 1;
     return 0;
 }
 
 int AddClassToContext(SemanticContext *ctx, ClassInfo *class_info) {
-    /* TODO: Добавить класс в контекст
-       - Проверить, что класс не дублируется
-       - Если базовый класс указан - проверить что он существует (LookupClass)
-       - Если базовый класс не найден - добавить ошибку и вернуть 1
-       - Создать Symbol с типом SYMBOL_CLASS
-       - Добавить в глобальную таблицу
-       - Добавить в ctx->classes для быстрого доступа
-       - Вернуть 0 если успешно
-       Использует: CreateDuplicateSymbolError, CreateInvalidBaseClassError,
-                   AddSymbolToTable, LookupClass */
+    Symbol sym;
+    ClassInfo **grown;
+
+    if (ctx == NULL || class_info == NULL || class_info->name == NULL) {
+        return 1;
+    }
+
+    if (LookupGlobalSymbol(ctx, class_info->name) != NULL) {
+        if (ctx->errors != NULL) {
+            SemanticError err = CreateDuplicateSymbolError(class_info->name,
+                                                          class_info->line,
+                                                          class_info->column);
+            AddError(ctx->errors, &err);
+        }
+        return 1;
+    }
+
+    if (class_info->base_class != NULL) {
+        if (LookupClass(ctx, class_info->base_class) == NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateInvalidBaseClassError(class_info->base_class,
+                                                               class_info->line,
+                                                               class_info->column);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
+        }
+    }
+
+    memset(&sym, 0, sizeof(Symbol));
+    sym.kind = SYMBOL_CLASS;
+    sym.name = class_info->name;
+    sym.info.class_info = class_info;
+    sym.scope_depth = 0;
+
+    if (AddSymbolToTable(ctx, &sym) != 0) {
+        return 1;
+    }
+
+    grown = (ClassInfo**)realloc(ctx->classes,
+                                 sizeof(ClassInfo*) * (size_t)(ctx->class_count + 1));
+    if (grown == NULL) {
+        return 1;
+    }
+    ctx->classes = grown;
+    ctx->classes[ctx->class_count] = class_info;
+    ctx->class_count += 1;
     return 0;
 }
 
 int AddEnumToContext(SemanticContext *ctx, EnumInfo *enum_info) {
-    /* TODO: Добавить enum в контекст
-       - Если enum имеет имя - проверить что оно не дублируется
-       - Проверить, что элементы enum'а не дублируются
-       - Если дублирование - добавить ошибку и вернуть 1
-       - Создать Symbol с типом SYMBOL_ENUM_TYPE
-       - Добавить в глобальную таблицу
-       - Добавить в ctx->enums для быстрого доступа
-       - Вернуть 0 если успешно
-       Использует: CreateDuplicateSymbolError, CreateEnumDuplicateItemError,
-                   AddSymbolToTable */
+    Symbol sym;
+    EnumInfo **grown;
+
+    if (ctx == NULL || enum_info == NULL) {
+        return 1;
+    }
+
+    if (enum_info->name != NULL) {
+        if (LookupGlobalSymbol(ctx, enum_info->name) != NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateDuplicateSymbolError(enum_info->name,
+                                                              enum_info->line,
+                                                              enum_info->column);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
+        }
+    }
+
+    if (enum_info->items != NULL) {
+        for (int i = 0; i < enum_info->item_count; i++) {
+            EnumItemInfo *item = enum_info->items[i];
+            if (item == NULL || item->name == NULL) {
+                continue;
+            }
+            for (int j = i + 1; j < enum_info->item_count; j++) {
+                EnumItemInfo *other = enum_info->items[j];
+                if (other == NULL || other->name == NULL) {
+                    continue;
+                }
+                if (strcmp(item->name, other->name) == 0) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateEnumDuplicateItemError(item->name,
+                                                                         enum_info->line,
+                                                                         enum_info->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    return 1;
+                }
+            }
+        }
+    }
+
+    if (enum_info->name != NULL) {
+        memset(&sym, 0, sizeof(Symbol));
+        sym.kind = SYMBOL_ENUM_TYPE;
+        sym.name = enum_info->name;
+        sym.info.enum_info = enum_info;
+        sym.scope_depth = 0;
+
+        if (AddSymbolToTable(ctx, &sym) != 0) {
+            return 1;
+        }
+    }
+
+    grown = (EnumInfo**)realloc(ctx->enums,
+                                sizeof(EnumInfo*) * (size_t)(ctx->enum_count + 1));
+    if (grown == NULL) {
+        return 1;
+    }
+    ctx->enums = grown;
+    ctx->enums[ctx->enum_count] = enum_info;
+    ctx->enum_count += 1;
     return 0;
 }
 
@@ -387,50 +505,98 @@ int AddEnumToContext(SemanticContext *ctx, EnumInfo *enum_info) {
    ============================================================================ */
 
 FunctionInfo* LookupFunction(SemanticContext *ctx, const char *name) {
-    /* TODO: Найти функцию по имени
-       - Пройти по ctx->functions
-       - Найти функцию с нужным именем
-       - Вернуть найденную FunctionInfo или NULL */
+    if (ctx == NULL || name == NULL) {
+        return NULL;
+    }
+    if (ctx->functions == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < ctx->function_count; i++) {
+        FunctionInfo *func = ctx->functions[i];
+        if (func != NULL && func->name != NULL && strcmp(func->name, name) == 0) {
+            return func;
+        }
+    }
     return NULL;
 }
 
 ClassInfo* LookupClass(SemanticContext *ctx, const char *name) {
-    /* TODO: Найти класс по имени
-       - Пройти по ctx->classes
-       - Найти класс с нужным именем
-       - Вернуть найденный ClassInfo или NULL */
+    if (ctx == NULL || name == NULL) {
+        return NULL;
+    }
+    if (ctx->classes == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < ctx->class_count; i++) {
+        ClassInfo *cls = ctx->classes[i];
+        if (cls != NULL && cls->name != NULL && strcmp(cls->name, name) == 0) {
+            return cls;
+        }
+    }
     return NULL;
 }
 
 EnumInfo* LookupEnum(SemanticContext *ctx, const char *name) {
-    /* TODO: Найти enum по имени
-       - Пройти по ctx->enums
-       - Найти enum с нужным именем
-       - Вернуть найденный EnumInfo или NULL */
+    if (ctx == NULL || name == NULL) {
+        return NULL;
+    }
+    if (ctx->enums == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < ctx->enum_count; i++) {
+        EnumInfo *en = ctx->enums[i];
+        if (en != NULL && en->name != NULL && strcmp(en->name, name) == 0) {
+            return en;
+        }
+    }
     return NULL;
 }
 
 FieldInfo* LookupClassField(ClassInfo *class_info, const char *field_name) {
-    /* TODO: Найти поле класса по имени
-       - Пройти по class_info->fields
-       - Найти поле с нужным именем
-       - Вернуть найденное FieldInfo или NULL */
+    if (class_info == NULL || field_name == NULL) {
+        return NULL;
+    }
+    if (class_info->fields == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < class_info->field_count; i++) {
+        FieldInfo *field = class_info->fields[i];
+        if (field != NULL && field->name != NULL && strcmp(field->name, field_name) == 0) {
+            return field;
+        }
+    }
     return NULL;
 }
 
 MethodInfo* LookupClassMethod(ClassInfo *class_info, const char *method_name) {
-    /* TODO: Найти метод класса по имени
-       - Пройти по class_info->methods
-       - Найти метод с нужным именем
-       - Вернуть найденный MethodInfo или NULL */
+    if (class_info == NULL || method_name == NULL) {
+        return NULL;
+    }
+    if (class_info->methods == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < class_info->method_count; i++) {
+        MethodInfo *method = class_info->methods[i];
+        if (method != NULL && method->name != NULL && strcmp(method->name, method_name) == 0) {
+            return method;
+        }
+    }
     return NULL;
 }
 
 EnumItemInfo* LookupEnumItem(EnumInfo *enum_info, const char *item_name) {
-    /* TODO: Найти элемент enum по имени
-       - Пройти по enum_info->items
-       - Найти элемент с нужным именем
-       - Вернуть найденный EnumItemInfo или NULL */
+    if (enum_info == NULL || item_name == NULL) {
+        return NULL;
+    }
+    if (enum_info->items == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < enum_info->item_count; i++) {
+        EnumItemInfo *item = enum_info->items[i];
+        if (item != NULL && item->name != NULL && strcmp(item->name, item_name) == 0) {
+            return item;
+        }
+    }
     return NULL;
 }
 
@@ -439,18 +605,34 @@ EnumItemInfo* LookupEnumItem(EnumInfo *enum_info, const char *item_name) {
    ============================================================================ */
 
 int IsFieldAccessible(FieldInfo *field, int inside_class) {
-    /* TODO: Проверить доступность поля класса
-       - Если поле public - всегда доступно
-       - Если поле private - доступно только изнутри класса
-       - Если поле protected - доступно изнутри класса и наследников (упрощённо: только изнутри)
-       - Вернуть 1 если доступно, 0 если нет
-       Использует: inside_class (1 если код находится внутри класса) */
-    return 1;
+
+    if (field == NULL) {
+        return 0;
+    }
+    switch (field->access) {
+        case ACCESS_PUBLIC:
+            return 1;
+        case ACCESS_PRIVATE:
+            return inside_class ? 1 : 0;
+        case ACCESS_PROTECTED:
+            return inside_class ? 1 : 0;
+        default:
+            return 0;
+    }
 }
 
 int IsMethodAccessible(MethodInfo *method, int inside_class) {
-    /* TODO: Проверить доступность метода класса
-       - Та же логика как для полей
-       - Вернуть 1 если доступно, 0 если нет */
-    return 1;
+    if (method == NULL) {
+        return 0;
+    }
+    switch (method->access) {
+        case ACCESS_PUBLIC:
+            return 1;
+        case ACCESS_PRIVATE:
+            return inside_class ? 1 : 0;
+        case ACCESS_PROTECTED:
+            return inside_class ? 1 : 0;
+        default:
+            return 0;
+    }
 }
