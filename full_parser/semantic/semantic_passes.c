@@ -780,6 +780,7 @@ int CheckStatements(NStmt *stmts, SemanticContext *ctx) {
 int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
 
     int had_error = 0;
+    Scope *scope;
 
     if (stmt == NULL) {
         return 0;
@@ -787,6 +788,9 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
     if (ctx == NULL) {
         return 1;
     }
+
+    scope = GetCurrentScope(ctx);
+    stmt->scope_id = scope ? scope->depth : -1;
 
     switch (stmt->type) {
         case STMT_EXPR:
