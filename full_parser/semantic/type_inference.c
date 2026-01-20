@@ -55,6 +55,25 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_IDENT: {
             Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
             if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
+                if (ctx != NULL && ctx->current_class != NULL) {
+                    ClassInfo *owner = NULL;
+                    FieldInfo *field = NULL;
+                    ClassInfo *current = ctx->current_class;
+                    while (current != NULL) {
+                        field = LookupClassField(current, expr->value.ident_name);
+                        if (field != NULL) {
+                            owner = current;
+                            break;
+                        }
+                        if (current->base_class == NULL) {
+                            break;
+                        }
+                        current = LookupClass(ctx, current->base_class);
+                    }
+                    if (field != NULL && owner != NULL) {
+                        return CopyType(field->type, ctx);
+                    }
+                }
                 if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedVariableError(expr->value.ident_name,
                                                                     expr->line,
@@ -94,6 +113,26 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_FUNC_CALL: {
             FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
             if (func == NULL) {
+                if (ctx != NULL && ctx->current_class != NULL) {
+                    ClassInfo *current = ctx->current_class;
+                    MethodInfo *method = NULL;
+                    while (current != NULL) {
+                        method = LookupClassMethod(current, expr->value.func_call.func_name);
+                        if (method != NULL) {
+                            break;
+                        }
+                        if (current->base_class == NULL) {
+                            break;
+                        }
+                        current = LookupClass(ctx, current->base_class);
+                    }
+                    if (method != NULL) {
+                        if (method->return_type == NULL) {
+                            return CreateBaseType(TYPE_VOID);
+                        }
+                        return CopyType(method->return_type, ctx);
+                    }
+                }
                 if (report_errors && ctx != NULL && ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
                                                                     expr->line,

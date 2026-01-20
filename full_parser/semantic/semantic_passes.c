@@ -110,6 +110,36 @@ static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, co
     return 0;
 }
 
+static ClassInfo *FindFieldOwnerInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
+                                            const char *field_name) {
+    ClassInfo *current = class_info;
+    while (current != NULL) {
+        if (LookupClassField(current, field_name) != NULL) {
+            return current;
+        }
+        if (current->base_class == NULL || ctx == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
+    }
+    return NULL;
+}
+
+static ClassInfo *FindMethodOwnerInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
+                                             const char *method_name) {
+    ClassInfo *current = class_info;
+    while (current != NULL) {
+        if (LookupClassMethod(current, method_name) != NULL) {
+            return current;
+        }
+        if (current->base_class == NULL || ctx == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
+    }
+    return NULL;
+}
+
 static int IsInsideHierarchyAccess(SemanticContext *ctx, const NExpr *obj, const char *target_class) {
     if (ctx == NULL || ctx->current_class == NULL || target_class == NULL) {
         return 0;
@@ -1582,13 +1612,39 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
         case EXPR_IDENT: {
             Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
             if (sym == NULL) {
-                if (ctx->errors != NULL) {
-                    SemanticError err = CreateUndefinedVariableError(expr->value.ident_name,
-                                                                    expr->line,
-                                                                    expr->column);
-                    AddError(ctx->errors, &err);
+                int handled = 0;
+                if (ctx->current_class != NULL) {
+                    ClassInfo *owner = FindFieldOwnerInHierarchy(ctx,
+                                                                 ctx->current_class,
+                                                                 expr->value.ident_name);
+                    if (owner != NULL) {
+                        FieldInfo *field = LookupClassField(owner, expr->value.ident_name);
+                        int inside_class = strcmp(ctx->current_class->name, owner->name) == 0;
+                        int inside_hierarchy = IsSameOrBaseClass(ctx,
+                                                                 ctx->current_class->name,
+                                                                 owner->name);
+                        if (!IsFieldAccessible(field, inside_class, inside_hierarchy)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateAccessViolationError(field->name,
+                                                                              AccessSpecToString(field->access),
+                                                                              expr->line,
+                                                                              expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                        handled = 1;
+                    }
                 }
-                had_error = 1;
+                if (!handled) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateUndefinedVariableError(expr->value.ident_name,
+                                                                        expr->line,
+                                                                        expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
             } else if (!IsSymbolAccessible(sym, ctx)) {
                 if (ctx->errors != NULL) {
                     SemanticError err = CreateOutOfScopeError(expr->value.ident_name,
@@ -1602,6 +1658,98 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
         }
         case EXPR_FUNC_CALL: {
             FunctionInfo *func = LookupFunction(ctx, expr->value.func_call.func_name);
+            if (func == NULL && ctx->current_class != NULL) {
+                ClassInfo *owner = FindMethodOwnerInHierarchy(ctx,
+                                                              ctx->current_class,
+                                                              expr->value.func_call.func_name);
+                if (owner != NULL) {
+                    MethodInfo *method = LookupClassMethod(owner, expr->value.func_call.func_name);
+                    int inside_class = strcmp(ctx->current_class->name, owner->name) == 0;
+                    int inside_hierarchy = IsSameOrBaseClass(ctx,
+                                                             ctx->current_class->name,
+                                                             owner->name);
+                    int expected = method->params ? method->params->count : 0;
+                    int actual = expr->value.func_call.arg_count;
+                    if (!IsMethodAccessible(method, inside_class, inside_hierarchy)) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateAccessViolationError(method->name,
+                                                                          AccessSpecToString(method->access),
+                                                                          expr->line,
+                                                                          expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                    if (actual > expected) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateWrongArgCountError(method->name,
+                                                                        expected,
+                                                                        actual,
+                                                                        expr->line,
+                                                                        expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    } else if (actual < expected && method->params != NULL) {
+                        for (int i = actual; i < expected; i++) {
+                            NParam *param = method->params->params[i];
+                            if (param == NULL || param->default_value == NULL) {
+                                if (ctx->errors != NULL) {
+                                    SemanticError err = CreateWrongArgCountError(method->name,
+                                                                                expected,
+                                                                                actual,
+                                                                                expr->line,
+                                                                                expr->column);
+                                    AddError(ctx->errors, &err);
+                                }
+                                had_error = 1;
+                                break;
+                            }
+                        }
+                    }
+                    for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                        if (CheckExpression(expr->value.func_call.args[i], ctx) != 0) {
+                            had_error = 1;
+                        }
+                    }
+                    if (method->params != NULL) {
+                        int count = expected < actual ? expected : actual;
+                        for (int i = 0; i < count; i++) {
+                            NParam *param = method->params->params[i];
+                            NExpr *arg = expr->value.func_call.args[i];
+                            if (param == NULL || arg == NULL) {
+                                continue;
+                            }
+                            if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                if (ctx->errors != NULL) {
+                                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                          "ref argument must be assignable",
+                                                                          arg->line,
+                                                                          arg->column);
+                                    AddError(ctx->errors, &err);
+                                }
+                                had_error = 1;
+                            }
+                            if (param->param_type != NULL) {
+                                NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                                if (arg_type != NULL &&
+                                    !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                    if (ctx->errors != NULL) {
+                                        SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                    TypeToString(arg_type),
+                                                                                    "as argument",
+                                                                                    arg->line,
+                                                                                    arg->column);
+                                        AddError(ctx->errors, &err);
+                                    }
+                                    had_error = 1;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
             if (func == NULL) {
                 if (ctx->errors != NULL) {
                     SemanticError err = CreateUndefinedFunctionError(expr->value.func_call.func_name,
@@ -2072,6 +2220,87 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         AddError(ctx->errors, &err);
                     }
                     had_error = 1;
+                } else if (expr->value.new_expr.type->kind == TYPE_KIND_CLASS) {
+                    ClassInfo *class_info = LookupClass(ctx, expr->value.new_expr.type->class_name);
+                    NCtorDef *ctor = class_info ? class_info->constructor : NULL;
+                    int expected = (ctor && ctor->params) ? ctor->params->count : 0;
+                    int actual = expr->value.new_expr.init_count;
+                    if (ctor == NULL) {
+                        if (actual > 0) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateWrongArgCountError("constructor",
+                                                                            0,
+                                                                            actual,
+                                                                            expr->line,
+                                                                            expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                    } else {
+                        if (actual > expected) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateWrongArgCountError("constructor",
+                                                                            expected,
+                                                                            actual,
+                                                                            expr->line,
+                                                                            expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        } else if (actual < expected && ctor->params != NULL) {
+                            for (int i = actual; i < expected; i++) {
+                                NParam *param = ctor->params->params[i];
+                                if (param == NULL || param->default_value == NULL) {
+                                    if (ctx->errors != NULL) {
+                                        SemanticError err = CreateWrongArgCountError("constructor",
+                                                                                    expected,
+                                                                                    actual,
+                                                                                    expr->line,
+                                                                                    expr->column);
+                                        AddError(ctx->errors, &err);
+                                    }
+                                    had_error = 1;
+                                    break;
+                                }
+                            }
+                        }
+                        if (ctor->params != NULL) {
+                            int count = expected < actual ? expected : actual;
+                            for (int i = 0; i < count; i++) {
+                                NParam *param = ctor->params->params[i];
+                                NExpr *arg = expr->value.new_expr.init_exprs[i];
+                                if (param == NULL || arg == NULL) {
+                                    continue;
+                                }
+                                if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                    if (ctx->errors != NULL) {
+                                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                              "ref argument must be assignable",
+                                                                              arg->line,
+                                                                              arg->column);
+                                        AddError(ctx->errors, &err);
+                                    }
+                                    had_error = 1;
+                                }
+                                if (param->param_type != NULL) {
+                                    NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                                    if (arg_type != NULL &&
+                                        !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                        if (ctx->errors != NULL) {
+                                            SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                        TypeToString(arg_type),
+                                                                                        "as argument",
+                                                                                        arg->line,
+                                                                                        arg->column);
+                                            AddError(ctx->errors, &err);
+                                        }
+                                        had_error = 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             for (int i = 0; i < expr->value.new_expr.init_count; i++) {
