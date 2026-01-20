@@ -1003,16 +1003,20 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     had_error = 1;
                 }
             }
+            ctx->loop_depth += 1;
             if (CheckStatement(stmt->value.while_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
+            ctx->loop_depth -= 1;
             break;
         }
         case STMT_DO_WHILE: {
             NExpr *cond = stmt->value.do_while_stmt.condition;
+            ctx->loop_depth += 1;
             if (CheckStatement(stmt->value.do_while_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
+            ctx->loop_depth -= 1;
             if (CheckExpressions(cond, ctx) != 0) {
                 had_error = 1;
             }
@@ -1130,9 +1134,11 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             if (CheckExpressions(stmt->value.for_stmt.iter_expr, ctx) != 0) {
                 had_error = 1;
             }
+            ctx->loop_depth += 1;
             if (CheckStatement(stmt->value.for_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
+            ctx->loop_depth -= 1;
             if (PopScope(ctx) != 0) {
                 had_error = 1;
             }
@@ -1165,9 +1171,11 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     }
                 }
             }
+            ctx->loop_depth += 1;
             if (CheckStatement(stmt->value.foreach_stmt.body, ctx, expected_return_type, return_seen) != 0) {
                 had_error = 1;
             }
+            ctx->loop_depth -= 1;
             if (PopScope(ctx) != 0) {
                 had_error = 1;
             }
@@ -1177,6 +1185,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             if (CheckExpressions(stmt->value.switch_stmt.expr, ctx) != 0) {
                 had_error = 1;
             }
+            ctx->switch_depth += 1;
             for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
                 NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
                 if (item == NULL) {
@@ -1193,6 +1202,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     }
                 }
             }
+            ctx->switch_depth -= 1;
             break;
         }
         case STMT_RETURN:
@@ -1250,7 +1260,27 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             }
             break;
         case STMT_BREAK:
+            if (ctx->loop_depth <= 0 && ctx->switch_depth <= 0) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "break used outside of loop or switch",
+                                                          stmt->line,
+                                                          stmt->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
         case STMT_CONTINUE:
+            if (stmt->type == STMT_CONTINUE && ctx->loop_depth <= 0) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "continue used outside of loop",
+                                                          stmt->line,
+                                                          stmt->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
             break;
         case STMT_COMPOUND:
             if (PushScope(ctx, "block") != 0) {

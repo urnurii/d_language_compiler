@@ -108,6 +108,8 @@ SemanticContext* CreateSemanticContext(void) {
     }
     ctx->has_errors = 0;
     ctx->current_class = NULL;
+    ctx->loop_depth = 0;
+    ctx->switch_depth = 0;
     ctx->classes = NULL;
     ctx->class_count = 0;
     ctx->functions = NULL;
