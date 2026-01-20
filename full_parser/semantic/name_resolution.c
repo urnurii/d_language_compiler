@@ -622,7 +622,7 @@ EnumItemInfo* LookupEnumItem(EnumInfo *enum_info, const char *item_name) {
    ПРОВЕРКА ДОСТУПА
    ============================================================================ */
 
-int IsFieldAccessible(FieldInfo *field, int inside_class) {
+int IsFieldAccessible(FieldInfo *field, int inside_class, int inside_hierarchy) {
 
     if (field == NULL) {
         return 0;
@@ -633,13 +633,13 @@ int IsFieldAccessible(FieldInfo *field, int inside_class) {
         case ACCESS_PRIVATE:
             return inside_class ? 1 : 0;
         case ACCESS_PROTECTED:
-            return inside_class ? 1 : 0;
+            return inside_hierarchy ? 1 : 0;
         default:
             return 0;
     }
 }
 
-int IsMethodAccessible(MethodInfo *method, int inside_class) {
+int IsMethodAccessible(MethodInfo *method, int inside_class, int inside_hierarchy) {
     if (method == NULL) {
         return 0;
     }
@@ -649,7 +649,7 @@ int IsMethodAccessible(MethodInfo *method, int inside_class) {
         case ACCESS_PRIVATE:
             return inside_class ? 1 : 0;
         case ACCESS_PROTECTED:
-            return inside_class ? 1 : 0;
+            return inside_hierarchy ? 1 : 0;
         default:
             return 0;
     }

@@ -115,8 +115,8 @@ EnumItemInfo* LookupEnumItem(EnumInfo *enum_info, const char *item_name);
 /* Проверить, доступно ли поле/метод класса из текущего контекста
    Учитывает: public/private/protected, контекст вызова (внутри класса или снаружи)
    Возвращает: 1 если доступно, 0 если нет */
-int IsFieldAccessible(FieldInfo *field, int inside_class);
+int IsFieldAccessible(FieldInfo *field, int inside_class, int inside_hierarchy);
 
-int IsMethodAccessible(MethodInfo *method, int inside_class);
+int IsMethodAccessible(MethodInfo *method, int inside_class, int inside_hierarchy);
 
 #endif /* NAME_RESOLUTION_H */
