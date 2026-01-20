@@ -1634,10 +1634,90 @@ int AttributeExpressions(NExpr *root, SemanticContext *ctx) {
     return 0;
 }
 
-int AttributeStatements(NStmt *stmts, SemanticContext *ctx) {
-
-    NStmt *stmt;
+static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
     Scope *scope;
+
+    if (stmt == NULL) {
+        return 0;
+    }
+    if (ctx == NULL) {
+        return 1;
+    }
+
+    scope = GetCurrentScope(ctx);
+    stmt->scope_id = scope ? scope->depth : -1;
+
+    switch (stmt->type) {
+        case STMT_EXPR:
+        case STMT_RETURN:
+            AttributeExpressions(stmt->value.expr, ctx);
+            break;
+        case STMT_DECL:
+            if (stmt->value.decl.init_decls) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        AttributeExpressions(decl->initializer->expr, ctx);
+                    }
+                }
+            }
+            break;
+        case STMT_COMPOUND:
+            AttributeStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx);
+            break;
+        case STMT_IF:
+            AttributeExpressions(stmt->value.if_stmt.condition, ctx);
+            AttributeStatement(stmt->value.if_stmt.then_stmt, ctx);
+            AttributeStatement(stmt->value.if_stmt.else_stmt, ctx);
+            break;
+        case STMT_WHILE:
+            AttributeExpressions(stmt->value.while_stmt.condition, ctx);
+            AttributeStatement(stmt->value.while_stmt.body, ctx);
+            break;
+        case STMT_DO_WHILE:
+            AttributeStatement(stmt->value.do_while_stmt.body, ctx);
+            AttributeExpressions(stmt->value.do_while_stmt.condition, ctx);
+            break;
+        case STMT_FOR:
+            AttributeExpressions(stmt->value.for_stmt.init_expr, ctx);
+            if (stmt->value.for_stmt.init_decls) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        AttributeExpressions(decl->initializer->expr, ctx);
+                    }
+                }
+            }
+            AttributeExpressions(stmt->value.for_stmt.cond_expr, ctx);
+            AttributeExpressions(stmt->value.for_stmt.iter_expr, ctx);
+            AttributeStatement(stmt->value.for_stmt.body, ctx);
+            break;
+        case STMT_FOREACH:
+            AttributeExpressions(stmt->value.foreach_stmt.collection, ctx);
+            AttributeStatement(stmt->value.foreach_stmt.body, ctx);
+            break;
+        case STMT_SWITCH:
+            AttributeExpressions(stmt->value.switch_stmt.expr, ctx);
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->case_expr) {
+                    AttributeExpressions(item->case_expr, ctx);
+                }
+                if (item && item->stmts) {
+                    AttributeStatements(item->stmts->first, ctx);
+                }
+            }
+            break;
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+
+    return 0;
+}
+
+int AttributeStatements(NStmt *stmts, SemanticContext *ctx) {
+    NStmt *stmt;
 
     if (stmts == NULL) {
         return 0;
@@ -1646,75 +1726,9 @@ int AttributeStatements(NStmt *stmts, SemanticContext *ctx) {
         return 1;
     }
 
-    scope = GetCurrentScope(ctx);
     stmt = stmts;
     while (stmt != NULL) {
-        stmt->scope_id = scope ? scope->depth : -1;
-        switch (stmt->type) {
-            case STMT_EXPR:
-            case STMT_RETURN:
-                AttributeExpressions(stmt->value.expr, ctx);
-                break;
-            case STMT_DECL:
-                if (stmt->value.decl.init_decls) {
-                    for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
-                        NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
-                        if (decl && decl->initializer && decl->initializer->expr) {
-                            AttributeExpressions(decl->initializer->expr, ctx);
-                        }
-                    }
-                }
-                break;
-            case STMT_COMPOUND:
-                AttributeStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx);
-                break;
-            case STMT_IF:
-                AttributeExpressions(stmt->value.if_stmt.condition, ctx);
-                AttributeStatements(stmt->value.if_stmt.then_stmt, ctx);
-                AttributeStatements(stmt->value.if_stmt.else_stmt, ctx);
-                break;
-            case STMT_WHILE:
-                AttributeExpressions(stmt->value.while_stmt.condition, ctx);
-                AttributeStatements(stmt->value.while_stmt.body, ctx);
-                break;
-            case STMT_DO_WHILE:
-                AttributeStatements(stmt->value.do_while_stmt.body, ctx);
-                AttributeExpressions(stmt->value.do_while_stmt.condition, ctx);
-                break;
-            case STMT_FOR:
-                AttributeExpressions(stmt->value.for_stmt.init_expr, ctx);
-                if (stmt->value.for_stmt.init_decls) {
-                    for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
-                        NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
-                        if (decl && decl->initializer && decl->initializer->expr) {
-                            AttributeExpressions(decl->initializer->expr, ctx);
-                        }
-                    }
-                }
-                AttributeExpressions(stmt->value.for_stmt.cond_expr, ctx);
-                AttributeExpressions(stmt->value.for_stmt.iter_expr, ctx);
-                AttributeStatements(stmt->value.for_stmt.body, ctx);
-                break;
-            case STMT_FOREACH:
-                AttributeExpressions(stmt->value.foreach_stmt.collection, ctx);
-                AttributeStatements(stmt->value.foreach_stmt.body, ctx);
-                break;
-            case STMT_SWITCH:
-                AttributeExpressions(stmt->value.switch_stmt.expr, ctx);
-                for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
-                    NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
-                    if (item && item->case_expr) {
-                        AttributeExpressions(item->case_expr, ctx);
-                    }
-                    if (item && item->stmts) {
-                        AttributeStatements(item->stmts->first, ctx);
-                    }
-                }
-                break;
-            case STMT_BREAK:
-            case STMT_CONTINUE:
-                break;
-        }
+        AttributeStatement(stmt, ctx);
         stmt = stmt->next;
     }
     return 0;
