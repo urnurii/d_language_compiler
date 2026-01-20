@@ -1090,7 +1090,14 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx) {
         case STMT_CONTINUE:
             break;
         case STMT_COMPOUND:
+            if (PushScope(ctx, "block") != 0) {
+                had_error = 1;
+                break;
+            }
             if (CheckStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx) != 0) {
+                had_error = 1;
+            }
+            if (PopScope(ctx) != 0) {
                 had_error = 1;
             }
             break;
