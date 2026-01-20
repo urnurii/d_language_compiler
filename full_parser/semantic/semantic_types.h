@@ -69,6 +69,7 @@ typedef struct {
     int method_count;
     NCtorDef *constructor; /* конструктор (может быть NULL) */
     NDtorDef *destructor;  /* деструктор (может быть NULL) */
+    int members_processed; /* обработаны ли члены класса */
     int line;
     int column;
 } ClassInfo;

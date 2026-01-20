@@ -170,6 +170,7 @@ int ProcessClassDefinition(NClassDef *class_def, SemanticContext *ctx) {
     info->method_count = 0;
     info->constructor = NULL;
     info->destructor = NULL;
+    info->members_processed = 0;
     info->line = 0;
     info->column = 0;
 
@@ -603,13 +604,11 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                     }
                 }
                 if (ctx->current_class != NULL) {
-                    if (ctx->current_class->field_count == 0 &&
-                        ctx->current_class->method_count == 0 &&
-                        ctx->current_class->constructor == NULL &&
-                        ctx->current_class->destructor == NULL) {
+                    if (!ctx->current_class->members_processed) {
                         if (ProcessClassMembers(member, ctx->current_class, ctx) != 0) {
                             had_error = 1;
                         }
+                        ctx->current_class->members_processed = 1;
                     }
                 }
                 while (member != NULL) {
