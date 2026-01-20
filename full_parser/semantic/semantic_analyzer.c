@@ -173,7 +173,64 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
         return 1;
     }
-    (void)root;
+    if (root == NULL) {
+        return 0;
+    }
+
+    {
+        NSourceItem *item = root->first_item;
+        while (item != NULL) {
+            switch (item->type) {
+                case SOURCE_ITEM_FUNC:
+                    if (item->value.func && item->value.func->body) {
+                        AttributeStatements(item->value.func->body, ctx);
+                    }
+                    break;
+                case SOURCE_ITEM_CLASS: {
+                    NClassDef *class_def = item->value.class_def;
+                    NClassMember *member = class_def ? class_def->members.first : NULL;
+                    ClassInfo *saved = ctx->current_class;
+                    if (class_def && class_def->class_name) {
+                        ctx->current_class = LookupClass(ctx, class_def->class_name);
+                    }
+                    while (member != NULL) {
+                        if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
+                            AttributeStatements(member->value.method->body, ctx);
+                        } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
+                            AttributeStatements(member->value.ctor->body, ctx);
+                        } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor) {
+                            AttributeStatements(member->value.dtor->body, ctx);
+                        }
+                        member = member->next;
+                    }
+                    ctx->current_class = saved;
+                    break;
+                }
+                case SOURCE_ITEM_DECL: {
+                    NInitDeclList *init_decls = item->value.decl.init_decls;
+                    if (init_decls != NULL) {
+                        for (int i = 0; i < init_decls->count; i++) {
+                            NInitDecl *decl = init_decls->decls[i];
+                            if (decl && decl->initializer) {
+                                if (decl->initializer->is_array) {
+                                    for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                                        AttributeExpressions(decl->initializer->array_init.elements[j], ctx);
+                                    }
+                                } else {
+                                    AttributeExpressions(decl->initializer->expr, ctx);
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+                case SOURCE_ITEM_ENUM:
+                    break;
+            }
+            item = item->next;
+        }
+    }
+
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
