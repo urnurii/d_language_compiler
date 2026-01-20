@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "name_resolution.h"
 #include "error_reporting.h"
+#include "type_inference.h"
 
 static char* DuplicateStringLocal(const char *str) {
     size_t len;
@@ -19,6 +20,45 @@ static char* DuplicateStringLocal(const char *str) {
     }
     memcpy(copy, str, len + 1);
     return copy;
+}
+
+static int AreParamListsCompatible(const NParamList *a, const NParamList *b) {
+    int count_a;
+    int count_b;
+
+    count_a = (a != NULL) ? a->count : 0;
+    count_b = (b != NULL) ? b->count : 0;
+    if (count_a != count_b) {
+        return 0;
+    }
+    for (int i = 0; i < count_a; i++) {
+        NParam *pa = a->params[i];
+        NParam *pb = b->params[i];
+        if (pa == NULL || pb == NULL) {
+            continue;
+        }
+        if (pa->is_ref != pb->is_ref) {
+            return 0;
+        }
+        if (!TypesEqual(pa->param_type, pb->param_type)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int AreFunctionSignaturesCompatible(const FunctionInfo *a, const FunctionInfo *b) {
+    if (a == NULL || b == NULL) {
+        return 0;
+    }
+    if (!TypesEqual(a->return_type, b->return_type)) {
+        return 0;
+    }
+    return AreParamListsCompatible(a->params, b->params);
+}
+
+static void FreeFunctionInfoShallow(FunctionInfo *info) {
+    free(info);
 }
 
 static Symbol* LookupSymbolInTable(SymbolTable *table, const char *name) {
@@ -346,19 +386,47 @@ int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
     
     Symbol sym;
     FunctionInfo **grown;
+    Symbol *existing;
 
     if (ctx == NULL || func_info == NULL || func_info->name == NULL) {
         return 1;
     }
 
-    if (LookupGlobalSymbol(ctx, func_info->name) != NULL) {
-        if (ctx->errors != NULL) {
-            SemanticError err = CreateDuplicateSymbolError(func_info->name,
-                                                          func_info->line,
-                                                          func_info->column);
-            AddError(ctx->errors, &err);
+    existing = LookupGlobalSymbol(ctx, func_info->name);
+    if (existing != NULL) {
+        if (existing->kind != SYMBOL_FUNCTION || existing->info.func_info == NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateDuplicateSymbolError(func_info->name,
+                                                              func_info->line,
+                                                              func_info->column);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
         }
-        return 1;
+        if (!AreFunctionSignaturesCompatible(existing->info.func_info, func_info)) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                      "Function redeclared with different signature",
+                                                      func_info->line,
+                                                      func_info->column);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
+        }
+        if (!existing->info.func_info->is_prototype && !func_info->is_prototype) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateDuplicateSymbolError(func_info->name,
+                                                              func_info->line,
+                                                              func_info->column);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
+        }
+        if (existing->info.func_info->is_prototype && !func_info->is_prototype) {
+            existing->info.func_info->is_prototype = 0;
+        }
+        FreeFunctionInfoShallow(func_info);
+        return 0;
     }
 
     memset(&sym, 0, sizeof(Symbol));

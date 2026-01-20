@@ -143,6 +143,37 @@ static NType *GetForeachElementType(NType *collection_type) {
     return NULL;
 }
 
+static int CheckParamDefaultValues(NParamList *params, SemanticContext *ctx) {
+    int had_error = 0;
+    if (params == NULL || ctx == NULL) {
+        return 0;
+    }
+    for (int i = 0; i < params->count; i++) {
+        NParam *param = params->params[i];
+        if (param == NULL || param->default_value == NULL || param->param_type == NULL) {
+            continue;
+        }
+        if (CheckExpressions(param->default_value, ctx) != 0) {
+            had_error = 1;
+        }
+        {
+            NType *def_type = InferExpressionTypeSilent(param->default_value, ctx);
+            if (def_type != NULL && !CanAssign(param->param_type, def_type)) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                TypeToString(def_type),
+                                                                "as default value",
+                                                                param->default_value->line,
+                                                                param->default_value->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
+        }
+    }
+    return had_error;
+}
+
 static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
     if (left == NULL || right == NULL) {
         return 0;
@@ -233,6 +264,7 @@ int ProcessSourceItems(NProgram *root, SemanticContext *ctx) {
 
 int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
     FunctionInfo *info;
+    int had_error = 0;
 
     if (func_def == NULL) {
         return 0;
@@ -251,6 +283,9 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
                 return 1;
             }
         }
+    }
+    if (CheckParamDefaultValues(func_def->params, ctx) != 0) {
+        had_error = 1;
     }
 
     if (func_def->return_type != NULL &&
@@ -275,10 +310,14 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
     info->name = func_def->func_name;
     info->return_type = func_def->return_type;
     info->params = func_def->params;
+    info->is_prototype = (func_def->body == NULL) ? 1 : 0;
     info->line = 0;
     info->column = 0;
 
-    return AddFunctionToContext(ctx, info);
+    if (AddFunctionToContext(ctx, info) != 0) {
+        return 1;
+    }
+    return had_error;
 }
 
 
@@ -439,6 +478,7 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
     MethodInfo **grown;
     ClassInfo *base_info = NULL;
     MethodInfo *base_method = NULL;
+    int had_error = 0;
 
     if (method_def == NULL) {
         return 0;
@@ -457,6 +497,9 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
                 return 1;
             }
         }
+    }
+    if (CheckParamDefaultValues(method_def->params, ctx) != 0) {
+        had_error = 1;
     }
 
     if (method_def->return_type != NULL &&
@@ -581,7 +624,7 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
     class_info->methods = grown;
     class_info->methods[class_info->method_count] = info;
     class_info->method_count += 1;
-    return 0;
+    return had_error;
 }
 
 
@@ -1570,7 +1613,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             } else {
                 int expected = func->params ? func->params->count : 0;
                 int actual = expr->value.func_call.arg_count;
-                if (expected != actual) {
+                if (actual > expected) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateWrongArgCountError(func->name,
                                                                     expected,
@@ -1580,6 +1623,22 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         AddError(ctx->errors, &err);
                     }
                     had_error = 1;
+                } else if (actual < expected && func->params != NULL) {
+                    for (int i = actual; i < expected; i++) {
+                        NParam *param = func->params->params[i];
+                        if (param == NULL || param->default_value == NULL) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateWrongArgCountError(func->name,
+                                                                            expected,
+                                                                            actual,
+                                                                            expr->line,
+                                                                            expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                            break;
+                        }
+                    }
                 }
                 for (int i = 0; i < expr->value.func_call.arg_count; i++) {
                     if (CheckExpression(expr->value.func_call.args[i], ctx) != 0) {
@@ -1594,41 +1653,31 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         if (param == NULL || arg == NULL) {
                             continue;
                         }
-                                        if (param->is_ref && !IsValidLValueExpr(arg)) {
-                                            if (ctx->errors != NULL) {
-                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
-                                                                                      "ref argument must be assignable",
-                                                                                      arg->line,
-                                                                                      arg->column);
-                                                AddError(ctx->errors, &err);
-                                            }
-                                            had_error = 1;
-                                        }
-                                        if (param->is_ref && !IsValidLValueExpr(arg)) {
-                                            if (ctx->errors != NULL) {
-                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
-                                                                                      "ref argument must be assignable",
-                                                                                      arg->line,
-                                                                                      arg->column);
-                                                AddError(ctx->errors, &err);
-                                            }
-                                            had_error = 1;
-                                        }
-                                        if (param->param_type != NULL) {
-                                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
-                                            if (arg_type != NULL &&
-                                                !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
-                                                if (ctx->errors != NULL) {
-                                                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
-                                                                                        TypeToString(arg_type),
-                                                                                        "as argument",
-                                                                                        arg->line,
-                                                                                        arg->column);
-                                                    AddError(ctx->errors, &err);
-                                                }
-                                                had_error = 1;
-                                            }
-                                        }
+                        if (param->is_ref && !IsValidLValueExpr(arg)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                      "ref argument must be assignable",
+                                                                      arg->line,
+                                                                      arg->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                        if (param->param_type != NULL) {
+                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                            if (arg_type != NULL &&
+                                !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                if (ctx->errors != NULL) {
+                                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                TypeToString(arg_type),
+                                                                                "as argument",
+                                                                                arg->line,
+                                                                                arg->column);
+                                    AddError(ctx->errors, &err);
+                                }
+                                had_error = 1;
+                            }
+                        }
                     }
                 }
             }
@@ -1696,44 +1745,70 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                 had_error = 1;
                             }
                             {
-                                int expected = method->params ? method->params->count : 0;
-                                int actual = expr->value.member_access.arg_count;
-                                if (expected != actual) {
-                                    if (ctx->errors != NULL) {
-                                        SemanticError err = CreateWrongArgCountError(method->name,
-                                                                                    expected,
-                                                                                    actual,
-                                                                                    expr->line,
-                                                                                    expr->column);
-                                        AddError(ctx->errors, &err);
-                                    }
-                                    had_error = 1;
-                                }
-                                if (method->params != NULL) {
-                                    int count = expected < actual ? expected : actual;
-                                    for (int i = 0; i < count; i++) {
-                                        NParam *param = method->params->params[i];
-                                        NExpr *arg = expr->value.member_access.args[i];
-                                        if (param == NULL || arg == NULL) {
-                                            continue;
+                                    int expected = method->params ? method->params->count : 0;
+                                    int actual = expr->value.member_access.arg_count;
+                                    if (actual > expected) {
+                                        if (ctx->errors != NULL) {
+                                            SemanticError err = CreateWrongArgCountError(method->name,
+                                                                                        expected,
+                                                                                        actual,
+                                                                                        expr->line,
+                                                                                        expr->column);
+                                            AddError(ctx->errors, &err);
                                         }
-                                        if (param->param_type != NULL) {
-                                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
-                                            if (arg_type != NULL &&
-                                                !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                        had_error = 1;
+                                    } else if (actual < expected && method->params != NULL) {
+                                        for (int i = actual; i < expected; i++) {
+                                            NParam *param = method->params->params[i];
+                                            if (param == NULL || param->default_value == NULL) {
                                                 if (ctx->errors != NULL) {
-                                                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
-                                                                                                TypeToString(arg_type),
-                                                                                                "as argument",
-                                                                                                arg->line,
-                                                                                                arg->column);
+                                                    SemanticError err = CreateWrongArgCountError(method->name,
+                                                                                                expected,
+                                                                                                actual,
+                                                                                                expr->line,
+                                                                                                expr->column);
+                                                    AddError(ctx->errors, &err);
+                                                }
+                                                had_error = 1;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (method->params != NULL) {
+                                        int count = expected < actual ? expected : actual;
+                                        for (int i = 0; i < count; i++) {
+                                            NParam *param = method->params->params[i];
+                                            NExpr *arg = expr->value.member_access.args[i];
+                                            if (param == NULL || arg == NULL) {
+                                                continue;
+                                            }
+                                            if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                                if (ctx->errors != NULL) {
+                                                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                                          "ref argument must be assignable",
+                                                                                          arg->line,
+                                                                                          arg->column);
                                                     AddError(ctx->errors, &err);
                                                 }
                                                 had_error = 1;
                                             }
+                                            if (param->param_type != NULL) {
+                                                NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                                                if (arg_type != NULL &&
+                                                    !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                                    if (ctx->errors != NULL) {
+                                                        SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                                    TypeToString(arg_type),
+                                                                                                    "as argument",
+                                                                                                    arg->line,
+                                                                                                    arg->column);
+                                                        AddError(ctx->errors, &err);
+                                                    }
+                                                    had_error = 1;
+                                                }
+                                            }
                                         }
                                     }
-                                }
                             }
                         }
                     }
@@ -2068,7 +2143,7 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     {
                         int expected = method->params ? method->params->count : 0;
                         int actual = expr->value.member_access.arg_count;
-                        if (expected != actual) {
+                        if (actual > expected) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateWrongArgCountError(method->name,
                                                                             expected,
@@ -2078,6 +2153,22 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                 AddError(ctx->errors, &err);
                             }
                             had_error = 1;
+                        } else if (actual < expected && method->params != NULL) {
+                            for (int i = actual; i < expected; i++) {
+                                NParam *param = method->params->params[i];
+                                if (param == NULL || param->default_value == NULL) {
+                                    if (ctx->errors != NULL) {
+                                        SemanticError err = CreateWrongArgCountError(method->name,
+                                                                                    expected,
+                                                                                    actual,
+                                                                                    expr->line,
+                                                                                    expr->column);
+                                        AddError(ctx->errors, &err);
+                                    }
+                                    had_error = 1;
+                                    break;
+                                }
+                            }
                         }
                         if (method->params != NULL) {
                             int count = expected < actual ? expected : actual;
@@ -2086,6 +2177,16 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                 NExpr *arg = expr->value.member_access.args[i];
                                 if (param == NULL || arg == NULL) {
                                     continue;
+                                }
+                                if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                    if (ctx->errors != NULL) {
+                                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                              "ref argument must be assignable",
+                                                                              arg->line,
+                                                                              arg->column);
+                                        AddError(ctx->errors, &err);
+                                    }
+                                    had_error = 1;
                                 }
                                 if (param->param_type != NULL) {
                                     NType *arg_type = InferExpressionTypeSilent(arg, ctx);
