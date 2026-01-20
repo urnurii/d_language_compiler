@@ -183,7 +183,37 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
             switch (item->type) {
                 case SOURCE_ITEM_FUNC:
                     if (item->value.func && item->value.func->body) {
-                        AttributeStatements(item->value.func->body, ctx);
+                        if (PushScope(ctx, item->value.func->func_name) == 0) {
+                            if (item->value.func->params != NULL) {
+                                for (int i = 0; i < item->value.func->params->count; i++) {
+                                    NParam *param = item->value.func->params->params[i];
+                                    VariableInfo *var;
+                                    if (param == NULL || param->param_name == NULL) {
+                                        continue;
+                                    }
+                                    var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                                    if (var == NULL) {
+                                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                             "Out of memory",
+                                                                             0,
+                                                                             0);
+                                        AddError(ctx->errors, &err);
+                                        continue;
+                                    }
+                                    memset(var, 0, sizeof(VariableInfo));
+                                    var->name = param->param_name;
+                                    var->type = param->param_type;
+                                    var->is_initialized = 1;
+                                    var->is_param = 1;
+                                    var->is_ref = param->is_ref;
+                                    var->line = 0;
+                                    var->column = 0;
+                                    AddLocalVariable(ctx, var);
+                                }
+                            }
+                            AttributeStatements(item->value.func->body, ctx);
+                            PopScope(ctx);
+                        }
                     }
                     break;
                 case SOURCE_ITEM_CLASS: {
@@ -195,11 +225,83 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
                     }
                     while (member != NULL) {
                         if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
-                            AttributeStatements(member->value.method->body, ctx);
+                            NMethodDef *method = member->value.method;
+                            if (method->body != NULL) {
+                                if (PushScope(ctx, method->method_name) == 0) {
+                                    if (method->params != NULL) {
+                                        for (int i = 0; i < method->params->count; i++) {
+                                            NParam *param = method->params->params[i];
+                                            VariableInfo *var;
+                                            if (param == NULL || param->param_name == NULL) {
+                                                continue;
+                                            }
+                                            var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                                            if (var == NULL) {
+                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                                     "Out of memory",
+                                                                                     0,
+                                                                                     0);
+                                                AddError(ctx->errors, &err);
+                                                continue;
+                                            }
+                                            memset(var, 0, sizeof(VariableInfo));
+                                            var->name = param->param_name;
+                                            var->type = param->param_type;
+                                            var->is_initialized = 1;
+                                            var->is_param = 1;
+                                            var->is_ref = param->is_ref;
+                                            var->line = 0;
+                                            var->column = 0;
+                                            AddLocalVariable(ctx, var);
+                                        }
+                                    }
+                                    AttributeStatements(method->body, ctx);
+                                    PopScope(ctx);
+                                }
+                            }
                         } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
-                            AttributeStatements(member->value.ctor->body, ctx);
+                            NCtorDef *ctor = member->value.ctor;
+                            if (ctor->body != NULL) {
+                                if (PushScope(ctx, "ctor") == 0) {
+                                    if (ctor->params != NULL) {
+                                        for (int i = 0; i < ctor->params->count; i++) {
+                                            NParam *param = ctor->params->params[i];
+                                            VariableInfo *var;
+                                            if (param == NULL || param->param_name == NULL) {
+                                                continue;
+                                            }
+                                            var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                                            if (var == NULL) {
+                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                                     "Out of memory",
+                                                                                     0,
+                                                                                     0);
+                                                AddError(ctx->errors, &err);
+                                                continue;
+                                            }
+                                            memset(var, 0, sizeof(VariableInfo));
+                                            var->name = param->param_name;
+                                            var->type = param->param_type;
+                                            var->is_initialized = 1;
+                                            var->is_param = 1;
+                                            var->is_ref = param->is_ref;
+                                            var->line = 0;
+                                            var->column = 0;
+                                            AddLocalVariable(ctx, var);
+                                        }
+                                    }
+                                    AttributeStatements(ctor->body, ctx);
+                                    PopScope(ctx);
+                                }
+                            }
                         } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor) {
-                            AttributeStatements(member->value.dtor->body, ctx);
+                            NDtorDef *dtor = member->value.dtor;
+                            if (dtor->body != NULL) {
+                                if (PushScope(ctx, "dtor") == 0) {
+                                    AttributeStatements(dtor->body, ctx);
+                                    PopScope(ctx);
+                                }
+                            }
                         }
                         member = member->next;
                     }
