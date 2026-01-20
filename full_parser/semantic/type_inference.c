@@ -305,6 +305,35 @@ int AreTypesCompatible(NType *type1, NType *type2, int strict) {
         return TypesEqual(type1, type2);
     }
 
+    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY) ||
+        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY)) {
+        if (type1->kind != type2->kind) {
+            return 0;
+        }
+        if (type1->kind == TYPE_KIND_BASE_ARRAY) {
+            NType elem1;
+            NType elem2;
+            memset(&elem1, 0, sizeof(NType));
+            memset(&elem2, 0, sizeof(NType));
+            elem1.kind = TYPE_KIND_BASE;
+            elem1.base_type = type1->base_type;
+            elem2.kind = TYPE_KIND_BASE;
+            elem2.base_type = type2->base_type;
+            return AreTypesCompatible(&elem1, &elem2, 0);
+        }
+        if (type1->kind == TYPE_KIND_CLASS_ARRAY) {
+            NType elem1;
+            NType elem2;
+            memset(&elem1, 0, sizeof(NType));
+            memset(&elem2, 0, sizeof(NType));
+            elem1.kind = TYPE_KIND_CLASS;
+            elem1.class_name = type1->class_name;
+            elem2.kind = TYPE_KIND_CLASS;
+            elem2.class_name = type2->class_name;
+            return AreTypesCompatible(&elem1, &elem2, 0);
+        }
+    }
+
     if (TypesEqual(type1, type2)) {
         return 1;
     }
@@ -333,6 +362,35 @@ int CanAssign(NType *target_type, NType *source_type) {
 
     if (TypesEqual(target_type, source_type)) {
         return 1;
+    }
+
+    if ((target_type->kind == TYPE_KIND_BASE_ARRAY || target_type->kind == TYPE_KIND_CLASS_ARRAY) ||
+        (source_type->kind == TYPE_KIND_BASE_ARRAY || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+        if (target_type->kind != source_type->kind) {
+            return 0;
+        }
+        if (target_type->kind == TYPE_KIND_BASE_ARRAY) {
+            NType elem_t;
+            NType elem_s;
+            memset(&elem_t, 0, sizeof(NType));
+            memset(&elem_s, 0, sizeof(NType));
+            elem_t.kind = TYPE_KIND_BASE;
+            elem_t.base_type = target_type->base_type;
+            elem_s.kind = TYPE_KIND_BASE;
+            elem_s.base_type = source_type->base_type;
+            return CanAssign(&elem_t, &elem_s);
+        }
+        if (target_type->kind == TYPE_KIND_CLASS_ARRAY) {
+            NType elem_t;
+            NType elem_s;
+            memset(&elem_t, 0, sizeof(NType));
+            memset(&elem_s, 0, sizeof(NType));
+            elem_t.kind = TYPE_KIND_CLASS;
+            elem_t.class_name = target_type->class_name;
+            elem_s.kind = TYPE_KIND_CLASS;
+            elem_s.class_name = source_type->class_name;
+            return CanAssign(&elem_t, &elem_s);
+        }
     }
 
     if (IsFloatingPointType(target_type) && IsIntegralType(source_type)) {
