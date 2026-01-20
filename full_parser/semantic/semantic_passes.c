@@ -1339,21 +1339,41 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         if (param == NULL || arg == NULL) {
                             continue;
                         }
-                        if (param->param_type != NULL) {
-                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
-                            if (arg_type != NULL &&
-                                !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
-                                if (ctx->errors != NULL) {
-                                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
-                                                                                TypeToString(arg_type),
-                                                                                "as argument",
-                                                                                arg->line,
-                                                                                arg->column);
-                                    AddError(ctx->errors, &err);
-                                }
-                                had_error = 1;
-                            }
-                        }
+                                        if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                            if (ctx->errors != NULL) {
+                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                                      "ref argument must be assignable",
+                                                                                      arg->line,
+                                                                                      arg->column);
+                                                AddError(ctx->errors, &err);
+                                            }
+                                            had_error = 1;
+                                        }
+                                        if (param->is_ref && !IsValidLValueExpr(arg)) {
+                                            if (ctx->errors != NULL) {
+                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                                      "ref argument must be assignable",
+                                                                                      arg->line,
+                                                                                      arg->column);
+                                                AddError(ctx->errors, &err);
+                                            }
+                                            had_error = 1;
+                                        }
+                                        if (param->param_type != NULL) {
+                                            NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                                            if (arg_type != NULL &&
+                                                !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                                if (ctx->errors != NULL) {
+                                                    SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                        TypeToString(arg_type),
+                                                                                        "as argument",
+                                                                                        arg->line,
+                                                                                        arg->column);
+                                                    AddError(ctx->errors, &err);
+                                                }
+                                                had_error = 1;
+                                            }
+                                        }
                     }
                 }
             }
