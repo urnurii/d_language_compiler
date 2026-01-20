@@ -1149,13 +1149,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             } else if (!IsSymbolAccessible(sym, ctx)) {
                 if (ctx->errors != NULL) {
-                    char message[256];
-                    snprintf(message, sizeof(message), "Symbol '%s' is out of scope",
-                             expr->value.ident_name);
-                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                          message,
-                                                          expr->line,
-                                                          expr->column);
+                    SemanticError err = CreateOutOfScopeError(expr->value.ident_name,
+                                                              expr->line,
+                                                              expr->column);
                     AddError(ctx->errors, &err);
                 }
                 had_error = 1;

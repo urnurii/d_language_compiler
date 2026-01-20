@@ -146,6 +146,14 @@ SemanticError CreateEnumDuplicateItemError(const char *item_name, int line, int 
    Возвращает: инициализированная структура SemanticError */
 SemanticError CreateConstructorReturnTypeError(int line, int column);
 
+/* Создать ошибку типа "out of scope"
+   Возникает при использовании символа вне области видимости
+   
+   symbol_name: имя символа
+   
+   Возвращает: инициализированная структура SemanticError */
+SemanticError CreateOutOfScopeError(const char *symbol_name, int line, int column);
+
 /* Создать пользовательскую ошибку
    kind: вид ошибки
    message: текст сообщения об ошибке

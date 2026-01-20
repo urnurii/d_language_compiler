@@ -72,6 +72,7 @@ static const char* ErrorKindToCode(SemanticErrorKind kind) {
         case SEMANTIC_ERROR_INVALID_OVERRIDE: return "E_INVALID_OVERRIDE";
         case SEMANTIC_ERROR_ENUM_DUPLICATE_ITEM: return "E_ENUM_DUPLICATE_ITEM";
         case SEMANTIC_ERROR_CONSTRUCTOR_RETURN_TYPE: return "E_CTOR_RETURN_TYPE";
+        case SEMANTIC_ERROR_OUT_OF_SCOPE: return "E_OUT_OF_SCOPE";
         case SEMANTIC_ERROR_OTHER: return "E_OTHER";
         default: return "E_UNKNOWN";
     }
@@ -384,6 +385,15 @@ SemanticError CreateConstructorReturnTypeError(int line, int column) {
     return err;
 }
 
+SemanticError CreateOutOfScopeError(const char *symbol_name, int line, int column) {
+    SemanticError err = CreateBaseError(SEMANTIC_ERROR_OUT_OF_SCOPE, line, column);
+
+    err.message = FormatString("Symbol '%s' is out of scope", symbol_name);
+    err.explanation = DuplicateString("Ensure the symbol is declared in the current or enclosing scope.");
+    err.context.name = DuplicateString(symbol_name);
+    return err;
+}
+
 SemanticError CreateCustomError(SemanticErrorKind kind, const char *message, int line, int column) {
     SemanticError err = CreateBaseError(kind, line, column);
 
@@ -505,6 +515,7 @@ const char* ErrorKindToString(SemanticErrorKind kind) {
         case SEMANTIC_ERROR_INVALID_OVERRIDE: return "Invalid override";
         case SEMANTIC_ERROR_ENUM_DUPLICATE_ITEM: return "Enum duplicate item";
         case SEMANTIC_ERROR_CONSTRUCTOR_RETURN_TYPE: return "Constructor return type";
+        case SEMANTIC_ERROR_OUT_OF_SCOPE: return "Out of scope";
         case SEMANTIC_ERROR_OTHER: return "Other error";
         default: return "Unknown error";
     }
