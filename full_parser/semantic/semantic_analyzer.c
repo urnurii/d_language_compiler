@@ -14,6 +14,60 @@ static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
 
+static void ReportAddLocalFailure(SemanticContext *ctx, const char *name, int line, int column) {
+    Scope *scope;
+    Symbol *existing;
+    SemanticError err;
+
+    if (ctx == NULL || ctx->errors == NULL || name == NULL) {
+        return;
+    }
+
+    scope = GetCurrentScope(ctx);
+    existing = LookupSymbol(ctx, name);
+    if (existing != NULL && scope != NULL && existing->scope_depth == scope->depth) {
+        err = CreateDuplicateSymbolError(name, line, column);
+    } else {
+        err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", line, column);
+    }
+    AddError(ctx->errors, &err);
+}
+
+static int AddParamVariable(SemanticContext *ctx, NParam *param) {
+    int before_errors;
+    int after_errors;
+    VariableInfo *var;
+
+    if (ctx == NULL || param == NULL || param->param_name == NULL) {
+        return 1;
+    }
+
+    var = (VariableInfo*)malloc(sizeof(VariableInfo));
+    if (var == NULL) {
+        ReportAddLocalFailure(ctx, param->param_name, 0, 0);
+        return 1;
+    }
+    memset(var, 0, sizeof(VariableInfo));
+    var->name = param->param_name;
+    var->type = param->param_type;
+    var->is_initialized = 1;
+    var->is_param = 1;
+    var->is_ref = param->is_ref;
+    var->line = 0;
+    var->column = 0;
+
+    before_errors = GetErrorCount(ctx->errors);
+    if (AddLocalVariable(ctx, var) != 0) {
+        after_errors = GetErrorCount(ctx->errors);
+        if (after_errors == before_errors) {
+            ReportAddLocalFailure(ctx, param->param_name, 0, 0);
+        }
+        return 1;
+    }
+
+    return 0;
+}
+
 /* ============================================================================
    СОЗДАНИЕ И ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА
    ============================================================================ */
@@ -187,28 +241,10 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
                             if (item->value.func->params != NULL) {
                                 for (int i = 0; i < item->value.func->params->count; i++) {
                                     NParam *param = item->value.func->params->params[i];
-                                    VariableInfo *var;
                                     if (param == NULL || param->param_name == NULL) {
                                         continue;
                                     }
-                                    var = (VariableInfo*)malloc(sizeof(VariableInfo));
-                                    if (var == NULL) {
-                                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                                             "Out of memory",
-                                                                             0,
-                                                                             0);
-                                        AddError(ctx->errors, &err);
-                                        continue;
-                                    }
-                                    memset(var, 0, sizeof(VariableInfo));
-                                    var->name = param->param_name;
-                                    var->type = param->param_type;
-                                    var->is_initialized = 1;
-                                    var->is_param = 1;
-                                    var->is_ref = param->is_ref;
-                                    var->line = 0;
-                                    var->column = 0;
-                                    AddLocalVariable(ctx, var);
+                                    AddParamVariable(ctx, param);
                                 }
                             }
                             AttributeStatements(item->value.func->body, ctx);
@@ -231,28 +267,10 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
                                     if (method->params != NULL) {
                                         for (int i = 0; i < method->params->count; i++) {
                                             NParam *param = method->params->params[i];
-                                            VariableInfo *var;
                                             if (param == NULL || param->param_name == NULL) {
                                                 continue;
                                             }
-                                            var = (VariableInfo*)malloc(sizeof(VariableInfo));
-                                            if (var == NULL) {
-                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                                                     "Out of memory",
-                                                                                     0,
-                                                                                     0);
-                                                AddError(ctx->errors, &err);
-                                                continue;
-                                            }
-                                            memset(var, 0, sizeof(VariableInfo));
-                                            var->name = param->param_name;
-                                            var->type = param->param_type;
-                                            var->is_initialized = 1;
-                                            var->is_param = 1;
-                                            var->is_ref = param->is_ref;
-                                            var->line = 0;
-                                            var->column = 0;
-                                            AddLocalVariable(ctx, var);
+                                            AddParamVariable(ctx, param);
                                         }
                                     }
                                     AttributeStatements(method->body, ctx);
@@ -266,28 +284,10 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
                                     if (ctor->params != NULL) {
                                         for (int i = 0; i < ctor->params->count; i++) {
                                             NParam *param = ctor->params->params[i];
-                                            VariableInfo *var;
                                             if (param == NULL || param->param_name == NULL) {
                                                 continue;
                                             }
-                                            var = (VariableInfo*)malloc(sizeof(VariableInfo));
-                                            if (var == NULL) {
-                                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                                                     "Out of memory",
-                                                                                     0,
-                                                                                     0);
-                                                AddError(ctx->errors, &err);
-                                                continue;
-                                            }
-                                            memset(var, 0, sizeof(VariableInfo));
-                                            var->name = param->param_name;
-                                            var->type = param->param_type;
-                                            var->is_initialized = 1;
-                                            var->is_param = 1;
-                                            var->is_ref = param->is_ref;
-                                            var->line = 0;
-                                            var->column = 0;
-                                            AddLocalVariable(ctx, var);
+                                            AddParamVariable(ctx, param);
                                         }
                                     }
                                     AttributeStatements(ctor->body, ctx);
