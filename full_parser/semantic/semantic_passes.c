@@ -1542,6 +1542,83 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     had_error = 1;
                 }
             }
+            if (ctx != NULL && ctx->current_class != NULL &&
+                ctx->current_class->base_class != NULL) {
+                ClassInfo *base_info = LookupClass(ctx, ctx->current_class->base_class);
+                if (base_info == NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateUndefinedClassError(ctx->current_class->base_class,
+                                                                      expr->line,
+                                                                      expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                } else {
+                    MethodInfo *method = LookupClassMethod(base_info, expr->value.member_access.member_name);
+                    if (method == NULL) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
+                                                                          base_info->name,
+                                                                          expr->line,
+                                                                          expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    } else {
+                        int inside_class = 0;
+                        if (!IsMethodAccessible(method, inside_class)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateAccessViolationError(method->name,
+                                                                              AccessSpecToString(method->access),
+                                                                              expr->line,
+                                                                              expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                        {
+                            int expected = method->params ? method->params->count : 0;
+                            int actual = expr->value.member_access.arg_count;
+                            if (expected != actual) {
+                                if (ctx->errors != NULL) {
+                                    SemanticError err = CreateWrongArgCountError(method->name,
+                                                                                expected,
+                                                                                actual,
+                                                                                expr->line,
+                                                                                expr->column);
+                                    AddError(ctx->errors, &err);
+                                }
+                                had_error = 1;
+                            }
+                            if (method->params != NULL) {
+                                int count = expected < actual ? expected : actual;
+                                for (int i = 0; i < count; i++) {
+                                    NParam *param = method->params->params[i];
+                                    NExpr *arg = expr->value.member_access.args[i];
+                                    if (param == NULL || arg == NULL) {
+                                        continue;
+                                    }
+                                    if (param->param_type != NULL) {
+                                        NType *arg_type = InferExpressionType(arg, ctx);
+                                        if (arg_type != NULL &&
+                                            !IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+                                            if (ctx->errors != NULL) {
+                                                SemanticError err = CreateTypeMismatchError(TypeToString(param->param_type),
+                                                                                            TypeToString(arg_type),
+                                                                                            "as argument",
+                                                                                            arg->line,
+                                                                                            arg->column);
+                                                AddError(ctx->errors, &err);
+                                            }
+                                            had_error = 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             break;
         case EXPR_SUPER:
         case EXPR_THIS:
