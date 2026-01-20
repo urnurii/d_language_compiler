@@ -47,6 +47,16 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
             left_type = InferExpressionType(expr->value.binary.left, ctx);
             right_type = InferExpressionType(expr->value.binary.right, ctx);
             return InferBinaryOperationType(expr->value.binary.op, left_type, right_type);
+        case EXPR_ASSIGN:
+            left_type = InferExpressionType(expr->value.binary.left, ctx);
+            right_type = InferExpressionType(expr->value.binary.right, ctx);
+            if (left_type == NULL || right_type == NULL) {
+                return NULL;
+            }
+            if (!CanAssign(left_type, right_type)) {
+                return NULL;
+            }
+            return CopyType(left_type);
         case EXPR_UNARY_OP:
             operand_type = InferExpressionType(expr->value.unary.operand, ctx);
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
@@ -93,6 +103,30 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
                                                                   expr->column);
                     AddError(ctx->errors, &err);
                 }
+                return NULL;
+            }
+            if (method->return_type == NULL) {
+                return CreateBaseType(TYPE_VOID);
+            }
+            return CopyType(method->return_type);
+        }
+        case EXPR_SUPER_METHOD: {
+            if (expr->value.member_access.object == NULL) {
+                return NULL;
+            }
+            NType *obj_type = InferExpressionType(expr->value.member_access.object, ctx);
+            if (obj_type == NULL) {
+                return NULL;
+            }
+            if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                return NULL;
+            }
+            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+            if (class_info == NULL) {
+                return NULL;
+            }
+            MethodInfo *method = LookupClassMethod(class_info, expr->value.member_access.member_name);
+            if (method == NULL) {
                 return NULL;
             }
             if (method->return_type == NULL) {
@@ -149,6 +183,8 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
         case EXPR_PAREN:
             return InferExpressionType(expr->value.inner_expr, ctx);
         case EXPR_THIS:
+            return NULL;
+        case EXPR_SUPER:
             return NULL;
         default:
             if (ctx != NULL && ctx->errors != NULL) {
