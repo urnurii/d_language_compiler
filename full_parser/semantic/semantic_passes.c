@@ -53,6 +53,22 @@ static const char *OpToString(OpType op) {
     }
 }
 
+static int IsValidLValueExpr(NExpr *expr) {
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_IDENT:
+        case EXPR_MEMBER_ACCESS:
+        case EXPR_ARRAY_ACCESS:
+            return 1;
+        case EXPR_PAREN:
+            return IsValidLValueExpr(expr->value.inner_expr);
+        default:
+            return 0;
+    }
+}
+
 static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, const char *target_class) {
     ClassInfo *cls;
 
@@ -1553,6 +1569,17 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             }
             if (CheckExpression(right, ctx) != 0) {
                 had_error = 1;
+            }
+            if (!IsValidLValueExpr(left)) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                          "Left side of assignment is not assignable",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+                break;
             }
             if (left != NULL && right != NULL) {
                 NType *left_type = InferExpressionType(left, ctx);
