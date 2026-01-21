@@ -2411,6 +2411,24 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 had_error = 1;
             }
             if (obj != NULL) {
+                if (obj->type == EXPR_IDENT) {
+                    Symbol *sym = LookupSymbol(ctx, obj->value.ident_name);
+                    if (sym != NULL && sym->kind == SYMBOL_ENUM_TYPE) {
+                        EnumInfo *en = sym->info.enum_info;
+                        EnumItemInfo *item = LookupEnumItem(en, expr->value.member_access.member_name);
+                        if (item == NULL) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                      "Enum item not found",
+                                                                      expr->line,
+                                                                      expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                        break;
+                    }
+                }
                 NType *obj_type = InferExpressionTypeSilent(obj, ctx);
                 if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {

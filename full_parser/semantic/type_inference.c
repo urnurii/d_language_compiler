@@ -226,40 +226,61 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             return CopyType(method->return_type, ctx);
         }
         case EXPR_MEMBER_ACCESS: {
-            NType *obj_type = InferExpressionTypeInternal(expr->value.member_access.object, ctx, report_errors);
-            if (obj_type == NULL) {
-                return NULL;
-            }
-            if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
-                return NULL;
-            }
-            if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
-                return NULL;
-            }
-            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
-            if (class_info == NULL) {
-                if (report_errors && ctx != NULL && ctx->errors != NULL) {
-                    SemanticError err = CreateUndefinedClassError(obj_type->class_name,
+            if (expr->value.member_access.object != NULL &&
+                expr->value.member_access.object->type == EXPR_IDENT) {
+                Symbol *sym = LookupSymbol(ctx, expr->value.member_access.object->value.ident_name);
+                if (sym != NULL && sym->kind == SYMBOL_ENUM_TYPE) {
+                    EnumInfo *en = sym->info.enum_info;
+                    EnumItemInfo *item = LookupEnumItem(en, expr->value.member_access.member_name);
+                    if (item == NULL) {
+                        if (report_errors && ctx != NULL && ctx->errors != NULL) {
+                            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                  "Enum item not found",
                                                                   expr->line,
                                                                   expr->column);
-                    AddError(ctx->errors, &err);
+                            AddError(ctx->errors, &err);
+                        }
+                        return NULL;
+                    }
+                    return CreateBaseType(TYPE_INT);
                 }
-                return NULL;
             }
-            FieldInfo *field = LookupClassFieldInHierarchy(ctx,
-                                                           class_info,
-                                                           expr->value.member_access.member_name);
-            if (field == NULL) {
-                if (report_errors && ctx != NULL && ctx->errors != NULL) {
-                    SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
-                                                                obj_type->class_name,
-                                                                expr->line,
-                                                                expr->column);
-                    AddError(ctx->errors, &err);
+            {
+                NType *obj_type = InferExpressionTypeInternal(expr->value.member_access.object, ctx, report_errors);
+                if (obj_type == NULL) {
+                    return NULL;
                 }
-                return NULL;
+                if (obj_type->kind != TYPE_KIND_CLASS && obj_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                    return NULL;
+                }
+                if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                    return NULL;
+                }
+                ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+                if (class_info == NULL) {
+                    if (report_errors && ctx != NULL && ctx->errors != NULL) {
+                        SemanticError err = CreateUndefinedClassError(obj_type->class_name,
+                                                                    expr->line,
+                                                                    expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    return NULL;
+                }
+                FieldInfo *field = LookupClassFieldInHierarchy(ctx,
+                                                               class_info,
+                                                               expr->value.member_access.member_name);
+                if (field == NULL) {
+                    if (report_errors && ctx != NULL && ctx->errors != NULL) {
+                        SemanticError err = CreateFieldNotFoundError(expr->value.member_access.member_name,
+                                                                    obj_type->class_name,
+                                                                    expr->line,
+                                                                    expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    return NULL;
+                }
+                return CopyType(field->type, ctx);
             }
-            return CopyType(field->type, ctx);
         }
         case EXPR_ARRAY_ACCESS: {
             NType *array_type = InferExpressionTypeInternal(expr->value.array_access.array, ctx, report_errors);
