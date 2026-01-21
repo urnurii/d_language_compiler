@@ -327,9 +327,7 @@ void DestroyScopeStack(ScopeStack *stack) {
     free(stack);
 }
 
-/* ============================================================================
-   SYMBOL TABLE MANAGEMENT
-   ============================================================================ */
+// ----- Управление таблицой символов -----
 
 int AddSymbolToTable(SemanticContext *ctx, const Symbol *symbol) {
     if (ctx == NULL || ctx->global_symbols == NULL) {
@@ -369,9 +367,7 @@ Symbol* LookupGlobalSymbol(SemanticContext *ctx, const char *name) {
     return LookupSymbolInTable(ctx->global_symbols, name);
 }
 
-/* ============================================================================
-   SCOPE STACK MANAGEMENT
-   ============================================================================ */
+// ----- Управление стеком областей видимости -----
 
 int PushScope(SemanticContext *ctx, const char *scope_name) {
     ScopeStack *stack;
@@ -436,9 +432,7 @@ Scope* GetCurrentScope(SemanticContext *ctx) {
     return ctx->scope_stack->scopes[ctx->scope_stack->count - 1];
 }
 
-/* ============================================================================
-   CONTEXT HELPERS
-   ============================================================================ */
+// ----- Контекстные помощники -----
 
 int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info) {
     Scope *scope;
@@ -462,9 +456,7 @@ int AddLocalVariable(SemanticContext *ctx, VariableInfo *var_info) {
     return AddSymbolToTableInternal(scope->locals, &sym, ctx);
 }
 
-/* ============================================================================
-   ДОБАВЛЕНИЕ ИНФОРМАЦИИ В КОНТЕКСТ
-   ============================================================================ */
+// ----- Добавление информации в контекст -----
 
 int AddFunctionToContext(SemanticContext *ctx, FunctionInfo *func_info) {
     
@@ -664,9 +656,7 @@ int AddEnumToContext(SemanticContext *ctx, EnumInfo *enum_info) {
     return 0;
 }
 
-/* ============================================================================
-   ПОИСК ИНФОРМАЦИИ ПО ИМЕНИ
-   ============================================================================ */
+// ----- Поиск информации по имени -----
 
 FunctionInfo* LookupFunction(SemanticContext *ctx, const char *name) {
     if (ctx == NULL || name == NULL) {
@@ -853,9 +843,7 @@ EnumItemInfo* LookupEnumItem(EnumInfo *enum_info, const char *item_name) {
     return NULL;
 }
 
-/* ============================================================================
-   ПРОВЕРКА ДОСТУПА
-   ============================================================================ */
+// ----- Проверка доступа -----
 
 int IsFieldAccessible(FieldInfo *field, int inside_class, int inside_hierarchy) {
 

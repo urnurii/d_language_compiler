@@ -16,9 +16,7 @@ static void BuildElementType(const NType *array_type, NType *out);
 static void ReportAppendAssignError(NType *left_type, NType *right_type,
                                     SemanticContext *ctx, int line, int column);
 
-/* ============================================================================
-   ВЫВОД ТИПОВ ВЫРАЖЕНИЙ
-   ============================================================================ */
+// ----- Вывод типов выражений -----
 
 static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int report_errors);
 
@@ -445,9 +443,7 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
     }
 }
 
-/* ============================================================================
-   ПРОВЕРКА СОВМЕСТИМОСТИ ТИПОВ
-   ============================================================================ */
+// ----- Проверка совместимости типов -----
 
 int AreTypesCompatible(NType *type1, NType *type2, int strict) {
 
@@ -609,9 +605,7 @@ int IsArgumentCompatibleWithParameter(NType *param_type, NType *arg_type, int is
     return AreTypesCompatible(param_type, arg_type, 0);
 }
 
-/* ============================================================================
-   СПЕЦИАЛЬНЫЕ ПРОВЕРКИ ТИПОВ
-   ============================================================================ */
+// ----- Специальные проверки типов -----
 
 static int GetNumericRank(const NType *type, int *rank_out) {
     if (type == NULL || rank_out == NULL) {

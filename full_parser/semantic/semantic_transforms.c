@@ -1,20 +1,5 @@
 #include "semantic_transforms.h"
 
-/* Future transform hooks (examples, no-op now):
-   1) EXPR_ASSIGN with EXPR_MEMBER_ACCESS on LHS -> explicit field lvalue node.
-   2) EXPR_ASSIGN with EXPR_ARRAY_ACCESS on LHS -> explicit array element lvalue node.
-   3) Compound assignment (+=, -=, etc.) -> rewrite to simple assign with binary op.
-   4) EXPR_PAREN -> optionally drop parentheses to simplify codegen.
-   5) EXPR_METHOD_CALL on super -> explicit base dispatch node.
-   6) EXPR_FUNC_CALL on method name inside class -> rewrite to this.method().
-   7) Return without value in non-void function -> insert default value error node.
-   8) Implicit numeric promotion -> insert explicit cast node.
-   9) Boolean condition normalization -> insert compare-to-zero node.
-  10) Foreach -> rewrite to for with index/temp.
-  11) For with decl init -> split into decl + for.
-  12) New array with size -> rewrite to allocation helper node.
-*/
-
 static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx);
 static int TransformStatement(NStmt *stmt, SemanticContext *ctx);
 static int TransformStatementList(NStmt *stmts, SemanticContext *ctx);

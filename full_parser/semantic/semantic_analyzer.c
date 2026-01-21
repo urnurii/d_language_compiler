@@ -71,9 +71,7 @@ static int AddParamVariable(SemanticContext *ctx, NParam *param) {
     return 0;
 }
 
-/* ============================================================================
-   СОЗДАНИЕ И ИНИЦИАЛИЗАЦИЯ КОНТЕКСТА
-   ============================================================================ */
+// ----- Создание и инциализация контекста -----
 
 SemanticContext* CreateSemanticContext(void) {
     SemanticContext *ctx = (SemanticContext*)malloc(sizeof(SemanticContext));
@@ -160,9 +158,7 @@ void DestroySemanticContext(SemanticContext *ctx) {
     free(ctx);
 }
 
-/* ============================================================================
-   ГЛАВНАЯ ФУНКЦИЯ АНАЛИЗА
-   ============================================================================ */
+// ----- Главная функция анализа -----
 
 int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
     SemanticContext *local_ctx;
@@ -202,9 +198,7 @@ int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
     return has_errors ? 1 : 0;
 }
 
-/* ============================================================================
-   ГЛАВНАЯ ФУНКЦИЯ ПЕРВОГО ПРОХОДА
-   ============================================================================ */
+// ----- Главная функция первого прохода -----
 
 static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -218,9 +212,7 @@ static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx) {
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
-/* ============================================================================
-   ГЛАВНАЯ ФУНКЦИЯ ВТОРОГО ПРОХОДА
-   ============================================================================ */
+// ----- Главная функция 2го прохода -----
 
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -234,9 +226,7 @@ static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx) {
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
-/* ============================================================================
-   ГЛАВНАЯ ФУНКЦИЯ ТРЕТЬЕГО ПРОХОДА
-   ============================================================================ */
+// ----- Главная функция 3его прохода -----
 
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -351,9 +341,7 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
-/* ============================================================================
-   FOURTH PASS: AST TRANSFORMS FOR CODEGEN
-   ============================================================================ */
+// ----- Чертвёртый проход: трансформация дерева в код ген -----
 
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -365,9 +353,7 @@ static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx) {
     return HasErrors(ctx->errors) ? 1 : 0;
 }
 
-/* ============================================================================
-   ВЫВОД ИНФОРМАЦИИ
-   ============================================================================ */
+// ----- Вывод информации -----
 
 void PrintSemanticErrors(SemanticContext *ctx) {
     if (ctx == NULL) {

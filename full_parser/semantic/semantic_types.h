@@ -6,98 +6,96 @@
 
 typedef struct JvmLayoutContext JvmLayoutContext;
 
-/* ============================================================================
-   ТИПЫ ДЛЯ ТАБЛИЦ СИМВОЛОВ И УПРАВЛЕНИЯ ОБЛАСТЯМИ ВИДИМОСТИ
-   ============================================================================ */
+// ----- Типы таблиц символов и управление областями видимости -----
 
-/* Вид символа в таблице */
+// Вид символа в таблице
 typedef enum {
-    SYMBOL_VARIABLE,      /* переменная */
-    SYMBOL_FUNCTION,      /* функция */
-    SYMBOL_CLASS,         /* класс */
-    SYMBOL_ENUM_TYPE,     /* тип enum */
-    SYMBOL_ENUM_ITEM      /* элемент enum */
+    SYMBOL_VARIABLE,      // переменная
+    SYMBOL_FUNCTION,      // функция
+    SYMBOL_CLASS,         // класс
+    SYMBOL_ENUM_TYPE,     // тип enum
+    SYMBOL_ENUM_ITEM      // элемент enum
 } SymbolKind;
 
-/* Информация о переменной */
+// Информация о переменной
 typedef struct {
-    char *name;           /* имя переменной */
-    NType *type;          /* тип переменной */
-    int is_initialized;   /* инициализирована ли при объявлении */
-    int is_param;         /* является ли параметром функции */
-    int is_ref;           /* параметр с ref */
-    int line;             /* строка объявления */
-    int column;           /* колонка объявления */
+    char *name;           // имя переменной
+    NType *type;          // тип переменной
+    int is_initialized;   // инициализирована ли при объявлении
+    int is_param;         // является ли параметром функции
+    int is_ref;           // параметр с ref
+    int line;             // строка объявления
+    int column;           // колонка объявления
 } VariableInfo;
 
-/* Информация о функции */
+// Информация о функции
 typedef struct {
-    char *name;           /* имя функции */
-    NType *return_type;   /* тип возвращаемого значения (NULL для void) */
-    NParamList *params;   /* список параметров */
-    int is_prototype;     /* 1 если есть только прототип (нет тела) */
-    int is_builtin;       /* 1 если это встроенная функция */
-    int allow_extra_args; /* 1 если допускаются дополнительные аргументы */
-    int line;             /* строка объявления */
-    int column;           /* колонка объявления */
+    char *name;           // имя функции
+    NType *return_type;   // тип возвращаемого значения (NULL для void)
+    NParamList *params;   // список параметров
+    int is_prototype;     // 1 если есть только прототип (нет тела)
+    int is_builtin;       // 1 если это встроенная функция
+    int allow_extra_args; // 1 если допускаются дополнительные аргументы
+    int line;             // строка объявления
+    int column;           // колонка объявления
 } FunctionInfo;
 
-/* Информация о методе класса */
+// Информация о методе класса
 typedef struct {
-    char *name;           /* имя метода */
-    NType *return_type;   /* тип возвращаемого значения */
-    NParamList *params;   /* список параметров */
-    AccessSpec access;    /* public/private/protected */
-    int is_override;      /* является ли override методом */
+    char *name;           // имя метода
+    NType *return_type;   // тип возвращаемого значения
+    NParamList *params;   // список параметров
+    AccessSpec access;    // public/private/protected
+    int is_override;      // является ли override методом
     int line;
     int column;
 } MethodInfo;
 
-/* Информация о поле класса */
+// Информация о поле класса
 typedef struct {
-    char *name;           /* имя поля */
-    NType *type;          /* тип поля */
-    AccessSpec access;    /* public/private/protected */
+    char *name;           // имя поля
+    NType *type;          // тип поля
+    AccessSpec access;    // public/private/protected
     int line;
     int column;
 } FieldInfo;
 
-/* Информация о классе */
+// Информация о классе
 typedef struct {
-    char *name;           /* имя класса */
-    char *base_class;     /* имя базового класса (NULL если нет) */
-    FieldInfo **fields;   /* массив полей */
+    char *name;           // имя класса
+    char *base_class;     // имя базового класса (NULL если нет)
+    FieldInfo **fields;   // массив полей
     int field_count;
-    MethodInfo **methods; /* массив методов */
+    MethodInfo **methods; // массив методов
     int method_count;
-    NCtorDef **constructors; /* массив конструкторов */
+    NCtorDef **constructors; // массив конструкторов
     int constructor_count;
-    NDtorDef *destructor;  /* деструктор (может быть NULL) */
-    int members_processed; /* обработаны ли члены класса */
+    NDtorDef *destructor;  // деструктор (может быть NULL)
+    int members_processed; // обработаны ли члены класса
     int line;
     int column;
 } ClassInfo;
 
-/* Информация об элементе enum */
+// Информация об элементе enum
 typedef struct {
-    char *name;           /* имя элемента */
-    int value;            /* значение элемента */
-    int has_explicit_value; /* был ли указан явно */
+    char *name;           // имя элемента
+    int value;            // значение элемента
+    int has_explicit_value; // был ли указан явно
 } EnumItemInfo;
 
-/* Информация об enum */
+// Информация об enum
 typedef struct {
-    char *name;           /* имя enum (может быть NULL для анонимного) */
-    EnumItemInfo **items; /* элементы enum */
+    char *name;           // имя enum (может быть NULL для анонимного)
+    EnumItemInfo **items; // элементы enum
     int item_count;
     int line;
     int column;
 } EnumInfo;
 
-/* Структура символа в таблице */
+// Структура символа в таблице
 typedef struct {
-    SymbolKind kind;      /* вид символа */
-    char *name;           /* имя символа */
+    SymbolKind kind;      // вид символа
+    char *name;           // имя символа
     union {
         VariableInfo *var_info;
         FunctionInfo *func_info;
@@ -105,39 +103,39 @@ typedef struct {
         EnumInfo *enum_info;
         EnumItemInfo *enum_item_info;
     } info;
-    int scope_depth;      /* глубина области видимости (0 = глобальная) */
+    int scope_depth;      // глубина области видимости (0 = глобальная)
 } Symbol;
 
-/* Таблица символов - массив с линейным поиском.
-   Владение: таблица владеет массивом symbols и самими Symbol объектами.
-   Symbol владеет своей копией имени (name). Info-указатели не принадлежат таблице. */
+//    Таблица символов - массив с линейным поиском.
+//    Владение: таблица владеет массивом symbols и самими Symbol объектами.
+//    Symbol владеет своей копией имени (name). Info-указатели не принадлежат таблице.
 typedef struct {
-    Symbol **symbols;     /* массив символов */
-    int count;            /* текущее количество */
-    int capacity;         /* ёмкость массива */
+    Symbol **symbols;     // массив символов
+    int count;            // текущее количество
+    int capacity;         // ёмкость массива
 } SymbolTable;
 
-/* Область видимости (scope).
-   Владение: scope владеет таблицей locals (кроме глобального scope),
-   scope_name хранится как копия строки (если задана). */
+//    Область видимости (scope).
+//    Владение: scope владеет таблицей locals (кроме глобального scope),
+//    scope_name хранится как копия строки (если задана).
 typedef struct Scope {
-    int depth;            /* глубина (0 = глобальная, 1+ = локальная) */
-    char *scope_name;     /* имя области (имя функции/класса) */
-    SymbolTable *locals;  /* локальные символы этой области */
-    struct Scope *parent; /* ссылка на родительскую область */
+    int depth;            // глубина (0 = глобальная, 1+ = локальная)
+    char *scope_name;     // имя области (имя функции/класса)
+    SymbolTable *locals;  // локальные символы этой области
+    struct Scope *parent; // ссылка на родительскую область
 } Scope;
 
-/* Стек областей видимости.
-   Владение: стек владеет всеми Scope в массиве scopes.
-   Глобальная таблица символов хранится отдельно в SemanticContext. */
+//    Стек областей видимости.
+//    Владение: стек владеет всеми Scope в массиве scopes.
+//    Глобальная таблица символов хранится отдельно в SemanticContext.
 typedef struct {
-    Scope **scopes;       /* стек областей */
-    int count;            /* текущая глубина */
-    int capacity;         /* ёмкость массива */
-    SymbolTable *global;  /* глобальная таблица символов */
+    Scope **scopes;       // стек областей
+    int count;            // текущая глубина
+    int capacity;         // ёмкость массива
+    SymbolTable *global;  // глобальная таблица символов
 } ScopeStack;
 
-/* Ошибка семантического анализа */
+// Ошибка семантического анализа
 typedef enum {
     SEMANTIC_ERROR_UNDEFINED_VARIABLE,
     SEMANTIC_ERROR_UNDEFINED_FUNCTION,
@@ -196,29 +194,29 @@ typedef struct {
     char *source_text;
 } SemanticError;
 
-/* Список ошибок */
+// Список ошибок
 typedef struct {
     SemanticError **errors;
     int count;
     int capacity;
 } ErrorList;
 
-/* Контекст семантического анализа */
+// Контекст семантического анализа
 typedef struct {
-    SymbolTable *global_symbols;  /* глобальные символы */
-    ScopeStack *scope_stack;      /* стек областей видимости */
-    ErrorList *errors;            /* список ошибок */
-    JvmLayoutContext *jvm;        /* JVM-attribution (descriptors/slots/RefKey) */
-    int has_errors;               /* была ли хоть одна ошибка */
-    ClassInfo *current_class;     /* текущий класс (для this/super) */
-    int loop_depth;               /* loop depth */
-    int switch_depth;             /* switch depth */
-    /* Таблицы для быстрого поиска */
-    ClassInfo **classes;          /* массив информации о классах */
+    SymbolTable *global_symbols;  // глобальные символы
+    ScopeStack *scope_stack;      // стек областей видимости
+    ErrorList *errors;            // список ошибок
+    JvmLayoutContext *jvm;        // JVM-attribution (descriptors/slots/RefKey)
+    int has_errors;               // была ли хоть одна ошибка
+    ClassInfo *current_class;     // текущий класс (для this/super)
+    int loop_depth;               // loop depth
+    int switch_depth;             // switch depth
+    // Таблицы для быстрого поиска
+    ClassInfo **classes;          // массив информации о классах
     int class_count;
-    FunctionInfo **functions;     /* массив информации о функциях */
+    FunctionInfo **functions;     // массив информации о функциях
     int function_count;
-    EnumInfo **enums;             /* массив информации об enum */
+    EnumInfo **enums;             // массив информации об enum
     int enum_count;
 } SemanticContext;
 

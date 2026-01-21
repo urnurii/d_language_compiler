@@ -3,9 +3,7 @@
 
 #include "semantic_types.h"
 
-/* ============================================================================
-   СИСТЕМА СООБЩЕНИЙ ОБ ОШИБКАХ И ОТЛАДКИ
-   ============================================================================ */
+// ----- Система сообщений ошибкаих и отладки -----
 
 /* СОЗДАНИЕ И УПРАВЛЕНИЕ СПИСКОМ ОШИБОК */
 
@@ -161,7 +159,7 @@ SemanticError CreateOutOfScopeError(const char *symbol_name, int line, int colum
    Возвращает: инициализированная структура SemanticError */
 SemanticError CreateCustomError(SemanticErrorKind kind, const char *message, int line, int column);
 
-/* ВЫВОД ОШИБОК */
+// ----- Вывод ошибок -----
 
 /* Вывести одну ошибку в stderr в стандартном формате
    "SEMANTIC ERROR at line X, column Y: message"
