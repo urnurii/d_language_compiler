@@ -16,6 +16,8 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
 static int RegisterBuiltinClasses(SemanticContext *ctx);
 static int RegisterBuiltinFunctions(SemanticContext *ctx);
+static int ApplyJvmAttribution(NProgram *root, SemanticContext *ctx);
+static int AssignSlotsInStatements(NStmt *stmts, JvmSlotAllocator *alloc);
 
 static void ReportAddLocalFailure(SemanticContext *ctx, const char *name, int line, int column) {
     Scope *scope;
@@ -34,6 +36,16 @@ static void ReportAddLocalFailure(SemanticContext *ctx, const char *name, int li
         err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", line, column);
     }
     AddError(ctx->errors, &err);
+}
+
+static int ReportJvmAttrFailure(SemanticContext *ctx, const char *message, int line, int column) {
+    SemanticError err;
+    if (ctx == NULL || ctx->errors == NULL) {
+        return 1;
+    }
+    err = CreateCustomError(SEMANTIC_ERROR_OTHER, message, line, column);
+    AddError(ctx->errors, &err);
+    return 1;
 }
 
 static int AddParamVariable(SemanticContext *ctx, NParam *param) {
@@ -236,6 +248,10 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
         return 0;
     }
 
+    if (ApplyJvmAttribution(root, ctx) != 0) {
+        return 1;
+    }
+
     {
         NSourceItem *item = root->first_item;
         while (item != NULL) {
@@ -339,6 +355,166 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
     }
 
     return HasErrors(ctx->errors) ? 1 : 0;
+}
+
+static int ApplyJvmAttribution(NProgram *root, SemanticContext *ctx) {
+    NSourceItem *item;
+
+    if (root == NULL || ctx == NULL) {
+        return 0;
+    }
+
+    item = root->first_item;
+    while (item != NULL) {
+        switch (item->type) {
+            case SOURCE_ITEM_FUNC: {
+                NFuncDef *func = item->value.func;
+                if (func != NULL) {
+                    if (!AssignJvmDescriptorToFunc(func)) {
+                        ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptor to function", 0, 0);
+                    }
+                    if (func->params != NULL && !AssignJvmDescriptorToParams(func->params)) {
+                        ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptors to function params", 0, 0);
+                    }
+                    if (func->body != NULL) {
+                        JvmSlotAllocator alloc;
+                        InitSlotAllocator(&alloc, 0);
+                        AssignParamSlots(&alloc, func->params);
+                        AssignSlotsInStatements(func->body, &alloc);
+                    }
+                }
+                break;
+            }
+            case SOURCE_ITEM_CLASS: {
+                NClassDef *class_def = item->value.class_def;
+                NClassMember *member = class_def ? class_def->members.first : NULL;
+                while (member != NULL) {
+                    switch (member->type) {
+                        case CLASS_MEMBER_FIELD:
+                            if (member->value.field.field_type != NULL) {
+                                if (!AssignJvmDescriptorToInitDecls(member->value.field.field_type,
+                                                                    member->value.field.init_decls)) {
+                                    ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptors to class fields", 0, 0);
+                                }
+                            }
+                            break;
+                        case CLASS_MEMBER_METHOD:
+                            if (member->value.method != NULL) {
+                                if (!AssignJvmDescriptorToMethod(member->value.method)) {
+                                    ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptor to method", 0, 0);
+                                }
+                                if (member->value.method->params != NULL &&
+                                    !AssignJvmDescriptorToParams(member->value.method->params)) {
+                                    ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptors to method params", 0, 0);
+                                }
+                                if (member->value.method->body != NULL) {
+                                    JvmSlotAllocator alloc;
+                                    InitSlotAllocator(&alloc, 1);
+                                    AssignParamSlots(&alloc, member->value.method->params);
+                                    AssignSlotsInStatements(member->value.method->body, &alloc);
+                                }
+                            }
+                            break;
+                        case CLASS_MEMBER_CTOR:
+                            if (member->value.ctor != NULL) {
+                                if (member->value.ctor->params != NULL &&
+                                    !AssignJvmDescriptorToParams(member->value.ctor->params)) {
+                                    ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptors to ctor params", 0, 0);
+                                }
+                                if (member->value.ctor->body != NULL) {
+                                    JvmSlotAllocator alloc;
+                                    InitSlotAllocator(&alloc, 1);
+                                    AssignParamSlots(&alloc, member->value.ctor->params);
+                                    AssignSlotsInStatements(member->value.ctor->body, &alloc);
+                                }
+                            }
+                            break;
+                        case CLASS_MEMBER_DTOR:
+                            if (member->value.dtor != NULL && member->value.dtor->body != NULL) {
+                                JvmSlotAllocator alloc;
+                                InitSlotAllocator(&alloc, 1);
+                                AssignSlotsInStatements(member->value.dtor->body, &alloc);
+                            }
+                            break;
+                        case CLASS_MEMBER_ENUM:
+                            break;
+                    }
+                    member = member->next;
+                }
+                break;
+            }
+            case SOURCE_ITEM_DECL:
+                if (item->value.decl.item_type != NULL) {
+                    if (!AssignJvmDescriptorToInitDecls(item->value.decl.item_type,
+                                                        item->value.decl.init_decls)) {
+                        ReportJvmAttrFailure(ctx, "Failed to assign JVM descriptors to globals", 0, 0);
+                    }
+                }
+                break;
+            case SOURCE_ITEM_ENUM:
+                break;
+        }
+        item = item->next;
+    }
+
+    return HasErrors(ctx->errors) ? 1 : 0;
+}
+
+static int AssignSlotsInStatements(NStmt *stmts, JvmSlotAllocator *alloc) {
+    NStmt *stmt = stmts;
+    if (alloc == NULL) {
+        return 1;
+    }
+    while (stmt != NULL) {
+        switch (stmt->type) {
+            case STMT_DECL:
+                if (stmt->value.decl.decl_type != NULL) {
+                    AssignLocalSlotsForDecl(alloc,
+                                            stmt->value.decl.decl_type,
+                                            stmt->value.decl.init_decls);
+                }
+                break;
+            case STMT_COMPOUND:
+                AssignSlotsInStatements(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, alloc);
+                break;
+            case STMT_IF:
+                AssignSlotsInStatements(stmt->value.if_stmt.then_stmt, alloc);
+                AssignSlotsInStatements(stmt->value.if_stmt.else_stmt, alloc);
+                break;
+            case STMT_WHILE:
+                AssignSlotsInStatements(stmt->value.while_stmt.body, alloc);
+                break;
+            case STMT_DO_WHILE:
+                AssignSlotsInStatements(stmt->value.do_while_stmt.body, alloc);
+                break;
+            case STMT_FOR:
+                if (stmt->value.for_stmt.init_decl_type != NULL) {
+                    AssignLocalSlotsForDecl(alloc,
+                                            stmt->value.for_stmt.init_decl_type,
+                                            stmt->value.for_stmt.init_decls);
+                }
+                AssignSlotsInStatements(stmt->value.for_stmt.body, alloc);
+                break;
+            case STMT_FOREACH:
+                AssignSlotsInStatements(stmt->value.foreach_stmt.body, alloc);
+                break;
+            case STMT_SWITCH:
+                for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                    NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                    if (item != NULL && item->stmts != NULL) {
+                        AssignSlotsInStatements(item->stmts->first, alloc);
+                    }
+                }
+                break;
+            case STMT_EXPR:
+            case STMT_RETURN:
+            case STMT_BREAK:
+            case STMT_CONTINUE:
+                break;
+        }
+        stmt = stmt->next;
+    }
+    return 0;
 }
 
 // ----- Чертвёртый проход: трансформация дерева в код ген -----
