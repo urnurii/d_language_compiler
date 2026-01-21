@@ -379,7 +379,7 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
         case OP_AND:
         case OP_OR:
             if (!((IsBooleanType(left_type) && IsBooleanType(right_type)) ||
-                  (IsNumericType(left_type) && IsNumericType(right_type)))) {
+                  (IsIntegralType(left_type) && IsIntegralType(right_type)))) {
                 return NULL;
             }
             return CreateBaseType(TYPE_BOOL);
@@ -415,7 +415,7 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
             }
             return NULL;
         case OP_NOT:
-            if (IsBooleanType(operand_type) || IsNumericType(operand_type)) {
+            if (IsBooleanType(operand_type) || IsIntegralType(operand_type)) {
                 return CreateBaseType(TYPE_BOOL);
             }
             return NULL;
@@ -834,7 +834,7 @@ int CanBeCondition(NType *type) {
     if (IsBooleanType(type)) {
         return 1;
     }
-    if (IsNumericType(type)) {
+    if (IsIntegralType(type)) {
         return 1;
     }
     return 0;
