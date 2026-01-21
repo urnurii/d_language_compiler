@@ -10,6 +10,9 @@ static NType *CreateElementTypeFromArrayType(const NType *array_type);
 static int ReplaceSliceWithFuncCall(NExpr *expr);
 static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx);
 static char *MakeTempName(const char *prefix, int id);
+static int TransformSwitchToIfChain(NStmt *stmt, SemanticContext *ctx);
+static void PurgeBreaksInStmtList(NStmtList *list, int loop_depth, int switch_depth);
+static void PurgeBreaksInStmt(NStmt *stmt, int loop_depth, int switch_depth);
 
 static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx);
 static int TransformStatement(NStmt *stmt, SemanticContext *ctx);
@@ -147,6 +150,10 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
             TransformStatement(stmt->value.foreach_stmt.body, ctx);
             break;
         case STMT_SWITCH:
+            if (TransformSwitchToIfChain(stmt, ctx)) {
+                TransformStatement(stmt, ctx);
+                return 0;
+            }
             TransformExpression(stmt->value.switch_stmt.expr, ctx);
             for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
                 NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
@@ -449,6 +456,154 @@ static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
     outer_list = CreateStmtList();
     AddStmtToList(outer_list, arr_decl_stmt);
     AddStmtToList(outer_list, for_stmt);
+
+    stmt->type = STMT_COMPOUND;
+    stmt->value.stmt_list = outer_list;
+    return 1;
+}
+
+static void PurgeBreaksInStmtList(NStmtList *list, int loop_depth, int switch_depth) {
+    NStmt *prev = NULL;
+    NStmt *curr;
+    if (list == NULL) {
+        return;
+    }
+    curr = list->first;
+    while (curr != NULL) {
+        NStmt *next = curr->next;
+        if (curr->type == STMT_BREAK && loop_depth == 0 && switch_depth == 1) {
+            if (prev == NULL) {
+                list->first = next;
+            } else {
+                prev->next = next;
+            }
+            if (list->last == curr) {
+                list->last = prev;
+            }
+            curr = next;
+            continue;
+        }
+        PurgeBreaksInStmt(curr, loop_depth, switch_depth);
+        prev = curr;
+        curr = next;
+    }
+}
+
+static void PurgeBreaksInStmt(NStmt *stmt, int loop_depth, int switch_depth) {
+    if (stmt == NULL) {
+        return;
+    }
+    switch (stmt->type) {
+        case STMT_COMPOUND:
+            PurgeBreaksInStmtList(stmt->value.stmt_list, loop_depth, switch_depth);
+            break;
+        case STMT_IF:
+            PurgeBreaksInStmt(stmt->value.if_stmt.then_stmt, loop_depth, switch_depth);
+            PurgeBreaksInStmt(stmt->value.if_stmt.else_stmt, loop_depth, switch_depth);
+            break;
+        case STMT_WHILE:
+        case STMT_DO_WHILE:
+            PurgeBreaksInStmt(stmt->value.while_stmt.body, loop_depth + 1, switch_depth);
+            break;
+        case STMT_FOR:
+            PurgeBreaksInStmt(stmt->value.for_stmt.body, loop_depth + 1, switch_depth);
+            break;
+        case STMT_FOREACH:
+            PurgeBreaksInStmt(stmt->value.foreach_stmt.body, loop_depth + 1, switch_depth);
+            break;
+        case STMT_SWITCH:
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->stmts) {
+                    PurgeBreaksInStmtList(item->stmts, loop_depth, switch_depth + 1);
+                }
+            }
+            break;
+        case STMT_DECL:
+        case STMT_EXPR:
+        case STMT_RETURN:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+}
+
+static int TransformSwitchToIfChain(NStmt *stmt, SemanticContext *ctx) {
+    static int switch_counter = 0;
+    int local_id;
+    char *tmp_name;
+    NExpr *switch_expr;
+    NType *switch_type;
+    NType *tmp_type;
+    NInitDeclList *tmp_init_list;
+    NStmt *tmp_decl_stmt;
+    NStmt *if_chain = NULL;
+    NStmt *current_if = NULL;
+    NStmt *default_stmt = NULL;
+    NStmtList *outer_list;
+
+    if (stmt == NULL || ctx == NULL || stmt->type != STMT_SWITCH) {
+        return 0;
+    }
+
+    switch_expr = stmt->value.switch_stmt.expr;
+    if (switch_expr == NULL) {
+        return 0;
+    }
+
+    switch_type = InferExpressionTypeSilent(switch_expr, ctx);
+    tmp_type = CopyTypeNoContext(switch_type);
+    if (tmp_type == NULL) {
+        tmp_type = CreateBaseType(TYPE_INT);
+    }
+
+    local_id = switch_counter++;
+    tmp_name = MakeTempName("__switch_val", local_id);
+
+    tmp_init_list = CreateInitDeclList();
+    AddInitDeclToList(tmp_init_list, CreateInitDecl(tmp_name, CreateExprInitializer(switch_expr)));
+    tmp_decl_stmt = CreateDeclStmt(tmp_type, tmp_init_list);
+
+    for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+        NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+        NExpr *cond;
+        NStmt *then_stmt;
+        if (item == NULL) {
+            continue;
+        }
+        if (item->type == CASE_ITEM_DEFAULT) {
+            if (default_stmt == NULL) {
+                PurgeBreaksInStmtList(item->stmts, 0, 1);
+                default_stmt = CreateCompoundStmt(item->stmts);
+            }
+            continue;
+        }
+        if (item->case_expr == NULL) {
+            continue;
+        }
+        PurgeBreaksInStmtList(item->stmts, 0, 1);
+        cond = CreateBinaryOpExpr(OP_EQ, CreateIdentExpr(tmp_name), item->case_expr);
+        then_stmt = CreateCompoundStmt(item->stmts);
+        if (if_chain == NULL) {
+            if_chain = CreateIfStmt(cond, then_stmt, NULL);
+            current_if = if_chain;
+        } else {
+            current_if->value.if_stmt.else_stmt = CreateIfStmt(cond, then_stmt, NULL);
+            current_if = current_if->value.if_stmt.else_stmt;
+        }
+    }
+
+    if (if_chain != NULL && default_stmt != NULL) {
+        current_if->value.if_stmt.else_stmt = default_stmt;
+    } else if (if_chain == NULL && default_stmt != NULL) {
+        if_chain = default_stmt;
+    }
+
+    outer_list = CreateStmtList();
+    AddStmtToList(outer_list, tmp_decl_stmt);
+    if (if_chain != NULL) {
+        AddStmtToList(outer_list, if_chain);
+    }
 
     stmt->type = STMT_COMPOUND;
     stmt->value.stmt_list = outer_list;
