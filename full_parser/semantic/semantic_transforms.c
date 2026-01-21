@@ -1,11 +1,15 @@
 #include "semantic_transforms.h"
 #include "ast_builder.h"
+#include "type_inference.h"
+#include <stdio.h>
 
 static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls);
 static int NormalizeArrayTypeInParams(NParamList *params);
 static void NormalizeArrayType(NType *type);
 static NType *CreateElementTypeFromArrayType(const NType *array_type);
 static int ReplaceSliceWithFuncCall(NExpr *expr);
+static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx);
+static char *MakeTempName(const char *prefix, int id);
 
 static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx);
 static int TransformStatement(NStmt *stmt, SemanticContext *ctx);
@@ -135,6 +139,10 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
             }
             break;
         case STMT_FOREACH:
+            if (TransformForeachToFor(stmt, ctx)) {
+                TransformStatement(stmt, ctx);
+                return 0;
+            }
             TransformExpression(stmt->value.foreach_stmt.collection, ctx);
             TransformStatement(stmt->value.foreach_stmt.body, ctx);
             break;
@@ -320,6 +328,130 @@ static int ReplaceSliceWithFuncCall(NExpr *expr) {
     expr->value.func_call.func_name = DuplicateString("__slice");
     expr->value.func_call.args = list->elements;
     expr->value.func_call.arg_count = list->count;
+    return 1;
+}
+
+static char *MakeTempName(const char *prefix, int id) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%s%d", prefix, id);
+    return DuplicateString(buf);
+}
+
+static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
+    static int foreach_counter = 0;
+    int local_id;
+    NExpr *collection;
+    NType *collection_type;
+    NType *element_type;
+    NType *array_decl_type;
+    char *arr_name;
+    char *idx_name;
+    NExprList *len_args;
+    NExpr *len_call;
+    NExpr *idx_ident_cond;
+    NExpr *arr_ident_index;
+    NExpr *idx_ident_index;
+    NExpr *element_access;
+    NExpr *iter_expr;
+    NExpr *cond_expr;
+    NInitDeclList *arr_init_list;
+    NInitDeclList *idx_init_list;
+    NStmtList *outer_list;
+    NStmtList *body_list;
+    NStmt *arr_decl_stmt;
+    NStmt *for_stmt;
+    NStmt *var_decl_stmt;
+    NStmt *body_stmt;
+    NType *var_decl_type;
+    NType *idx_decl_type;
+
+    if (stmt == NULL || ctx == NULL || stmt->type != STMT_FOREACH) {
+        return 0;
+    }
+
+    collection = stmt->value.foreach_stmt.collection;
+    if (collection == NULL) {
+        return 0;
+    }
+
+    collection_type = InferExpressionTypeSilent(collection, ctx);
+    if (collection_type == NULL) {
+        return 0;
+    }
+    if (collection_type->kind != TYPE_KIND_BASE_ARRAY &&
+        collection_type->kind != TYPE_KIND_CLASS_ARRAY) {
+        return 0;
+    }
+
+    element_type = stmt->value.foreach_stmt.is_typed
+        ? stmt->value.foreach_stmt.var_type
+        : CreateElementTypeFromArrayType(collection_type);
+    if (element_type == NULL) {
+        return 0;
+    }
+
+    local_id = foreach_counter++;
+    arr_name = MakeTempName("__foreach_arr", local_id);
+    idx_name = MakeTempName("__foreach_idx", local_id);
+
+    array_decl_type = CopyTypeNoContext(collection_type);
+    if (array_decl_type == NULL) {
+        return 0;
+    }
+    NormalizeArrayType(array_decl_type);
+
+    arr_init_list = CreateInitDeclList();
+    AddInitDeclToList(arr_init_list, CreateInitDecl(arr_name, CreateExprInitializer(collection)));
+    arr_decl_stmt = CreateDeclStmt(array_decl_type, arr_init_list);
+
+    idx_decl_type = CreateBaseType(TYPE_INT);
+    idx_init_list = CreateInitDeclList();
+    AddInitDeclToList(idx_init_list, CreateInitDecl(idx_name, CreateExprInitializer(CreateIntExpr(0))));
+
+    len_args = CreateExprList();
+    AddExprToList(len_args, CreateIdentExpr(arr_name));
+    len_call = CreateFuncCallExpr("__len", len_args->elements, len_args->count);
+
+    idx_ident_cond = CreateIdentExpr(idx_name);
+    cond_expr = CreateBinaryOpExpr(OP_LT, idx_ident_cond, len_call);
+
+    iter_expr = CreateAssignExpr(
+        OP_ASSIGN,
+        CreateIdentExpr(idx_name),
+        CreateBinaryOpExpr(OP_PLUS, CreateIdentExpr(idx_name), CreateIntExpr(1))
+    );
+
+    arr_ident_index = CreateIdentExpr(arr_name);
+    idx_ident_index = CreateIdentExpr(idx_name);
+    element_access = CreateArrayAccessExpr(arr_ident_index, idx_ident_index, NULL);
+
+    var_decl_type = CopyTypeNoContext(element_type);
+    if (var_decl_type == NULL) {
+        return 0;
+    }
+    {
+        NInitDeclList *var_init = CreateInitDeclList();
+        AddInitDeclToList(var_init, CreateInitDecl(stmt->value.foreach_stmt.var_name,
+                                                  CreateExprInitializer(element_access)));
+        var_decl_stmt = CreateDeclStmt(var_decl_type, var_init);
+    }
+
+    body_list = CreateStmtList();
+    AddStmtToList(body_list, var_decl_stmt);
+    body_stmt = stmt->value.foreach_stmt.body;
+    if (body_stmt != NULL) {
+        AddStmtToList(body_list, body_stmt);
+    }
+    body_stmt = CreateCompoundStmt(body_list);
+
+    for_stmt = CreateForStmt(NULL, idx_decl_type, idx_init_list, cond_expr, iter_expr, body_stmt);
+
+    outer_list = CreateStmtList();
+    AddStmtToList(outer_list, arr_decl_stmt);
+    AddStmtToList(outer_list, for_stmt);
+
+    stmt->type = STMT_COMPOUND;
+    stmt->value.stmt_list = outer_list;
     return 1;
 }
 
