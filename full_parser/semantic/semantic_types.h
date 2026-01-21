@@ -70,7 +70,8 @@ typedef struct {
     int field_count;
     MethodInfo **methods; /* массив методов */
     int method_count;
-    NCtorDef *constructor; /* конструктор (может быть NULL) */
+    NCtorDef **constructors; /* массив конструкторов */
+    int constructor_count;
     NDtorDef *destructor;  /* деструктор (может быть NULL) */
     int members_processed; /* обработаны ли члены класса */
     int line;

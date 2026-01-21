@@ -160,6 +160,173 @@ static int IsInsideExactClass(SemanticContext *ctx, const NExpr *obj, const char
     return strcmp(ctx->current_class->name, target_class) == 0;
 }
 
+static int AreCtorSignaturesCompatible(const NCtorDef *a, const NCtorDef *b) {
+    int count_a = 0;
+    int count_b = 0;
+
+    if (a == NULL || b == NULL) {
+        return 0;
+    }
+    if (a->params != NULL) {
+        count_a = a->params->count;
+    }
+    if (b->params != NULL) {
+        count_b = b->params->count;
+    }
+    if (count_a != count_b) {
+        return 0;
+    }
+    for (int i = 0; i < count_a; i++) {
+        NParam *pa = a->params->params[i];
+        NParam *pb = b->params->params[i];
+        if (pa == NULL || pb == NULL) {
+            return 0;
+        }
+        if (pa->is_ref != pb->is_ref) {
+            return 0;
+        }
+        if (!TypesEqual(pa->param_type, pb->param_type)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int AddConstructorToClass(ClassInfo *class_info, NCtorDef *ctor, SemanticContext *ctx) {
+    NCtorDef **grown;
+
+    if (class_info == NULL || ctor == NULL) {
+        return 1;
+    }
+    for (int i = 0; i < class_info->constructor_count; i++) {
+        NCtorDef *prev = class_info->constructors[i];
+        if (prev == NULL) {
+            continue;
+        }
+        if (AreCtorSignaturesCompatible(prev, ctor)) {
+            if (ctx != NULL && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                      "Duplicate constructor in class",
+                                                      0,
+                                                      0);
+                AddError(ctx->errors, &err);
+            }
+            return 1;
+        }
+    }
+    grown = (NCtorDef**)realloc(class_info->constructors,
+                                sizeof(NCtorDef*) * (size_t)(class_info->constructor_count + 1));
+    if (grown == NULL) {
+        return ReportOutOfMemory(ctx);
+    }
+    class_info->constructors = grown;
+    class_info->constructors[class_info->constructor_count] = ctor;
+    class_info->constructor_count += 1;
+    return 0;
+}
+
+static int CanMatchConstructor(const NCtorDef *ctor, NExpr **args, int arg_count,
+                               SemanticContext *ctx, int *score_out) {
+    int expected;
+    int count;
+    int score = 0;
+
+    if (ctor == NULL) {
+        return 0;
+    }
+
+    expected = (ctor->params != NULL) ? ctor->params->count : 0;
+
+    if (arg_count > expected) {
+        return 0;
+    }
+    if (arg_count < expected && ctor->params != NULL) {
+        for (int i = arg_count; i < expected; i++) {
+            NParam *param = ctor->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                return 0;
+            }
+        }
+    }
+
+    if (ctor->params == NULL) {
+        if (score_out != NULL) {
+            *score_out = score;
+        }
+        return 1;
+    }
+
+    count = expected < arg_count ? expected : arg_count;
+    for (int i = 0; i < count; i++) {
+        NParam *param = ctor->params->params[i];
+        NExpr *arg = (args != NULL) ? args[i] : NULL;
+        NType *arg_type;
+        if (param == NULL || arg == NULL || param->param_type == NULL) {
+            return 0;
+        }
+        if (param->is_ref && !IsValidLValueExpr(arg)) {
+            return 0;
+        }
+        arg_type = InferExpressionTypeSilent(arg, ctx);
+        if (arg_type == NULL) {
+            return 0;
+        }
+        if (!IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+            return 0;
+        }
+        if (TypesEqual(param->param_type, arg_type)) {
+            score += 2;
+        } else {
+            score += 1;
+        }
+    }
+
+    if (score_out != NULL) {
+        *score_out = score;
+    }
+    return 1;
+}
+
+static NCtorDef *LookupConstructorOverload(ClassInfo *class_info, NExpr **args, int arg_count,
+                                           SemanticContext *ctx, int *is_ambiguous) {
+    NCtorDef *best = NULL;
+    int best_score = -1;
+    int ambiguous = 0;
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = 0;
+    }
+    if (class_info == NULL || class_info->constructors == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < class_info->constructor_count; i++) {
+        NCtorDef *ctor = class_info->constructors[i];
+        int score = 0;
+        if (ctor == NULL) {
+            continue;
+        }
+        if (!CanMatchConstructor(ctor, args, arg_count, ctx, &score)) {
+            continue;
+        }
+        if (score > best_score) {
+            best = ctor;
+            best_score = score;
+            ambiguous = 0;
+        } else if (score == best_score) {
+            ambiguous = 1;
+        }
+    }
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = ambiguous;
+    }
+    if (ambiguous) {
+        return NULL;
+    }
+    return best;
+}
+
 static NType *GetForeachElementType(NType *collection_type) {
     if (collection_type == NULL) {
         return NULL;
@@ -545,7 +712,8 @@ int ProcessClassDefinition(NClassDef *class_def, SemanticContext *ctx) {
     info->field_count = 0;
     info->methods = NULL;
     info->method_count = 0;
-    info->constructor = NULL;
+    info->constructors = NULL;
+    info->constructor_count = 0;
     info->destructor = NULL;
     info->members_processed = 0;
     info->line = 0;
@@ -587,17 +755,8 @@ int ProcessClassMembers(NClassMember *members, ClassInfo *class_info, SemanticCo
                 }
                 break;
             case CLASS_MEMBER_CTOR:
-                if (class_info->constructor != NULL) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                              "Duplicate constructor in class",
-                                                              0,
-                                                              0);
-                        AddError(ctx->errors, &err);
-                    }
+                if (AddConstructorToClass(class_info, member->value.ctor, ctx) != 0) {
                     had_error = 1;
-                } else {
-                    class_info->constructor = member->value.ctor;
                 }
                 break;
             case CLASS_MEMBER_DTOR:
@@ -2483,33 +2642,43 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     had_error = 1;
                 } else if (expr->value.new_expr.type->kind == TYPE_KIND_CLASS) {
                     ClassInfo *class_info = LookupClass(ctx, expr->value.new_expr.type->class_name);
-                    NCtorDef *ctor = class_info ? class_info->constructor : NULL;
-                    int expected = (ctor && ctor->params) ? ctor->params->count : 0;
+                    NCtorDef *ctor = NULL;
+                    int ambiguous = 0;
                     int actual = expr->value.new_expr.init_count;
-                    if (ctor == NULL) {
-                        if (actual > 0) {
+
+                    if (class_info != NULL && class_info->constructor_count > 0) {
+                        ctor = LookupConstructorOverload(class_info,
+                                                         expr->value.new_expr.init_exprs,
+                                                         actual,
+                                                         ctx,
+                                                         &ambiguous);
+                        if (ctor == NULL) {
                             if (ctx->errors != NULL) {
-                                SemanticError err = CreateWrongArgCountError("constructor",
-                                                                            0,
-                                                                            actual,
-                                                                            expr->line,
-                                                                            expr->column);
+                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                      ambiguous
+                                                                          ? "Ambiguous constructor call"
+                                                                          : "No matching constructor for class",
+                                                                      expr->line,
+                                                                      expr->column);
                                 AddError(ctx->errors, &err);
                             }
                             had_error = 1;
                         }
-                    } else {
-                        if (actual > expected) {
-                            if (ctx->errors != NULL) {
-                                SemanticError err = CreateWrongArgCountError("constructor",
-                                                                            expected,
-                                                                            actual,
-                                                                            expr->line,
-                                                                            expr->column);
-                                AddError(ctx->errors, &err);
-                            }
-                            had_error = 1;
-                        } else if (actual < expected && ctor->params != NULL) {
+                    } else if (actual > 0) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateWrongArgCountError("constructor",
+                                                                        0,
+                                                                        actual,
+                                                                        expr->line,
+                                                                        expr->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+
+                    if (ctor != NULL) {
+                        int expected = (ctor->params != NULL) ? ctor->params->count : 0;
+                        if (actual < expected && ctor->params != NULL) {
                             for (int i = actual; i < expected; i++) {
                                 NParam *param = ctor->params->params[i];
                                 if (param == NULL || param->default_value == NULL) {

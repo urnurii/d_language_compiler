@@ -454,7 +454,8 @@ static int RegisterBuiltinClasses(SemanticContext *ctx) {
     info->field_count = 0;
     info->methods = NULL;
     info->method_count = 0;
-    info->constructor = NULL;
+    info->constructors = NULL;
+    info->constructor_count = 0;
     info->destructor = NULL;
     info->members_processed = 1;
     info->line = 0;
