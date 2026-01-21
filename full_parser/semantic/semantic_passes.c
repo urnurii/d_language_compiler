@@ -5,6 +5,7 @@
 #include "name_resolution.h"
 #include "type_inference.h"
 #include "error_reporting.h"
+#include "jvm_layout.h"
 
 
 static int ReportOutOfMemory(SemanticContext *ctx) {
@@ -563,6 +564,14 @@ static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
             return 0;
     }
 }
+
+static int AttributeJvmRefKeysInStmtList(NStmt *stmts, SemanticContext *ctx);
+static int AttributeJvmRefKeysInStmt(NStmt *stmt, SemanticContext *ctx);
+static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx);
+static int FillRefKeyForMemberAccess(NExpr *expr, SemanticContext *ctx);
+static int FillRefKeyForMethodCall(NExpr *expr, SemanticContext *ctx);
+static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx);
+static int FillRefKeyForFuncCall(NExpr *expr, SemanticContext *ctx);
 
 /* ============================================================================
    ПЕРВЫЙ ПРОХОД: СБОР ВСЕХ ДЕКЛАРАЦИЙ
@@ -3213,4 +3222,395 @@ int AttributeStatements(NStmt *stmts, SemanticContext *ctx) {
         stmt = stmt->next;
     }
     return 0;
+}
+
+int AttributeJvmRefKeys(NProgram *root, SemanticContext *ctx) {
+    NSourceItem *item;
+    if (root == NULL || ctx == NULL) {
+        return 0;
+    }
+    item = root->first_item;
+    while (item != NULL) {
+        switch (item->type) {
+            case SOURCE_ITEM_FUNC:
+                if (item->value.func && item->value.func->body) {
+                    AttributeJvmRefKeysInStmtList(item->value.func->body, ctx);
+                }
+                break;
+            case SOURCE_ITEM_CLASS: {
+                NClassDef *class_def = item->value.class_def;
+                NClassMember *member = class_def ? class_def->members.first : NULL;
+                ClassInfo *saved = ctx->current_class;
+                if (class_def && class_def->class_name) {
+                    ctx->current_class = LookupClass(ctx, class_def->class_name);
+                }
+                while (member != NULL) {
+                    if (member->type == CLASS_MEMBER_METHOD && member->value.method &&
+                        member->value.method->body) {
+                        AttributeJvmRefKeysInStmtList(member->value.method->body, ctx);
+                    } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor &&
+                        member->value.ctor->body) {
+                        AttributeJvmRefKeysInStmtList(member->value.ctor->body, ctx);
+                    } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor &&
+                        member->value.dtor->body) {
+                        AttributeJvmRefKeysInStmtList(member->value.dtor->body, ctx);
+                    }
+                    member = member->next;
+                }
+                ctx->current_class = saved;
+                break;
+            }
+            case SOURCE_ITEM_DECL:
+            case SOURCE_ITEM_ENUM:
+                break;
+        }
+        item = item->next;
+    }
+    return HasErrors(ctx->errors) ? 1 : 0;
+}
+
+static int AttributeJvmRefKeysInStmtList(NStmt *stmts, SemanticContext *ctx) {
+    NStmt *stmt = stmts;
+    while (stmt != NULL) {
+        AttributeJvmRefKeysInStmt(stmt, ctx);
+        stmt = stmt->next;
+    }
+    return 0;
+}
+
+static int AttributeJvmRefKeysInStmt(NStmt *stmt, SemanticContext *ctx) {
+    if (stmt == NULL) {
+        return 0;
+    }
+    switch (stmt->type) {
+        case STMT_EXPR:
+        case STMT_RETURN:
+            AttributeJvmRefKeysInExpr(stmt->value.expr, ctx);
+            break;
+        case STMT_DECL:
+            if (stmt->value.decl.init_decls) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        AttributeJvmRefKeysInExpr(decl->initializer->expr, ctx);
+                    }
+                }
+            }
+            break;
+        case STMT_COMPOUND:
+            AttributeJvmRefKeysInStmtList(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL, ctx);
+            break;
+        case STMT_IF:
+            AttributeJvmRefKeysInExpr(stmt->value.if_stmt.condition, ctx);
+            AttributeJvmRefKeysInStmt(stmt->value.if_stmt.then_stmt, ctx);
+            AttributeJvmRefKeysInStmt(stmt->value.if_stmt.else_stmt, ctx);
+            break;
+        case STMT_WHILE:
+            AttributeJvmRefKeysInExpr(stmt->value.while_stmt.condition, ctx);
+            AttributeJvmRefKeysInStmt(stmt->value.while_stmt.body, ctx);
+            break;
+        case STMT_DO_WHILE:
+            AttributeJvmRefKeysInStmt(stmt->value.do_while_stmt.body, ctx);
+            AttributeJvmRefKeysInExpr(stmt->value.do_while_stmt.condition, ctx);
+            break;
+        case STMT_FOR:
+            AttributeJvmRefKeysInExpr(stmt->value.for_stmt.init_expr, ctx);
+            if (stmt->value.for_stmt.init_decls) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        AttributeJvmRefKeysInExpr(decl->initializer->expr, ctx);
+                    }
+                }
+            }
+            AttributeJvmRefKeysInExpr(stmt->value.for_stmt.cond_expr, ctx);
+            AttributeJvmRefKeysInExpr(stmt->value.for_stmt.iter_expr, ctx);
+            AttributeJvmRefKeysInStmt(stmt->value.for_stmt.body, ctx);
+            break;
+        case STMT_FOREACH:
+            AttributeJvmRefKeysInExpr(stmt->value.foreach_stmt.collection, ctx);
+            AttributeJvmRefKeysInStmt(stmt->value.foreach_stmt.body, ctx);
+            break;
+        case STMT_SWITCH:
+            AttributeJvmRefKeysInExpr(stmt->value.switch_stmt.expr, ctx);
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->case_expr) {
+                    AttributeJvmRefKeysInExpr(item->case_expr, ctx);
+                }
+                if (item && item->stmts) {
+                    AttributeJvmRefKeysInStmtList(item->stmts->first, ctx);
+                }
+            }
+            break;
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+    return 0;
+}
+
+static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx) {
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_MEMBER_ACCESS:
+            FillRefKeyForMemberAccess(expr, ctx);
+            AttributeJvmRefKeysInExpr(expr->value.member_access.object, ctx);
+            break;
+        case EXPR_METHOD_CALL:
+            FillRefKeyForMethodCall(expr, ctx);
+            AttributeJvmRefKeysInExpr(expr->value.member_access.object, ctx);
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                AttributeJvmRefKeysInExpr(expr->value.member_access.args[i], ctx);
+            }
+            break;
+        case EXPR_SUPER_METHOD:
+            FillRefKeyForSuperMethod(expr, ctx);
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                AttributeJvmRefKeysInExpr(expr->value.member_access.args[i], ctx);
+            }
+            break;
+        case EXPR_FUNC_CALL:
+            FillRefKeyForFuncCall(expr, ctx);
+            for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                AttributeJvmRefKeysInExpr(expr->value.func_call.args[i], ctx);
+            }
+            break;
+        case EXPR_ARRAY_ACCESS:
+            AttributeJvmRefKeysInExpr(expr->value.array_access.array, ctx);
+            AttributeJvmRefKeysInExpr(expr->value.array_access.index, ctx);
+            AttributeJvmRefKeysInExpr(expr->value.array_access.index_end, ctx);
+            break;
+        case EXPR_NEW:
+            for (int i = 0; i < expr->value.new_expr.init_count; i++) {
+                AttributeJvmRefKeysInExpr(expr->value.new_expr.init_exprs[i], ctx);
+            }
+            break;
+        case EXPR_UNARY_OP:
+            AttributeJvmRefKeysInExpr(expr->value.unary.operand, ctx);
+            break;
+        case EXPR_BINARY_OP:
+        case EXPR_ASSIGN:
+            AttributeJvmRefKeysInExpr(expr->value.binary.left, ctx);
+            AttributeJvmRefKeysInExpr(expr->value.binary.right, ctx);
+            break;
+        case EXPR_PAREN:
+            AttributeJvmRefKeysInExpr(expr->value.inner_expr, ctx);
+            break;
+        case EXPR_IDENT:
+        case EXPR_INT:
+        case EXPR_FLOAT:
+        case EXPR_CHAR:
+        case EXPR_STRING:
+        case EXPR_BOOL:
+        case EXPR_NULL:
+        case EXPR_NAN:
+        case EXPR_THIS:
+        case EXPR_SUPER:
+            break;
+    }
+    return 0;
+}
+
+static int FillRefKeyForMemberAccess(NExpr *expr, SemanticContext *ctx) {
+    NType *obj_type;
+    ClassInfo *class_info;
+    FieldInfo *field;
+    ClassInfo *owner;
+    char *owner_internal;
+    char *desc;
+
+    if (expr == NULL || ctx == NULL) {
+        return 0;
+    }
+    if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    if (expr->value.member_access.object != NULL &&
+        expr->value.member_access.object->type == EXPR_IDENT) {
+        Symbol *sym = LookupSymbol(ctx, expr->value.member_access.object->value.ident_name);
+        if (sym != NULL && sym->kind == SYMBOL_ENUM_TYPE) {
+            return 0;
+        }
+    }
+    obj_type = InferExpressionTypeSilent(expr->value.member_access.object, ctx);
+    if (obj_type == NULL || obj_type->kind != TYPE_KIND_CLASS) {
+        return 0;
+    }
+    class_info = LookupClass(ctx, obj_type->class_name);
+    if (class_info == NULL) {
+        return 0;
+    }
+    owner = FindFieldOwnerInHierarchy(ctx, class_info, expr->value.member_access.member_name);
+    if (owner == NULL) {
+        return 0;
+    }
+    field = LookupClassField(owner, expr->value.member_access.member_name);
+    if (field == NULL) {
+        return 0;
+    }
+    desc = BuildJvmTypeDescriptor(field->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName(owner->name);
+    if (owner_internal == NULL) {
+        free(desc);
+        return 0;
+    }
+    if (!SetJvmRefKey(&expr->jvm_ref_key,
+                      owner_internal,
+                      field->name,
+                      desc,
+                      JVM_REF_FIELD)) {
+        free(owner_internal);
+        free(desc);
+        return 0;
+    }
+    free(owner_internal);
+    free(desc);
+    return 1;
+}
+
+static int FillRefKeyForMethodCall(NExpr *expr, SemanticContext *ctx) {
+    NType *obj_type;
+    ClassInfo *class_info;
+    MethodInfo *method;
+    ClassInfo *owner;
+    char *owner_internal;
+    char *desc;
+
+    if (expr == NULL || ctx == NULL) {
+        return 0;
+    }
+    if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    obj_type = InferExpressionTypeSilent(expr->value.member_access.object, ctx);
+    if (obj_type == NULL || obj_type->kind != TYPE_KIND_CLASS) {
+        return 0;
+    }
+    class_info = LookupClass(ctx, obj_type->class_name);
+    if (class_info == NULL) {
+        return 0;
+    }
+    owner = FindMethodOwnerInHierarchy(ctx, class_info, expr->value.member_access.member_name);
+    if (owner == NULL) {
+        return 0;
+    }
+    method = LookupClassMethod(owner, expr->value.member_access.member_name);
+    if (method == NULL) {
+        return 0;
+    }
+    desc = BuildJvmMethodDescriptor(method->return_type, method->params);
+    if (desc == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName(owner->name);
+    if (owner_internal == NULL) {
+        free(desc);
+        return 0;
+    }
+    if (!SetJvmRefKey(&expr->jvm_ref_key,
+                      owner_internal,
+                      method->name,
+                      desc,
+                      JVM_REF_METHOD)) {
+        free(owner_internal);
+        free(desc);
+        return 0;
+    }
+    free(owner_internal);
+    free(desc);
+    return 1;
+}
+
+static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx) {
+    ClassInfo *base_info;
+    MethodInfo *method;
+    char *owner_internal;
+    char *desc;
+
+    if (expr == NULL || ctx == NULL || ctx->current_class == NULL) {
+        return 0;
+    }
+    if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    if (ctx->current_class->base_class == NULL) {
+        return 0;
+    }
+    base_info = LookupClass(ctx, ctx->current_class->base_class);
+    if (base_info == NULL) {
+        return 0;
+    }
+    method = LookupClassMethodInHierarchy(ctx, base_info, expr->value.member_access.member_name);
+    if (method == NULL) {
+        return 0;
+    }
+    desc = BuildJvmMethodDescriptor(method->return_type, method->params);
+    if (desc == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName(base_info->name);
+    if (owner_internal == NULL) {
+        free(desc);
+        return 0;
+    }
+    if (!SetJvmRefKey(&expr->jvm_ref_key,
+                      owner_internal,
+                      method->name,
+                      desc,
+                      JVM_REF_METHOD)) {
+        free(owner_internal);
+        free(desc);
+        return 0;
+    }
+    free(owner_internal);
+    free(desc);
+    return 1;
+}
+
+static int FillRefKeyForFuncCall(NExpr *expr, SemanticContext *ctx) {
+    FunctionInfo *func;
+    char *owner_internal;
+    char *desc;
+
+    if (expr == NULL || ctx == NULL) {
+        return 0;
+    }
+    if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    func = LookupFunctionOverload(ctx,
+                                  expr->value.func_call.func_name,
+                                  expr->value.func_call.args,
+                                  expr->value.func_call.arg_count,
+                                  NULL);
+    if (func == NULL) {
+        return 0;
+    }
+    desc = BuildJvmMethodDescriptor(func->return_type, func->params);
+    if (desc == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName("Main");
+    if (owner_internal == NULL) {
+        free(desc);
+        return 0;
+    }
+    if (!SetJvmRefKey(&expr->jvm_ref_key,
+                      owner_internal,
+                      func->name,
+                      desc,
+                      JVM_REF_METHOD)) {
+        free(owner_internal);
+        free(desc);
+        return 0;
+    }
+    free(owner_internal);
+    free(desc);
+    return 1;
 }

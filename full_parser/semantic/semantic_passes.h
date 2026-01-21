@@ -201,4 +201,9 @@ int AttributeExpressions(NExpr *root, SemanticContext *ctx);
    Результат: каждый узел NStmt может быть связан со своей областью видимости */
 int AttributeStatements(NStmt *stmts, SemanticContext *ctx);
 
+/* Проставить JVM RefKey для обращений к полям/методам/функциям.
+   Использует ClassInfo/FieldInfo/MethodInfo и JVM дескрипторы.
+   Возвращает 0 при успехе, 1 при наличии ошибок. */
+int AttributeJvmRefKeys(NProgram *root, SemanticContext *ctx);
+
 #endif /* SEMANTIC_PASSES_H */

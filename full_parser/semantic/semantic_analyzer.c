@@ -251,6 +251,9 @@ static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx) {
     if (ApplyJvmAttribution(root, ctx) != 0) {
         return 1;
     }
+    if (AttributeJvmRefKeys(root, ctx) != 0) {
+        return 1;
+    }
 
     {
         NSourceItem *item = root->first_item;
