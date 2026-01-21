@@ -86,7 +86,7 @@ char *BuildJvmInternalName(const char *name) {
 static const char *GetBaseDescriptor(BaseType base) {
     switch (base) {
         case TYPE_INT:    return "I";
-        case TYPE_CHAR:   return "C";
+        case TYPE_CHAR:   return "I";
         case TYPE_STRING: return "Ljava/lang/String;";
         case TYPE_BOOL:   return "Z";
         case TYPE_FLOAT:  return "F";
