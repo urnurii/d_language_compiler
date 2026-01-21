@@ -1,4 +1,11 @@
 #include "semantic_transforms.h"
+#include "ast_builder.h"
+
+static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls);
+static int NormalizeArrayTypeInParams(NParamList *params);
+static void NormalizeArrayType(NType *type);
+static NType *CreateElementTypeFromArrayType(const NType *array_type);
+static int ReplaceSliceWithFuncCall(NExpr *expr);
 
 static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx);
 static int TransformStatement(NStmt *stmt, SemanticContext *ctx);
@@ -24,18 +31,31 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
     while (item != NULL) {
         switch (item->type) {
             case SOURCE_ITEM_FUNC:
-                if (item->value.func && item->value.func->body) {
-                    TransformStatement(item->value.func->body, ctx);
+                if (item->value.func) {
+                    NormalizeArrayType(item->value.func->return_type);
+                    NormalizeArrayTypeInParams(item->value.func->params);
+                    if (item->value.func->body) {
+                        TransformStatement(item->value.func->body, ctx);
+                    }
                 }
                 break;
             case SOURCE_ITEM_CLASS: {
                 NClassDef *class_def = item->value.class_def;
                 NClassMember *member = class_def ? class_def->members.first : NULL;
                 while (member != NULL) {
-                    if (member->type == CLASS_MEMBER_METHOD && member->value.method && member->value.method->body) {
-                        TransformStatement(member->value.method->body, ctx);
-                    } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor && member->value.ctor->body) {
-                        TransformStatement(member->value.ctor->body, ctx);
+                    if (member->type == CLASS_MEMBER_FIELD) {
+                        NormalizeStaticArrayDecl(member->value.field.field_type, member->value.field.init_decls);
+                    } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
+                        NormalizeArrayType(member->value.method->return_type);
+                        NormalizeArrayTypeInParams(member->value.method->params);
+                        if (member->value.method->body) {
+                            TransformStatement(member->value.method->body, ctx);
+                        }
+                    } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
+                        NormalizeArrayTypeInParams(member->value.ctor->params);
+                        if (member->value.ctor->body) {
+                            TransformStatement(member->value.ctor->body, ctx);
+                        }
                     } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor && member->value.dtor->body) {
                         TransformStatement(member->value.dtor->body, ctx);
                     }
@@ -44,6 +64,7 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
                 break;
             }
             case SOURCE_ITEM_DECL:
+                NormalizeStaticArrayDecl(item->value.decl.item_type, item->value.decl.init_decls);
                 break;
             case SOURCE_ITEM_ENUM:
                 break;
@@ -72,6 +93,7 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
             TransformExpression(stmt->value.expr, ctx);
             break;
         case STMT_DECL:
+            NormalizeStaticArrayDecl(stmt->value.decl.decl_type, stmt->value.decl.init_decls);
             if (stmt->value.decl.init_decls) {
                 for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
@@ -103,6 +125,7 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
             TransformExpression(stmt->value.for_stmt.iter_expr, ctx);
             TransformStatement(stmt->value.for_stmt.body, ctx);
             if (stmt->value.for_stmt.init_decls) {
+                NormalizeStaticArrayDecl(stmt->value.for_stmt.init_decl_type, stmt->value.for_stmt.init_decls);
                 for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
                     if (decl && decl->initializer && decl->initializer->expr) {
@@ -148,6 +171,11 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
             }
             break;
         case EXPR_ARRAY_ACCESS:
+            if (expr->value.array_access.index_end != NULL) {
+                ReplaceSliceWithFuncCall(expr);
+                TransformExpression(expr, ctx);
+                return 0;
+            }
             TransformExpression(expr->value.array_access.array, ctx);
             TransformExpression(expr->value.array_access.index, ctx);
             TransformExpression(expr->value.array_access.index_end, ctx);
@@ -195,6 +223,104 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
             break;
     }
     return 0;
+}
+
+static void NormalizeArrayType(NType *type) {
+    if (type == NULL) {
+        return;
+    }
+    if ((type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) &&
+        type->array_decl != NULL && type->array_decl->has_size) {
+        type->array_decl->has_size = 0;
+    }
+}
+
+static int NormalizeArrayTypeInParams(NParamList *params) {
+    if (params == NULL) {
+        return 0;
+    }
+    for (int i = 0; i < params->count; i++) {
+        NParam *param = params->params[i];
+        if (param && param->param_type) {
+            NormalizeArrayType(param->param_type);
+        }
+    }
+    return 0;
+}
+
+static NType *CreateElementTypeFromArrayType(const NType *array_type) {
+    if (array_type == NULL) {
+        return NULL;
+    }
+    if (array_type->kind == TYPE_KIND_BASE_ARRAY) {
+        return CreateBaseType(array_type->base_type);
+    }
+    if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return CreateClassType(array_type->class_name);
+    }
+    return NULL;
+}
+
+static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls) {
+    if (decl_type == NULL) {
+        return 0;
+    }
+    if ((decl_type->kind != TYPE_KIND_BASE_ARRAY && decl_type->kind != TYPE_KIND_CLASS_ARRAY) ||
+        decl_type->array_decl == NULL || !decl_type->array_decl->has_size) {
+        NormalizeArrayType(decl_type);
+        return 0;
+    }
+
+    if (init_decls != NULL) {
+        for (int i = 0; i < init_decls->count; i++) {
+            NInitDecl *decl = init_decls->decls[i];
+            if (decl == NULL || decl->initializer != NULL) {
+                continue;
+            }
+            {
+                NExprList *list = CreateExprList();
+                NExpr *size_expr = CreateIntExpr(decl_type->array_decl->size);
+                NType *elem_type = CreateElementTypeFromArrayType(decl_type);
+                AddExprToList(list, size_expr);
+                {
+                    NExpr *new_expr = CreateNewExpr(elem_type, list->elements, list->count);
+                    decl->initializer = CreateExprInitializer(new_expr);
+                }
+            }
+        }
+    }
+
+    NormalizeArrayType(decl_type);
+    return 0;
+}
+
+static int ReplaceSliceWithFuncCall(NExpr *expr) {
+    NExprList *list;
+    NExpr *array_expr;
+    NExpr *index_expr;
+    NExpr *index_end_expr;
+
+    if (expr == NULL || expr->type != EXPR_ARRAY_ACCESS) {
+        return 0;
+    }
+    if (expr->value.array_access.index_end == NULL) {
+        return 0;
+    }
+
+    array_expr = expr->value.array_access.array;
+    index_expr = expr->value.array_access.index;
+    index_end_expr = expr->value.array_access.index_end;
+
+    list = CreateExprList();
+    AddExprToList(list, array_expr);
+    AddExprToList(list, index_expr);
+    AddExprToList(list, index_end_expr);
+
+    expr->type = EXPR_FUNC_CALL;
+    expr->value.func_call.func_name = DuplicateString("__slice");
+    expr->value.func_call.args = list->elements;
+    expr->value.func_call.arg_count = list->count;
+    return 1;
 }
 
 static int TransformAssignment(NExpr *expr, SemanticContext *ctx) {
