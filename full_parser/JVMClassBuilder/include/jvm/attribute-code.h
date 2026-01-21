@@ -3466,6 +3466,19 @@ namespace jvm
          */
         void finalize();
         // endregion
+        /**
+         * @brief Set max_stack for this code attribute.
+         *
+         * Must be called before @ref finalize.
+         */
+        void setMaxStack(uint16_t value);
+
+        /**
+         * @brief Set max_locals for this code attribute.
+         *
+         * Must be called before @ref finalize.
+         */
+        void setMaxLocals(uint16_t value);
         // region ATTRIBUTES
         // ToDo operations with code's attributes are not implemented
         // endregion

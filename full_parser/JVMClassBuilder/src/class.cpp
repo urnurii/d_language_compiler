@@ -627,9 +627,9 @@ void Class::writeTo(std::ostream& os) const
         buffer << *attribute;
     }
 
-    // fix data and write to stream
+    // write data to stream without Java fix
     auto str = buffer.str();
-    fixClassBinary(os, std::vector<unsigned char>{str.begin(), str.end()});
+    os.write(str.data(), static_cast<std::streamsize>(str.size()));
 }
 
 std::size_t Class::getByteSize() const

@@ -1267,6 +1267,22 @@ bool AttributeCode::isFinalized() const
     return isFinalized_;
 }
 
+void AttributeCode::setMaxStack(uint16_t value)
+{
+    if (isFinalized()) {
+        throw std::logic_error("Attribute code has already finished. max_stack cannot be modified.");
+    }
+    maxStack_ = value;
+}
+
+void AttributeCode::setMaxLocals(uint16_t value)
+{
+    if (isFinalized()) {
+        throw std::logic_error("Attribute code has already finished. max_locals cannot be modified.");
+    }
+    maxLocals_ = value;
+}
+
 void AttributeCode::finalize()
 {
     // return if already finalized

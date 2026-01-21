@@ -521,6 +521,11 @@ namespace jvm
 
         [[nodiscard]] std::size_t getByteSize() const override;
 
+        static void setMajorVersion(MajorVersion version) { majorVersion = version; }
+        static void setMinorVersion(uint16_t version) { minorVersion = version; }
+        static MajorVersion getMajorVersion() { return majorVersion; }
+        static uint16_t getMinorVersion() { return minorVersion; }
+
     private:
         /**
          * @brief Add a constant to the constant pool.
