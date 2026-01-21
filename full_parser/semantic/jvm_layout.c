@@ -48,6 +48,40 @@ static int AppendToBuffer(char **buf, size_t *len, size_t *cap, const char *text
     return 1;
 }
 
+static char *WrapDescriptorAsRefContainer(char *desc) {
+    size_t len;
+    char *wrapped;
+
+    if (desc == NULL) {
+        return NULL;
+    }
+    len = strlen(desc);
+    wrapped = (char *)malloc(len + 2);
+    if (wrapped == NULL) {
+        free(desc);
+        return NULL;
+    }
+    wrapped[0] = '[';
+    memcpy(wrapped + 1, desc, len + 1);
+    free(desc);
+    return wrapped;
+}
+
+static char *BuildJvmParamDescriptor(const NParam *param) {
+    char *desc;
+    if (param == NULL) {
+        return NULL;
+    }
+    desc = BuildJvmTypeDescriptor(param->param_type);
+    if (desc == NULL) {
+        return NULL;
+    }
+    if (param->is_ref) {
+        return WrapDescriptorAsRefContainer(desc);
+    }
+    return desc;
+}
+
 JvmLayoutContext *CreateJvmLayoutContext(void) {
     JvmLayoutContext *ctx = (JvmLayoutContext *)malloc(sizeof(JvmLayoutContext));
     if (ctx == NULL) {
@@ -175,7 +209,7 @@ char *BuildJvmMethodDescriptor(const NType *return_type, const NParamList *param
     if (params != NULL) {
         for (int i = 0; i < params->count; i++) {
             NParam *param = params->params[i];
-            char *pdesc = BuildJvmTypeDescriptor(param ? param->param_type : NULL);
+            char *pdesc = BuildJvmParamDescriptor(param);
             if (pdesc == NULL) {
                 free(buf);
                 return NULL;
@@ -254,7 +288,7 @@ int AssignJvmDescriptorToParams(NParamList *params) {
         if (param == NULL) {
             continue;
         }
-        desc = BuildJvmTypeDescriptor(param->param_type);
+        desc = BuildJvmParamDescriptor(param);
         if (!ReplaceString(&param->jvm_descriptor, desc)) {
             return 0;
         }
@@ -338,7 +372,11 @@ int AssignParamSlots(JvmSlotAllocator *alloc, NParamList *params) {
         if (param == NULL) {
             continue;
         }
-        width = GetJvmSlotWidthForType(param->param_type);
+        if (param->is_ref) {
+            width = 1;
+        } else {
+            width = GetJvmSlotWidthForType(param->param_type);
+        }
         param->jvm_slot_index = alloc->next_slot;
         alloc->next_slot += width;
     }
