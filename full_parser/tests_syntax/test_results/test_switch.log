@@ -11,11 +11,7 @@ Input file: test_switch.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+No semantic errors found
+[CODEGEN ERROR] GenerateClassFiles: add function failed
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 00000217ae4bb590
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
-
------  Compilation successful! -----
-
+Error: JVM class generation failed!

@@ -11,11 +11,60 @@ Input file: test_complex_expressions.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+SEMANTIC ANALYSIS ERRORS:
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 1, column 0: Variable 'a' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: a
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 1, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 1, column 0: Variable 'c' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: c
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'a' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: a
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'c' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: c
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'd' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: d
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'a' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: a
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'c' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: c
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'd' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: d
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 4, column 0: Variable 'x' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: x
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 4, column 0: Variable 'y' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: y
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000002df3602b370
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
+Total: 13 errors
 
------  Compilation successful! -----
-
+Error: Semantic analysis failed!

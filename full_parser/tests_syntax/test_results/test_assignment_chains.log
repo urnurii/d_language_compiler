@@ -11,11 +11,10 @@ Input file: test_assignment_chains.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+SEMANTIC ANALYSIS ERRORS:
+SEMANTIC ERROR [E_INVALID_OPERANDS] at line 7, column 0: Left side of assignment is not assignable
+SEMANTIC ERROR [E_INVALID_OPERANDS] at line 7, column 0: Left side of assignment is not assignable
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 00000208f5d9c130
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
+Total: 2 errors
 
------  Compilation successful! -----
-
+Error: Semantic analysis failed!

@@ -39,7 +39,7 @@ namespace fs = std::filesystem;
 #endif
 using namespace jvm;
 
-MajorVersion Class::majorVersion = MAJOR_VERSION_16;
+MajorVersion Class::majorVersion = MAJOR_VERSION_5;
 
 Class::Class(const std::string& className, const std::string& parentName)
 {

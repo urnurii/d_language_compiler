@@ -26,6 +26,11 @@ struct jvmc_fieldref { jvm::ConstantFieldref *impl; };
 struct jvmc_methodref { jvm::ConstantMethodref *impl; };
 struct jvmc_iface_methodref { jvm::ConstantInterfaceMethodref *impl; };
 
+void jvmc_set_class_version(uint16_t major, uint16_t minor) {
+    jvm::Class::setMajorVersion(static_cast<jvm::MajorVersion>(major));
+    jvm::Class::setMinorVersion(minor);
+}
+
 static jvm::Instruction::Compare ToCompare(jvmc_compare cmp) {
     switch (cmp) {
         case JVMC_CMP_EQ: return jvm::Instruction::Equal;
@@ -353,11 +358,11 @@ int jvmc_code_neg_double(jvmc_code *code) {
 }
 int jvmc_code_cmp_float_g(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
-    return AddInstruction(code->impl, code->impl->CompareFloat(jvm::Instruction::StrictCompare::greater));
+    return AddInstruction(code->impl, code->impl->CompareFloat(jvm::Instruction::Greater));
 }
 int jvmc_code_cmp_double_g(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
-    return AddInstruction(code->impl, code->impl->CompareDouble(jvm::Instruction::StrictCompare::greater));
+    return AddInstruction(code->impl, code->impl->CompareDouble(jvm::Instruction::Greater));
 }
 int jvmc_code_i2f(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;

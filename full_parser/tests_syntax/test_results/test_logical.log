@@ -11,11 +11,28 @@ Input file: test_logical.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+SEMANTIC ANALYSIS ERRORS:
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 1, column 0: Variable 'a' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: a
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 1, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'a' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: a
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 2, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'b' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: b
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000001a580bfb290
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
+Total: 5 errors
 
------  Compilation successful! -----
-
+Error: Semantic analysis failed!

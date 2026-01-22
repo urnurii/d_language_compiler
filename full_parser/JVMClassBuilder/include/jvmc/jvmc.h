@@ -189,6 +189,8 @@ int jvmc_code_checkcast(jvmc_code *code, jvmc_class_ref *class_ref);
 int jvmc_code_set_max_stack(jvmc_code *code, uint16_t value);
 int jvmc_code_set_max_locals(jvmc_code *code, uint16_t value);
 
+void jvmc_set_class_version(uint16_t major, uint16_t minor);
+
 #ifdef __cplusplus
 }
 #endif

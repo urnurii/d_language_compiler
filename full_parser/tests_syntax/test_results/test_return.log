@@ -13,9 +13,10 @@ Input file: test_return.d
 [PHASE 2] Parsing successful. AST built.
 
 [PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 0000016e9ee2b1e0
+[PHASE 3] AST root pointer: 00000230608e72d0
 AST visualization saved to 'ast.dot'
 [PHASE 3] Analysis complete.
 
 -----  Compilation successful! -----
 
+No semantic errors found

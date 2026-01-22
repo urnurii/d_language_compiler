@@ -13,11 +13,9 @@ Input file: test_complex.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+No semantic errors found
+[CODEGEN ERROR] STMT_EXPR: emit expr failed at line 20 (expr type 20)
+[CODEGEN ERROR] CodegenEmitClassFromDef: add method with body failed
+[CODEGEN ERROR] GenerateClassFiles: emit class failed
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000001fbabaab190
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
-
------  Compilation successful! -----
-
+Error: JVM class generation failed!

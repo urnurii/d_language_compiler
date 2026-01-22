@@ -12,11 +12,23 @@ Input file: test_super.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+SEMANTIC ANALYSIS ERRORS:
+SEMANTIC ERROR [E_METHOD_NOT_FOUND] at line 4, column 0: Method 'method' not found in class 'Object'
+  Explanation: Check method name, parameters, and class definition.
+  Context:
+    name: method
+    signature: Object
+SEMANTIC ERROR [E_METHOD_NOT_FOUND] at line 5, column 0: Method 'method' not found in class 'Object'
+  Explanation: Check method name, parameters, and class definition.
+  Context:
+    name: method
+    signature: Object
+SEMANTIC ERROR [E_METHOD_NOT_FOUND] at line 6, column 0: Method 'method' not found in class 'Object'
+  Explanation: Check method name, parameters, and class definition.
+  Context:
+    name: method
+    signature: Object
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000001b532dfb6d0
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
+Total: 3 errors
 
------  Compilation successful! -----
-
+Error: Semantic analysis failed!

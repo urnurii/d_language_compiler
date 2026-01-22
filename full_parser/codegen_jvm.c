@@ -11,6 +11,45 @@
 
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx);
+static int CodegenReportExprFail(const char *where, const NExpr *expr);
+static void CodegenReportFail(const char *where);
+static NStmt *g_current_body = NULL;
+static int g_temp_base_override = -1;
+typedef struct {
+    const char *name;
+    int slot;
+    NType *type;
+} CodegenVar;
+static CodegenVar *g_var_stack = NULL;
+static int g_var_count = 0;
+static int g_var_cap = 0;
+static int *g_scope_stack = NULL;
+static int g_scope_count = 0;
+static int g_scope_cap = 0;
+
+static char *BuildJvmArrayDescriptorForType(const NType *elem_type) {
+    char *elem_desc;
+    char *desc;
+    size_t len;
+
+    if (elem_type == NULL) {
+        return NULL;
+    }
+    elem_desc = BuildJvmTypeDescriptor(elem_type);
+    if (elem_desc == NULL) {
+        return NULL;
+    }
+    len = strlen(elem_desc);
+    desc = (char *)malloc(len + 2);
+    if (desc == NULL) {
+        free(elem_desc);
+        return NULL;
+    }
+    desc[0] = '[';
+    memcpy(desc + 1, elem_desc, len + 1);
+    free(elem_desc);
+    return desc;
+}
 
 typedef struct {
     jvmc_label **break_labels;
@@ -135,6 +174,14 @@ static int MaxTempSlotsInExpr(NExpr *expr);
 static int MaxTempSlotsInStmt(NStmt *stmt);
 static int MaxTempSlotsInStmtList(NStmt *stmts);
 static int FindMaxSlot(NParamList *params, NStmt *body);
+static int GetTempBase(NParamList *params, NStmt *body);
+static int EmitPopForType(jvmc_code *code, const NType *type);
+static void ResetCodegenScope(void);
+static int PushCodegenScope(void);
+static void PopCodegenScope(void);
+static int AddCodegenVar(const char *name, int slot, NType *type);
+static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out);
+static void AddParamsToScope(NParamList *params);
 
 static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
     int max_locals = include_this ? 1 : 0;
@@ -327,12 +374,18 @@ static int ResolveVariableSlotInStmt(NStmt *stmt, const char *name, int *slot_ou
         case STMT_DO_WHILE:
             return ResolveVariableSlotInStmt(stmt->value.do_while_stmt.body, name, slot_out, type_out);
         case STMT_FOR:
-            if (stmt->value.for_stmt.init_decls != NULL && stmt->value.for_stmt.init_decl_type != NULL) {
+            if (stmt->value.for_stmt.init_decls != NULL) {
                 for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
                     if (decl && decl->name && strcmp(decl->name, name) == 0) {
                         if (slot_out) *slot_out = decl->jvm_slot_index;
-                        if (type_out) *type_out = stmt->value.for_stmt.init_decl_type;
+                        if (type_out) {
+                            if (stmt->value.for_stmt.init_decl_type != NULL) {
+                                *type_out = stmt->value.for_stmt.init_decl_type;
+                            } else if (decl->initializer && decl->initializer->expr) {
+                                *type_out = decl->initializer->expr->inferred_type;
+                            }
+                        }
                         return 1;
                     }
                 }
@@ -366,6 +419,9 @@ static int ResolveVariableSlot(const char *name, NParamList *params, NStmt *body
     if (name == NULL) {
         return 0;
     }
+    if (LookupCodegenVar(name, slot_out, type_out)) {
+        return 1;
+    }
     if (params != NULL) {
         for (int i = 0; i < params->count; i++) {
             NParam *param = params->params[i];
@@ -377,7 +433,22 @@ static int ResolveVariableSlot(const char *name, NParamList *params, NStmt *body
         }
     }
     if (body != NULL) {
-        return ResolveVariableSlotInStmt(body, name, slot_out, type_out);
+        NStmt *cur = body;
+        while (cur != NULL) {
+            if (ResolveVariableSlotInStmt(cur, name, slot_out, type_out)) {
+                return 1;
+            }
+            cur = cur->next;
+        }
+    }
+    if (g_current_body != NULL && g_current_body != body) {
+        NStmt *cur = g_current_body;
+        while (cur != NULL) {
+            if (ResolveVariableSlotInStmt(cur, name, slot_out, type_out)) {
+                return 1;
+            }
+            cur = cur->next;
+        }
     }
     return 0;
 }
@@ -1188,6 +1259,7 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
                              SemanticContext *ctx, int jump_if_true, jvmc_label *label) {
     jvmc_compare cmp;
     if (expr == NULL || code == NULL || label == NULL) {
+        CodegenReportFail("EmitConditionJump: invalid args");
         return 0;
     }
     if (expr->type == EXPR_BINARY_OP) {
@@ -1210,6 +1282,7 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
                                                 expr->value.binary.left,
                                                 expr->value.binary.right,
                                                 params, body, ctx)) {
+                        CodegenReportFail("EmitConditionJump: string equals failed");
                         return 0;
                     }
                     if (expr->value.binary.op == OP_NEQ) {
@@ -1219,9 +1292,11 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
                 }
                 if (IsRefType(left_type) || IsRefType(right_type)) {
                     if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
+                        CodegenReportExprFail("EmitConditionJump: ref left emit failed", expr->value.binary.left);
                         return 0;
                     }
                     if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
+                        CodegenReportExprFail("EmitConditionJump: ref right emit failed", expr->value.binary.right);
                         return 0;
                     }
                     if (expr->value.binary.op == OP_NEQ) {
@@ -1234,9 +1309,11 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
                 }
             }
             if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
+                CodegenReportExprFail("EmitConditionJump: left emit failed", expr->value.binary.left);
                 return 0;
             }
             if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
+                CodegenReportExprFail("EmitConditionJump: right emit failed", expr->value.binary.right);
                 return 0;
             }
             if (!jump_if_true) {
@@ -1246,19 +1323,26 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
                                 &is_double)) {
                 if (is_double) {
                     if (!jvmc_code_cmp_double_g(code)) {
+                        CodegenReportFail("EmitConditionJump: dcmpg failed");
                         return 0;
                     }
                 } else {
                     if (!jvmc_code_cmp_float_g(code)) {
+                        CodegenReportFail("EmitConditionJump: fcmpg failed");
                         return 0;
                     }
                 }
                 return jvmc_code_if(code, cmp, label);
             }
-            return jvmc_code_if_icmp(code, cmp, label);
+            if (!jvmc_code_if_icmp(code, cmp, label)) {
+                CodegenReportFail("EmitConditionJump: if_icmp failed");
+                return 0;
+            }
+            return 1;
         }
     }
     if (!CodegenEmitExpr(cls, code, expr, params, body, ctx)) {
+        CodegenReportExprFail("EmitConditionJump: expr emit failed", expr);
         return 0;
     }
     if (IsRefType(expr->inferred_type)) {
@@ -1272,16 +1356,20 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
         if (IsFloatLikeType(expr->inferred_type, &is_double)) {
             if (is_double) {
                 if (!jvmc_code_push_double(code, 0.0)) {
+                    CodegenReportFail("EmitConditionJump: push double 0 failed");
                     return 0;
                 }
                 if (!jvmc_code_cmp_double_g(code)) {
+                    CodegenReportFail("EmitConditionJump: dcmpg (zero) failed");
                     return 0;
                 }
             } else {
                 if (!jvmc_code_push_float(code, 0.0f)) {
+                    CodegenReportFail("EmitConditionJump: push float 0 failed");
                     return 0;
                 }
                 if (!jvmc_code_cmp_float_g(code)) {
+                    CodegenReportFail("EmitConditionJump: fcmpg (zero) failed");
                     return 0;
                 }
             }
@@ -1424,8 +1512,11 @@ static int MaxTempSlotsInExpr(NExpr *expr) {
                     max = arg_max;
                 }
             }
-            local = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
-            local += TempReturnWidth(expr->inferred_type);
+            {
+                int refs = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
+                int extra_store = (refs > 0) ? 2 : 0;
+                local = refs + TempReturnWidth(expr->inferred_type) + extra_store;
+            }
             break;
         }
         case EXPR_FUNC_CALL: {
@@ -1438,10 +1529,11 @@ static int MaxTempSlotsInExpr(NExpr *expr) {
             }
             if (expr->value.func_call.func_name != NULL &&
                 strcmp(expr->value.func_call.func_name, "readf") == 0) {
-                local = 2;
+                local = 4;
             } else {
-                local = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
-                local += TempReturnWidth(expr->inferred_type);
+                int refs = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
+                int extra_store = (refs > 0) ? 2 : 0;
+                local = refs + TempReturnWidth(expr->inferred_type) + extra_store;
             }
             break;
         }
@@ -1697,7 +1789,114 @@ static int FindMaxSlot(NParamList *params, NStmt *body) {
             max = body_max;
         }
     }
+    if (g_current_body != NULL && g_current_body != body) {
+        int body_max = FindMaxSlotInStmt(g_current_body);
+        if (body_max > max) {
+            max = body_max;
+        }
+    }
     return max;
+}
+
+static int GetTempBase(NParamList *params, NStmt *body) {
+    int base = FindMaxSlot(params, body) + 1;
+    if (g_temp_base_override > base) {
+        base = g_temp_base_override;
+    }
+    return base;
+}
+
+static int EmitPopForType(jvmc_code *code, const NType *type) {
+    if (code == NULL || type == NULL) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_VOID) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_BASE &&
+        (type->base_type == TYPE_DOUBLE || type->base_type == TYPE_REAL)) {
+        return jvmc_code_pop2(code);
+    }
+    return jvmc_code_pop(code);
+}
+
+static void ResetCodegenScope(void) {
+    free(g_var_stack);
+    free(g_scope_stack);
+    g_var_stack = NULL;
+    g_scope_stack = NULL;
+    g_var_count = 0;
+    g_var_cap = 0;
+    g_scope_count = 0;
+    g_scope_cap = 0;
+}
+
+static int PushCodegenScope(void) {
+    if (g_scope_count >= g_scope_cap) {
+        int new_cap = (g_scope_cap == 0) ? 8 : (g_scope_cap * 2);
+        int *grown = (int *)realloc(g_scope_stack, sizeof(int) * (size_t)new_cap);
+        if (grown == NULL) {
+            return 0;
+        }
+        g_scope_stack = grown;
+        g_scope_cap = new_cap;
+    }
+    g_scope_stack[g_scope_count++] = g_var_count;
+    return 1;
+}
+
+static void PopCodegenScope(void) {
+    if (g_scope_count <= 0) {
+        return;
+    }
+    g_scope_count--;
+    g_var_count = g_scope_stack[g_scope_count];
+}
+
+static int AddCodegenVar(const char *name, int slot, NType *type) {
+    if (name == NULL) {
+        return 0;
+    }
+    if (g_var_count >= g_var_cap) {
+        int new_cap = (g_var_cap == 0) ? 32 : (g_var_cap * 2);
+        CodegenVar *grown = (CodegenVar *)realloc(g_var_stack, sizeof(CodegenVar) * (size_t)new_cap);
+        if (grown == NULL) {
+            return 0;
+        }
+        g_var_stack = grown;
+        g_var_cap = new_cap;
+    }
+    g_var_stack[g_var_count].name = name;
+    g_var_stack[g_var_count].slot = slot;
+    g_var_stack[g_var_count].type = type;
+    g_var_count++;
+    return 1;
+}
+
+static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out) {
+    if (name == NULL) {
+        return 0;
+    }
+    for (int i = g_var_count - 1; i >= 0; i--) {
+        if (g_var_stack[i].name && strcmp(g_var_stack[i].name, name) == 0) {
+            if (slot_out) *slot_out = g_var_stack[i].slot;
+            if (type_out) *type_out = g_var_stack[i].type;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void AddParamsToScope(NParamList *params) {
+    if (params == NULL) {
+        return;
+    }
+    for (int i = 0; i < params->count; i++) {
+        NParam *param = params->params[i];
+        if (param && param->param_name) {
+            AddCodegenVar(param->param_name, param->jvm_slot_index, param->param_type);
+        }
+    }
 }
 
 static int GetElementTypeFromArray(const NType *array_type, NType *out_elem) {
@@ -1883,13 +2082,98 @@ static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const N
     if (lhs == NULL || code == NULL) {
         return 0;
     }
+    if (resolved == NULL) {
+        resolved = lhs->inferred_type;
+    }
+    if (resolved == NULL) {
+        resolved = InferExpressionTypeSilent(lhs, ctx);
+    }
     if (lhs->type == EXPR_IDENT) {
         if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &resolved)) {
             return EmitStoreByType(code, resolved, slot);
         }
         return EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved);
     }
-    (void)resolved;
+    if (lhs->type == EXPR_ARRAY_ACCESS) {
+        NExpr *arr = lhs->value.array_access.array;
+        NExpr *idx = lhs->value.array_access.index;
+        NType elem_type;
+        NType *elem_ptr = resolved;
+        int temp_slot = GetTempBase(params, body);
+        if (arr == NULL || idx == NULL) {
+            return 0;
+        }
+        if (elem_ptr == NULL) {
+            if (!GetElementTypeFromArray(arr->inferred_type, &elem_type)) {
+                return 0;
+            }
+            elem_ptr = &elem_type;
+        }
+        if (!EmitStoreByType(code, elem_ptr, temp_slot)) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, idx, params, body, ctx)) {
+            return 0;
+        }
+        if (!EmitLoadByType(code, elem_ptr, temp_slot)) {
+            return 0;
+        }
+        return EmitArrayStoreForType(code, elem_ptr);
+    }
+    if (lhs->type == EXPR_MEMBER_ACCESS) {
+        jvmc_fieldref *fref;
+        NExpr *obj = lhs->value.member_access.object;
+        int temp_slot = GetTempBase(params, body);
+        if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+            return 0;
+        }
+        fref = jvmc_class_get_or_create_fieldref(cls,
+                                                 lhs->jvm_ref_key.owner_internal_name,
+                                                 lhs->jvm_ref_key.member_name,
+                                                 lhs->jvm_ref_key.member_descriptor);
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!EmitStoreByType(code, resolved, temp_slot)) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
+            return 0;
+        }
+        if (!EmitLoadByType(code, resolved, temp_slot)) {
+            return 0;
+        }
+        return jvmc_code_putfield(code, fref);
+    }
+    if (lhs->type == EXPR_SUPER) {
+        jvmc_fieldref *fref;
+        int temp_slot = GetTempBase(params, body);
+        if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+            return 0;
+        }
+        fref = jvmc_class_get_or_create_fieldref(cls,
+                                                 lhs->jvm_ref_key.owner_internal_name,
+                                                 lhs->jvm_ref_key.member_name,
+                                                 lhs->jvm_ref_key.member_descriptor);
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!EmitStoreByType(code, resolved, temp_slot)) {
+            return 0;
+        }
+        if (!jvmc_code_load_ref(code, 0)) {
+            return 0;
+        }
+        if (!EmitLoadByType(code, resolved, temp_slot)) {
+            return 0;
+        }
+        return jvmc_code_putfield(code, fref);
+    }
+    fprintf(stderr, "[CODEGEN ERROR] EmitStoreLValue: unsupported lhs type %d\n",
+            lhs ? (int)lhs->type : -1);
     return 0;
 }
 
@@ -2608,6 +2892,7 @@ static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code 
     char *base_internal;
     int returned = 0;
     FlowContext flow;
+    NStmt *prev_body = g_current_body;
     memset(&flow, 0, sizeof(flow));
 
     if (cls == NULL || class_def == NULL || code == NULL) {
@@ -2635,11 +2920,21 @@ static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code 
         return 0;
     }
     if (body != NULL) {
+        g_current_body = body;
+        ResetCodegenScope();
+        PushCodegenScope();
+        AddParamsToScope(params);
         if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx, &flow)) {
+            PopCodegenScope();
+            ResetCodegenScope();
+            g_current_body = prev_body;
             free(flow.break_labels);
             free(flow.continue_labels);
             return 0;
         }
+        PopCodegenScope();
+        ResetCodegenScope();
+        g_current_body = prev_body;
     }
     free(flow.break_labels);
     free(flow.continue_labels);
@@ -2751,9 +3046,24 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             return EmitLiteralExpr(code, expr, type);
         case EXPR_IDENT:
             if (ResolveVariableSlot(expr->value.ident_name, params, body, &slot, &type)) {
-                return EmitLoadByType(code, type, slot);
+                if (type == NULL) {
+                    type = expr->inferred_type;
+                }
+                if (!EmitLoadByType(code, type, slot)) {
+                    CodegenReportExprFail("EXPR_IDENT: local load failed", expr);
+                    return 0;
+                }
+                return 1;
             }
-            return EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type);
+            if (EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type)) {
+                return 1;
+            }
+            fprintf(stderr,
+                    "[CODEGEN ERROR] EXPR_IDENT unresolved: %s (line %d)\n",
+                    expr->value.ident_name ? expr->value.ident_name : "(null)",
+                    expr->line);
+            CodegenReportExprFail("EXPR_IDENT: unresolved symbol", expr);
+            return 0;
         case EXPR_PAREN:
             return CodegenEmitExpr(cls, code, expr->value.inner_expr, params, body, ctx);
         case EXPR_CAST:
@@ -2772,16 +3082,16 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             NExpr *idx = expr->value.array_access.index;
             NType elem_type;
             if (arr == NULL || idx == NULL) {
-                return 0;
+                return CodegenReportExprFail("EXPR_ARRAY_ACCESS: missing operands", expr);
             }
             if (!GetElementTypeFromArray(arr->inferred_type, &elem_type)) {
-                return 0;
+                return CodegenReportExprFail("EXPR_ARRAY_ACCESS: element type failed", expr);
             }
             if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
-                return 0;
+                return CodegenReportExprFail("EXPR_ARRAY_ACCESS: array emit failed", expr);
             }
             if (!CodegenEmitExpr(cls, code, idx, params, body, ctx)) {
-                return 0;
+                return CodegenReportExprFail("EXPR_ARRAY_ACCESS: index emit failed", expr);
             }
             return EmitArrayLoadForType(code, &elem_type);
         }
@@ -2790,7 +3100,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             if (fname != NULL) {
                 if (strcmp(fname, "__len") == 0 && expr->value.func_call.arg_count == 1) {
                     if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len arg emit failed", expr);
                     }
                     return jvmc_code_array_length(code);
                 }
@@ -2802,35 +3112,35 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     jvmc_methodref *mref = NULL;
                     jvmc_class_ref *cref = NULL;
                     if (arr == NULL || start == NULL || end == NULL) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice args missing", expr);
                     }
                     if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice array emit failed", expr);
                     }
                     if (!CodegenEmitExpr(cls, code, start, params, body, ctx)) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice start emit failed", expr);
                     }
                     if (!CodegenEmitExpr(cls, code, end, params, body, ctx)) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice end emit failed", expr);
                     }
                     mref = jvmc_class_get_or_create_methodref(cls,
                                                               "dlang/Runtime",
                                                               "__slice",
                                                               "(Ljava/lang/Object;II)Ljava/lang/Object;");
                     if (mref == NULL) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice methodref failed", expr);
                     }
                     if (!jvmc_code_invokestatic(code, mref)) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice invoke failed", expr);
                     }
                     arr_desc = BuildJvmTypeDescriptor(arr->inferred_type);
                     if (arr_desc == NULL) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice desc failed", expr);
                     }
                     cref = jvmc_class_get_or_create_class_ref(cls, arr_desc);
                     free(arr_desc);
                     if (cref == NULL) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice cast failed", expr);
                     }
                     return jvmc_code_checkcast(code, cref);
                 }
@@ -2838,7 +3148,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     NExpr *arr = expr->value.func_call.args[0];
                     NExpr *rhs = expr->value.func_call.args[1];
                     if (arr == NULL || rhs == NULL) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __append args missing", expr);
                     }
                     if (rhs->inferred_type != NULL &&
                         (rhs->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
@@ -2850,86 +3160,127 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 if (strcmp(fname, "readf") == 0) {
                     int arg_count = expr->value.func_call.arg_count;
                     int extra_count = arg_count - 1;
-                    int temp_base = FindMaxSlot(params, body) + 1;
+                    int temp_base = GetTempBase(params, body);
                     int temp_obj = temp_base;
                     int temp_ret = temp_base + 1;
+                    int prev_temp_base = g_temp_base_override;
                     jvmc_class_ref *cref = NULL;
                     jvmc_methodref *mref = NULL;
                     if (arg_count < 1) {
-                        return 0;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf arg_count < 1", expr);
                     }
+                    g_temp_base_override = temp_base + 2;
                     if (!jvmc_code_push_int(code, extra_count)) {
+                        g_temp_base_override = prev_temp_base;
                         return 0;
                     }
                     cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/Object");
                     if (cref == NULL) {
+                        g_temp_base_override = prev_temp_base;
                         return 0;
                     }
                     if (!jvmc_code_newarray_ref(code, cref)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf newarray failed", expr);
                     }
                     if (!jvmc_code_store_ref(code, (uint16_t)temp_obj)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf store temp_obj failed", expr);
                     }
                     for (int i = 0; i < extra_count; i++) {
                         NExpr *arg = expr->value.func_call.args[i + 1];
                         if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf load temp_obj failed", expr);
                         }
                         if (!jvmc_code_push_int(code, i)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf push index failed", expr);
                         }
                         if (!jvmc_code_push_int(code, 1)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf push size failed", expr);
                         }
                         if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf new array elem failed", expr);
                         }
                         if (!jvmc_code_array_store_ref(code)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf store ref failed", expr);
                         }
                     }
                     if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf fmt emit failed", expr);
                     }
                     if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf load temp_obj(2) failed", expr);
                     }
                     mref = jvmc_class_get_or_create_methodref(cls,
                                                               "dlang/Runtime",
                                                               "readf",
                                                               "(Ljava/lang/String;[Ljava/lang/Object;)I");
                     if (mref == NULL) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf methodref failed", expr);
                     }
                     if (!jvmc_code_invokestatic(code, mref)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf invoke failed", expr);
                     }
                     if (!jvmc_code_store_int(code, (uint16_t)temp_ret)) {
-                        return 0;
+                        g_temp_base_override = prev_temp_base;
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: readf store ret failed", expr);
                     }
                     for (int i = 0; i < extra_count; i++) {
                         NExpr *arg = expr->value.func_call.args[i + 1];
                         if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf load temp_obj(3) failed", expr);
                         }
                         if (!jvmc_code_push_int(code, i)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf push index(2) failed", expr);
                         }
                         if (!jvmc_code_array_load_ref(code)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf array load ref failed", expr);
+                        }
+                        {
+                            char *arr_desc = BuildJvmArrayDescriptorForType(arg ? arg->inferred_type : NULL);
+                            jvmc_class_ref *aref;
+                            if (arr_desc == NULL) {
+                                g_temp_base_override = prev_temp_base;
+                                return CodegenReportExprFail("EXPR_FUNC_CALL: readf array desc failed", expr);
+                            }
+                            aref = jvmc_class_get_or_create_class_ref(cls, arr_desc);
+                            free(arr_desc);
+                            if (aref == NULL) {
+                                g_temp_base_override = prev_temp_base;
+                                return CodegenReportExprFail("EXPR_FUNC_CALL: readf array class ref failed", expr);
+                            }
+                            if (!jvmc_code_checkcast(code, aref)) {
+                                g_temp_base_override = prev_temp_base;
+                                return CodegenReportExprFail("EXPR_FUNC_CALL: readf checkcast failed", expr);
+                            }
                         }
                         if (!jvmc_code_push_int(code, 0)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf push 0 failed", expr);
                         }
                         if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf load elem failed", expr);
                         }
                         if (!EmitStoreLValue(cls, code, arg, arg ? arg->inferred_type : NULL,
                                              params, body, ctx)) {
-                            return 0;
+                            g_temp_base_override = prev_temp_base;
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: readf store lvalue failed", expr);
                         }
                     }
+                    g_temp_base_override = prev_temp_base;
                     return jvmc_code_load_int(code, (uint16_t)temp_ret);
                 }
                 if (strcmp(fname, "writef") == 0) {
@@ -3470,7 +3821,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 if (rhs == NULL || arr == NULL || idx == NULL) {
                     return 0;
                 }
-                if (!GetElementTypeFromArray(lhs->inferred_type, &elem_type)) {
+                if (!GetElementTypeFromArray(arr->inferred_type, &elem_type)) {
                     return 0;
                 }
                 if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
@@ -3557,34 +3908,62 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                     if (decl->initializer->is_array) {
                         if (!EmitArrayLiteral(cls, code, stmt->value.decl.decl_type, decl->initializer,
                                               params, stmts, ctx, decl->jvm_slot_index, NULL, NULL)) {
+                            fprintf(stderr, "[CODEGEN ERROR] STMT_DECL: array initializer failed at line %d\n",
+                                    stmt->line);
                             return 0;
                         }
                     } else if (decl->initializer->expr) {
                         if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
+                            fprintf(stderr, "[CODEGEN ERROR] STMT_DECL: expr initializer failed at line %d\n",
+                                    stmt->line);
                             return 0;
                         }
                         if (!EmitStoreByType(code, stmt->value.decl.decl_type, decl->jvm_slot_index)) {
+                            fprintf(stderr, "[CODEGEN ERROR] STMT_DECL: store failed at line %d\n",
+                                    stmt->line);
                             return 0;
                         }
                     }
                 }
+                    if (decl && decl->name) {
+                        AddCodegenVar(decl->name, decl->jvm_slot_index, stmt->value.decl.decl_type);
+                    }
                 }
             }
         } else if (stmt->type == STMT_EXPR) {
             if (stmt->value.expr != NULL) {
                 if (!CodegenEmitExpr(cls, code, stmt->value.expr, params, stmts, ctx)) {
+                    fprintf(stderr, "[CODEGEN ERROR] STMT_EXPR: emit expr failed at line %d (expr type %d)\n",
+                            stmt->line,
+                            stmt->value.expr ? (int)stmt->value.expr->type : -1);
                     return 0;
+                }
+                if (stmt->value.expr->type != EXPR_ASSIGN) {
+                    NType *expr_type = stmt->value.expr->inferred_type;
+                    if (expr_type == NULL) {
+                        expr_type = InferExpressionTypeSilent(stmt->value.expr, ctx);
+                    }
+                    if (!EmitPopForType(code, expr_type)) {
+                        fprintf(stderr, "[CODEGEN ERROR] STMT_EXPR: pop result failed at line %d\n", stmt->line);
+                        return 0;
+                    }
                 }
             }
         } else if (stmt->type == STMT_COMPOUND) {
+            if (!PushCodegenScope()) {
+                CodegenReportFail("STMT_COMPOUND: scope push failed");
+                return 0;
+            }
             if (!CodegenEmitStmtList(cls, code,
                                      stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL,
                                      params,
                                      return_emitted,
                                      ctx,
                                      flow)) {
+                PopCodegenScope();
                 return 0;
             }
+            PopCodegenScope();
             if (return_emitted && *return_emitted) {
                 return 1;
             }
@@ -3593,29 +3972,36 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             jvmc_label *label_end = jvmc_code_label_create(code);
             int local_return = 0;
             if (label_else == NULL || label_end == NULL) {
+                CodegenReportFail("STMT_IF: label create failed");
                 return 0;
             }
             if (!EmitConditionJump(cls, code, stmt->value.if_stmt.condition, params, stmts, ctx, 0, label_else)) {
+                CodegenReportFail("STMT_IF: condition emit failed");
                 return 0;
             }
             if (!CodegenEmitStmtList(cls, code, stmt->value.if_stmt.then_stmt, params, &local_return, ctx, flow)) {
+                CodegenReportFail("STMT_IF: then block failed");
                 return 0;
             }
             if (stmt->value.if_stmt.else_stmt != NULL) {
                 if (!jvmc_code_goto(code, label_end)) {
+                    CodegenReportFail("STMT_IF: goto end failed");
                     return 0;
                 }
             }
             if (!jvmc_code_label_place(code, label_else)) {
+                CodegenReportFail("STMT_IF: place else label failed");
                 return 0;
             }
             if (stmt->value.if_stmt.else_stmt != NULL) {
                 local_return = 0;
                 if (!CodegenEmitStmtList(cls, code, stmt->value.if_stmt.else_stmt, params, &local_return, ctx, flow)) {
+                    CodegenReportFail("STMT_IF: else block failed");
                     return 0;
                 }
             }
             if (!jvmc_code_label_place(code, label_end)) {
+                CodegenReportFail("STMT_IF: place end label failed");
                 return 0;
             }
         } else if (stmt->type == STMT_WHILE) {
@@ -3623,25 +4009,32 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             jvmc_label *label_end = jvmc_code_label_create(code);
             int local_return = 0;
             if (label_cond == NULL || label_end == NULL) {
+                CodegenReportFail("STMT_WHILE: label create failed");
                 return 0;
             }
             if (!jvmc_code_label_place(code, label_cond)) {
+                CodegenReportFail("STMT_WHILE: place cond label failed");
                 return 0;
             }
             if (!EmitConditionJump(cls, code, stmt->value.while_stmt.condition, params, stmts, ctx, 0, label_end)) {
+                CodegenReportFail("STMT_WHILE: condition emit failed");
                 return 0;
             }
             if (!FlowPushLoop(flow, label_end, label_cond)) {
+                CodegenReportFail("STMT_WHILE: flow push failed");
                 return 0;
             }
             if (!CodegenEmitStmtList(cls, code, stmt->value.while_stmt.body, params, &local_return, ctx, flow)) {
+                CodegenReportFail("STMT_WHILE: body failed");
                 return 0;
             }
             FlowPopLoop(flow);
             if (!jvmc_code_goto(code, label_cond)) {
+                CodegenReportFail("STMT_WHILE: goto cond failed");
                 return 0;
             }
             if (!jvmc_code_label_place(code, label_end)) {
+                CodegenReportFail("STMT_WHILE: place end label failed");
                 return 0;
             }
         } else if (stmt->type == STMT_DO_WHILE) {
@@ -3650,25 +4043,32 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             jvmc_label *label_end = jvmc_code_label_create(code);
             int local_return = 0;
             if (label_body == NULL || label_cond == NULL || label_end == NULL) {
+                CodegenReportFail("STMT_DO_WHILE: label create failed");
                 return 0;
             }
             if (!jvmc_code_label_place(code, label_body)) {
+                CodegenReportFail("STMT_DO_WHILE: place body label failed");
                 return 0;
             }
             if (!FlowPushLoop(flow, label_end, label_cond)) {
+                CodegenReportFail("STMT_DO_WHILE: flow push failed");
                 return 0;
             }
             if (!CodegenEmitStmtList(cls, code, stmt->value.do_while_stmt.body, params, &local_return, ctx, flow)) {
+                CodegenReportFail("STMT_DO_WHILE: body failed");
                 return 0;
             }
             FlowPopLoop(flow);
             if (!jvmc_code_label_place(code, label_cond)) {
+                CodegenReportFail("STMT_DO_WHILE: place cond label failed");
                 return 0;
             }
             if (!EmitConditionJump(cls, code, stmt->value.do_while_stmt.condition, params, stmts, ctx, 1, label_body)) {
+                CodegenReportFail("STMT_DO_WHILE: condition emit failed");
                 return 0;
             }
             if (!jvmc_code_label_place(code, label_end)) {
+                CodegenReportFail("STMT_DO_WHILE: place end label failed");
                 return 0;
             }
         } else if (stmt->type == STMT_FOR) {
@@ -3677,10 +4077,17 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             jvmc_label *label_end = jvmc_code_label_create(code);
             int local_return = 0;
             if (label_cond == NULL || label_iter == NULL || label_end == NULL) {
+                CodegenReportFail("STMT_FOR: label create failed");
+                return 0;
+            }
+            if (!PushCodegenScope()) {
+                CodegenReportFail("STMT_FOR: scope push failed");
                 return 0;
             }
             if (stmt->value.for_stmt.init_expr != NULL) {
                 if (!CodegenEmitExpr(cls, code, stmt->value.for_stmt.init_expr, params, stmts, ctx)) {
+                    PopCodegenScope();
+                    CodegenReportFail("STMT_FOR: init expr failed");
                     return 0;
                 }
             }
@@ -3689,44 +4096,68 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
                     if (decl && decl->initializer && decl->initializer->expr) {
                         if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
+                            PopCodegenScope();
+                            CodegenReportFail("STMT_FOR: init decl expr failed");
                             return 0;
                         }
                         if (!EmitStoreByType(code, stmt->value.for_stmt.init_decl_type, decl->jvm_slot_index)) {
+                            PopCodegenScope();
+                            CodegenReportFail("STMT_FOR: init decl store failed");
                             return 0;
                         }
+                    }
+                    if (decl && decl->name) {
+                        AddCodegenVar(decl->name, decl->jvm_slot_index, stmt->value.for_stmt.init_decl_type);
                     }
                 }
             }
             if (!jvmc_code_label_place(code, label_cond)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: place cond label failed");
                 return 0;
             }
             if (stmt->value.for_stmt.cond_expr != NULL) {
                 if (!EmitConditionJump(cls, code, stmt->value.for_stmt.cond_expr, params, stmts, ctx, 0, label_end)) {
+                    PopCodegenScope();
+                    CodegenReportFail("STMT_FOR: condition emit failed");
                     return 0;
                 }
             }
             if (!FlowPushLoop(flow, label_end,
                               (stmt->value.for_stmt.iter_expr != NULL) ? label_iter : label_cond)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: flow push failed");
                 return 0;
             }
             if (!CodegenEmitStmtList(cls, code, stmt->value.for_stmt.body, params, &local_return, ctx, flow)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: body failed");
                 return 0;
             }
             FlowPopLoop(flow);
             if (!jvmc_code_label_place(code, label_iter)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: place iter label failed");
                 return 0;
             }
             if (stmt->value.for_stmt.iter_expr != NULL) {
                 if (!CodegenEmitExpr(cls, code, stmt->value.for_stmt.iter_expr, params, stmts, ctx)) {
+                    PopCodegenScope();
+                    CodegenReportFail("STMT_FOR: iter expr failed");
                     return 0;
                 }
             }
             if (!jvmc_code_goto(code, label_cond)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: goto cond failed");
                 return 0;
             }
             if (!jvmc_code_label_place(code, label_end)) {
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOR: place end label failed");
                 return 0;
             }
+            PopCodegenScope();
         } else if (stmt->type == STMT_SWITCH) {
             jvmc_label *label_end = jvmc_code_label_create(code);
             jvmc_label **case_labels = NULL;
@@ -3844,6 +4275,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     jvmc_method *method = NULL;
     jvmc_code *code = NULL;
     int returned = 0;
+    NStmt *prev_body = g_current_body;
 
     if (cls == NULL || name == NULL || descriptor == NULL) {
         return 0;
@@ -3872,11 +4304,21 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     }
     FlowContext flow;
     memset(&flow, 0, sizeof(flow));
+    ResetCodegenScope();
+    PushCodegenScope();
+    AddParamsToScope(params);
+    g_current_body = body;
     if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx, &flow)) {
+        PopCodegenScope();
+        ResetCodegenScope();
+        g_current_body = prev_body;
         free(flow.break_labels);
         free(flow.continue_labels);
         return 0;
     }
+    PopCodegenScope();
+    ResetCodegenScope();
+    g_current_body = prev_body;
     free(flow.break_labels);
     free(flow.continue_labels);
     if (!returned) {
@@ -3885,46 +4327,84 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     return 1;
 }
 
+static void CodegenReportFail(const char *where) {
+    if (where == NULL) {
+        where = "unknown";
+    }
+    fprintf(stderr, "[CODEGEN ERROR] %s\n", where);
+}
+
+static int CodegenReportExprFail(const char *where, const NExpr *expr) {
+    fprintf(stderr,
+            "[CODEGEN ERROR] %s (line %d, expr type %d)\n",
+            where ? where : "expr",
+            expr ? expr->line : 0,
+            expr ? (int)expr->type : -1);
+    return 0;
+}
+
 static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticContext *ctx) {
     jvmc_method *method = NULL;
     jvmc_code *code = NULL;
     int returned = 0;
     FlowContext flow;
+    NStmt *prev_body = g_current_body;
     memset(&flow, 0, sizeof(flow));
 
     if (cls == NULL || func == NULL || func->jvm_descriptor == NULL) {
+        CodegenReportFail("CodegenAddMainWithCleanup: invalid args or missing descriptor");
         return 0;
     }
     method = jvmc_class_get_or_create_method(cls, func->func_name, func->jvm_descriptor);
     if (method == NULL) {
+        CodegenReportFail("CodegenAddMainWithCleanup: get_or_create_method failed");
         return 0;
     }
     if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_PUBLIC) ||
         !jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+        CodegenReportFail("CodegenAddMainWithCleanup: add flags failed");
         return 0;
     }
     code = jvmc_method_get_code(method);
     if (code == NULL) {
+        CodegenReportFail("CodegenAddMainWithCleanup: get_code failed");
         return 0;
     }
     if (!jvmc_code_set_max_stack(code, 32)) {
+        CodegenReportFail("CodegenAddMainWithCleanup: set_max_stack failed");
         return 0;
     }
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(func->params, func->body, 0))) {
+        CodegenReportFail("CodegenAddMainWithCleanup: set_max_locals failed");
         return 0;
     }
+    g_current_body = func->body;
+    ResetCodegenScope();
+    PushCodegenScope();
+    AddParamsToScope(func->params);
     if (!CodegenEmitStmtList(cls, code, func->body, func->params, &returned, ctx, &flow)) {
+        PopCodegenScope();
+        ResetCodegenScope();
+        g_current_body = prev_body;
+        CodegenReportFail("CodegenAddMainWithCleanup: emit stmt list failed");
         free(flow.break_labels);
         free(flow.continue_labels);
         return 0;
     }
+    PopCodegenScope();
+    ResetCodegenScope();
+    g_current_body = prev_body;
     free(flow.break_labels);
     free(flow.continue_labels);
     if (!returned) {
         if (!EmitMainDtorCleanup(cls, code, func->body, ctx)) {
+            CodegenReportFail("CodegenAddMainWithCleanup: EmitMainDtorCleanup failed (skipping)");
+        }
+        if (!CodegenEmitEmptyReturn(code, func->jvm_descriptor)) {
+            CodegenReportFail("CodegenAddMainWithCleanup: empty return failed");
             return 0;
         }
-        return CodegenEmitEmptyReturn(code, func->jvm_descriptor);
+        return 1;
     }
     return 1;
 }
@@ -4091,11 +4571,13 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     (void)ctx;
 
     if (class_def == NULL || class_def->class_name == NULL) {
+        CodegenReportFail("CodegenEmitClassFromDef: class_def is NULL");
         return 1;
     }
 
     class_internal = BuildJvmInternalName(class_def->class_name);
     if (class_internal == NULL) {
+        CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(class) failed");
         return 1;
     }
     if (class_def->base_class_name != NULL) {
@@ -4104,6 +4586,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
         base_internal = BuildJvmInternalName("java/lang/Object");
     }
     if (base_internal == NULL) {
+        CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(base) failed");
         free(class_internal);
         return 1;
     }
@@ -4112,12 +4595,14 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     free(class_internal);
     free(base_internal);
     if (cls == NULL) {
+        CodegenReportFail("CodegenEmitClassFromDef: jvmc_class_create failed");
         return 1;
     }
 
     ok = jvmc_class_add_flag(cls, JVMC_CLASS_ACC_PUBLIC);
     ok = ok && jvmc_class_add_flag(cls, JVMC_CLASS_ACC_SUPER);
     if (!ok) {
+        CodegenReportFail("CodegenEmitClassFromDef: add class flags failed");
         jvmc_class_destroy(cls);
         return 1;
     }
@@ -4132,6 +4617,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                     access = JVMC_FIELD_ACC_PROTECTED;
                 }
                 if (!CodegenAddFieldDecls(cls, member->value.field.init_decls, access)) {
+                    CodegenReportFail("CodegenEmitClassFromDef: add field decls failed");
                     jvmc_class_destroy(cls);
                     return 1;
                 }
@@ -4139,6 +4625,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                 uint16_t access = CodegenAccessFromSpec(member->access);
                 const char *desc = member->value.method->jvm_descriptor;
                 if (desc == NULL) {
+                    CodegenReportFail("CodegenEmitClassFromDef: method descriptor is NULL");
                     jvmc_class_destroy(cls);
                     return 1;
                 }
@@ -4151,6 +4638,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                                                   member->value.method->body,
                                                   member->value.method->params,
                                                   ctx)) {
+                        CodegenReportFail("CodegenEmitClassFromDef: add method with body failed");
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -4161,6 +4649,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                                                   desc,
                                                   access,
                                                   0)) {
+                        CodegenReportFail("CodegenEmitClassFromDef: add abstract method failed");
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -4168,6 +4657,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
             } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
                 has_ctor = 1;
                 if (!CodegenEmitCtor(cls, class_def, member->value.ctor, member->access, ctx)) {
+                    CodegenReportFail("CodegenEmitClassFromDef: emit ctor failed");
                     jvmc_class_destroy(cls);
                     return 1;
                 }
@@ -4182,6 +4672,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                                                   member->value.dtor->body,
                                                   NULL,
                                                   ctx)) {
+                        CodegenReportFail("CodegenEmitClassFromDef: add __dtor failed");
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -4189,6 +4680,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
             } else if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
                 has_enum = 1;
                 if (!CodegenAddEnumFields(cls, member->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
+                    CodegenReportFail("CodegenEmitClassFromDef: add enum fields failed");
                     jvmc_class_destroy(cls);
                     return 1;
                 }
@@ -4198,12 +4690,14 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
 
     if (!has_ctor) {
         if (!CodegenEmitDefaultCtor(cls, class_def, ctx)) {
+            CodegenReportFail("CodegenEmitClassFromDef: emit default ctor failed");
             jvmc_class_destroy(cls);
             return 1;
         }
     }
     if (has_abstract) {
         if (!jvmc_class_add_flag(cls, JVMC_CLASS_ACC_ABSTRACT)) {
+            CodegenReportFail("CodegenEmitClassFromDef: add abstract flag failed");
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -4214,20 +4708,24 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
         jvmc_code *code = NULL;
         char *owner_internal = NULL;
         if (method == NULL) {
+            CodegenReportFail("CodegenEmitClassFromDef: create <clinit> failed");
             jvmc_class_destroy(cls);
             return 1;
         }
         if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+            CodegenReportFail("CodegenEmitClassFromDef: add <clinit> static flag failed");
             jvmc_class_destroy(cls);
             return 1;
         }
         code = jvmc_method_get_code(method);
         if (code == NULL) {
+            CodegenReportFail("CodegenEmitClassFromDef: get <clinit> code failed");
             jvmc_class_destroy(cls);
             return 1;
         }
         owner_internal = BuildJvmInternalName(class_def->class_name);
         if (owner_internal == NULL) {
+            CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(owner) failed");
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -4235,6 +4733,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
         while (member != NULL) {
             if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
                 if (!CodegenEmitEnumValues(cls, code, owner_internal, member->value.enum_def)) {
+                    CodegenReportFail("CodegenEmitClassFromDef: emit enum values failed");
                     free(owner_internal);
                     jvmc_class_destroy(cls);
                     return 1;
@@ -4244,6 +4743,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
         }
         free(owner_internal);
         if (!jvmc_code_return_void(code)) {
+            CodegenReportFail("CodegenEmitClassFromDef: <clinit> return failed");
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -4252,11 +4752,13 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     out_len = strlen(class_def->class_name) + 7;
     out_file = (char *)malloc(out_len);
     if (out_file == NULL) {
+        CodegenReportFail("CodegenEmitClassFromDef: out_file alloc failed");
         jvmc_class_destroy(cls);
         return 1;
     }
     snprintf(out_file, out_len, "%s.class", class_def->class_name);
     if (!jvmc_class_write_to_file(cls, out_file)) {
+        CodegenReportFail("CodegenEmitClassFromDef: write class file failed");
         free(out_file);
         jvmc_class_destroy(cls);
         return 1;
@@ -4278,13 +4780,17 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
     (void)root;
     (void)ctx;
 
+    jvmc_set_class_version(49, 0);
+
     cls = jvmc_class_create(class_name, "java/lang/Object");
     if (cls == NULL) {
+        CodegenReportFail("GenerateClassFiles: jvmc_class_create(Main) failed");
         return 1;
     }
     ok = jvmc_class_add_flag(cls, JVMC_CLASS_ACC_PUBLIC);
     ok = ok && jvmc_class_add_flag(cls, JVMC_CLASS_ACC_SUPER);
     if (!ok) {
+        CodegenReportFail("GenerateClassFiles: add Main class flags failed");
         jvmc_class_destroy(cls);
         return 1;
     }
@@ -4304,6 +4810,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                 case SOURCE_ITEM_DECL:
                     if (!CodegenAddFieldDecls(cls, item->value.decl.init_decls,
                                               (uint16_t)(JVMC_FIELD_ACC_PUBLIC | JVMC_FIELD_ACC_STATIC))) {
+                        CodegenReportFail("GenerateClassFiles: add global fields failed");
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -4311,6 +4818,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                 case SOURCE_ITEM_CLASS: {
                     if (item->value.class_def != NULL) {
                         if (CodegenEmitClassFromDef(item->value.class_def, ctx) != 0) {
+                            CodegenReportFail("GenerateClassFiles: emit class failed");
                             jvmc_class_destroy(cls);
                             return 1;
                         }
@@ -4323,6 +4831,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                             if (item->value.func->func_name != NULL &&
                                 strcmp(item->value.func->func_name, "main") == 0) {
                                 if (!CodegenAddMainWithCleanup(cls, item->value.func, ctx)) {
+                                    CodegenReportFail("GenerateClassFiles: add main failed");
                                     jvmc_class_destroy(cls);
                                     return 1;
                                 }
@@ -4335,6 +4844,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                                               item->value.func->body,
                                                               item->value.func->params,
                                                               ctx)) {
+                                    CodegenReportFail("GenerateClassFiles: add function failed");
                                     jvmc_class_destroy(cls);
                                     return 1;
                                 }
@@ -4344,6 +4854,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                                            item->value.func->jvm_descriptor,
                                                            JVMC_METHOD_ACC_PUBLIC,
                                                            1)) {
+                            CodegenReportFail("GenerateClassFiles: add native prototype failed");
                             jvmc_class_destroy(cls);
                             return 1;
                         }
@@ -4351,6 +4862,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                     break;
                 case SOURCE_ITEM_ENUM:
                     if (!CodegenAddEnumFields(cls, item->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
+                        CodegenReportFail("GenerateClassFiles: add enum fields failed");
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -4366,16 +4878,19 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
             call_noarg_main = 1;
         }
         if (!EmitJavaEntryMain(cls, call_noarg_main)) {
+            CodegenReportFail("GenerateClassFiles: emit Java entry main failed");
             jvmc_class_destroy(cls);
             return 1;
         }
     }
     if (!CodegenEmitClinit(cls, root, ctx)) {
+        CodegenReportFail("GenerateClassFiles: emit <clinit> failed");
         jvmc_class_destroy(cls);
         return 1;
     }
 
     if (!jvmc_class_write_to_file(cls, out_file)) {
+        CodegenReportFail("GenerateClassFiles: write Main.class failed");
         jvmc_class_destroy(cls);
         return 1;
     }

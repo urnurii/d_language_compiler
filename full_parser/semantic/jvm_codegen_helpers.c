@@ -4,10 +4,11 @@ int JvmEmitLoadByType(jvmc_code *code, const NType *type, int slot) {
     if (type == NULL) {
         return 0;
     }
-    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_BASE_ARRAY) {
         return jvmc_code_load_ref(code, (uint16_t)slot);
     }
-    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_DOUBLE:
             case TYPE_REAL:
@@ -31,10 +32,11 @@ int JvmEmitStoreByType(jvmc_code *code, const NType *type, int slot) {
     if (type == NULL) {
         return 0;
     }
-    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_BASE_ARRAY) {
         return jvmc_code_store_ref(code, (uint16_t)slot);
     }
-    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_DOUBLE:
             case TYPE_REAL:
@@ -58,10 +60,11 @@ int JvmEmitReturnByType(jvmc_code *code, const NType *type) {
     if (type == NULL) {
         return jvmc_code_return_void(code);
     }
-    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_BASE_ARRAY) {
         return jvmc_code_return_ref(code);
     }
-    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_DOUBLE:
             case TYPE_REAL:

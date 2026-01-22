@@ -2813,6 +2813,9 @@ NExpr* CreateNewArrayExpr(NType *type, NExpr *expr)
 {
     NExprList *list = CreateExprList();
     AddExprToList(list, expr);
+    if (type != NULL) {
+        type = AddArrayToType(type, CreateArrayDecl(0, 0));
+    }
     NExpr *result = CreateNewExpr(type, list->elements, list->count);
     return result;
 }

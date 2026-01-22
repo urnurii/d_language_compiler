@@ -12,11 +12,8 @@ Input file: test_member_access.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+No semantic errors found
+[CODEGEN ERROR] STMT_DECL: expr initializer failed at line 8
+[CODEGEN ERROR] GenerateClassFiles: add function failed
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 000001debd50b2d0
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
-
------  Compilation successful! -----
-
+Error: JVM class generation failed!

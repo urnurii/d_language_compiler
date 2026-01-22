@@ -11,11 +11,20 @@ Input file: test_break_continue.d
 
 [PHASE 2] Second lexer pass and parsing...
 [PHASE 2] Parsing successful. AST built.
+SEMANTIC ANALYSIS ERRORS:
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 3, column 0: Variable 'x' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: x
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 6, column 0: Variable 'x' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: x
+SEMANTIC ERROR [E_UNDEFINED_VARIABLE] at line 9, column 0: Variable 'x' is not defined
+  Explanation: Declare the variable in the current or enclosing scope.
+  Context:
+    name: x
 
-[PHASE 3] AST analysis...
-[PHASE 3] AST root pointer: 00000289a70eb7b0
-AST visualization saved to 'ast.dot'
-[PHASE 3] Analysis complete.
+Total: 3 errors
 
------  Compilation successful! -----
-
+Error: Semantic analysis failed!
