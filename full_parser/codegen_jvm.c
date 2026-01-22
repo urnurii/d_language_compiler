@@ -460,7 +460,7 @@ static const char *PrintDescriptorForType(const NType *type) {
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         switch (type->base_type) {
             case TYPE_BOOL: return "Z";
-            case TYPE_CHAR: return "C";
+            case TYPE_CHAR: return "I";
             case TYPE_INT: return "I";
             case TYPE_FLOAT: return "F";
             case TYPE_DOUBLE: return "D";
@@ -1054,6 +1054,7 @@ static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *ty
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_BOOL:
+                return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_BOOLEAN);
             case TYPE_CHAR:
             case TYPE_INT:
                 return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_INT);
@@ -1085,6 +1086,8 @@ static int EmitArrayStoreForType(jvmc_code *code, const NType *type) {
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
+            case TYPE_BOOL:
+                return jvmc_code_array_store_bool(code);
             case TYPE_FLOAT:
                 return jvmc_code_array_store_float(code);
             case TYPE_DOUBLE:
@@ -1106,6 +1109,8 @@ static int EmitArrayLoadForType(jvmc_code *code, const NType *type) {
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
+            case TYPE_BOOL:
+                return jvmc_code_array_load_bool(code);
             case TYPE_FLOAT:
                 return jvmc_code_array_load_float(code);
             case TYPE_DOUBLE:

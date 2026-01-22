@@ -428,6 +428,10 @@ int jvmc_code_array_length(jvmc_code *code) {
     return AddInstruction(code->impl, code->impl->ArrayLength());
 }
 
+int jvmc_code_array_load_bool(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->LoadBooleanFromArray());
+}
 int jvmc_code_array_load_int(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->LoadIntFromArray());
@@ -445,6 +449,10 @@ int jvmc_code_array_load_ref(jvmc_code *code) {
     return AddInstruction(code->impl, code->impl->LoadReferenceFromArray());
 }
 
+int jvmc_code_array_store_bool(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->StoreBooleanToArray());
+}
 int jvmc_code_array_store_int(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->StoreIntToArray());
