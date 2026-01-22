@@ -250,6 +250,27 @@ static int CodegenAddMethodAbstract(jvmc_class *cls, const char *name, const cha
     return jvmc_method_add_flag(method, JVMC_METHOD_ACC_ABSTRACT);
 }
 
+static int CodegenAddMethodNative(jvmc_class *cls, const char *name, const char *descriptor,
+                                  uint16_t access_flags, int is_static) {
+    jvmc_method *method = NULL;
+    if (cls == NULL || name == NULL || descriptor == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, name, descriptor);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, access_flags)) {
+        return 0;
+    }
+    if (is_static) {
+        if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+            return 0;
+        }
+    }
+    return jvmc_method_add_flag(method, JVMC_METHOD_ACC_NATIVE);
+}
+
 static int ResolveVariableSlotInStmt(NStmt *stmt, const char *name, int *slot_out, NType **type_out) {
     if (stmt == NULL || name == NULL) {
         return 0;
@@ -3725,7 +3746,11 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                 jvmc_class_destroy(cls);
                                 return 1;
                             }
-                        } else {
+                        } else if (!CodegenAddMethodNative(cls,
+                                                           item->value.func->func_name,
+                                                           item->value.func->jvm_descriptor,
+                                                           JVMC_METHOD_ACC_PUBLIC,
+                                                           1)) {
                             jvmc_class_destroy(cls);
                             return 1;
                         }
