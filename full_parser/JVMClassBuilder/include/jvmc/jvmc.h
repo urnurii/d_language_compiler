@@ -144,6 +144,7 @@ int jvmc_code_invokeinterface(jvmc_code *code, jvmc_iface_methodref *method);
 int jvmc_code_new(jvmc_code *code, jvmc_class_ref *class_ref);
 int jvmc_code_newarray_primitive(jvmc_code *code, uint8_t type);
 int jvmc_code_newarray_ref(jvmc_code *code, jvmc_class_ref *class_ref);
+int jvmc_code_array_length(jvmc_code *code);
 int jvmc_code_array_load_int(jvmc_code *code);
 int jvmc_code_array_load_float(jvmc_code *code);
 int jvmc_code_array_load_double(jvmc_code *code);

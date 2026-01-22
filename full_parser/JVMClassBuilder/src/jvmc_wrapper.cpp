@@ -399,6 +399,11 @@ int jvmc_code_newarray_ref(jvmc_code *code, jvmc_class_ref *class_ref) {
     return AddInstruction(code->impl, code->impl->NewArray(class_ref->impl));
 }
 
+int jvmc_code_array_length(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->ArrayLength());
+}
+
 int jvmc_code_array_load_int(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->LoadIntFromArray());

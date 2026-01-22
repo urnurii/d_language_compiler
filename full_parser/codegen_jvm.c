@@ -870,6 +870,27 @@ static int FindMaxSlot(NParamList *params, NStmt *body) {
     return max;
 }
 
+static int GetElementTypeFromArray(const NType *array_type, NType *out_elem) {
+    if (array_type == NULL || out_elem == NULL) {
+        return 0;
+    }
+    if (array_type->kind == TYPE_KIND_BASE_ARRAY) {
+        out_elem->kind = TYPE_KIND_BASE;
+        out_elem->base_type = array_type->base_type;
+        out_elem->class_name = NULL;
+        out_elem->array_decl = NULL;
+        return 1;
+    }
+    if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
+        out_elem->kind = TYPE_KIND_CLASS;
+        out_elem->base_type = TYPE_CLASS;
+        out_elem->class_name = array_type->class_name;
+        out_elem->array_decl = NULL;
+        return 1;
+    }
+    return 0;
+}
+
 static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *type) {
     if (code == NULL || type == NULL) {
         return 0;
@@ -1002,6 +1023,368 @@ static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const N
     return 0;
 }
 
+static int EmitArrayLiteral(jvmc_class *cls, jvmc_code *code, const NType *decl_type, const NInitializer *init,
+                            NParamList *params, NStmt *body, SemanticContext *ctx, int store_slot,
+                            const char *static_field_name, const char *static_desc) {
+    NType elem_type;
+    if (code == NULL || decl_type == NULL || init == NULL || !init->is_array) {
+        return 0;
+    }
+    if (!GetElementTypeFromArray(decl_type, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, init->array_init.count)) {
+        return 0;
+    }
+    if (!EmitNewArrayForType(cls, code, &elem_type)) {
+        return 0;
+    }
+    if (static_field_name != NULL && static_desc != NULL) {
+        jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!jvmc_code_putstatic(code, fref)) {
+            return 0;
+        }
+    } else {
+        if (!jvmc_code_store_ref(code, (uint16_t)store_slot)) {
+            return 0;
+        }
+    }
+    for (int i = 0; i < init->array_init.count; i++) {
+        if (static_field_name != NULL && static_desc != NULL) {
+            jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
+            if (fref == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_getstatic(code, fref)) {
+                return 0;
+            }
+        } else {
+            if (!jvmc_code_load_ref(code, (uint16_t)store_slot)) {
+                return 0;
+            }
+        }
+        if (!jvmc_code_push_int(code, i)) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, init->array_init.elements[i], params, body, ctx)) {
+            return 0;
+        }
+        if (!EmitArrayStoreForType(code, &elem_type)) {
+            return 0;
+        }
+    }
+    if (static_field_name != NULL && static_desc != NULL) {
+        jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
+        if (fref == NULL) {
+            return 0;
+        }
+        return jvmc_code_getstatic(code, fref);
+    }
+    return jvmc_code_load_ref(code, (uint16_t)store_slot);
+}
+
+static int EmitAppendArrayElement(jvmc_class *cls, jvmc_code *code, NExpr *array_expr, NExpr *value_expr,
+                                  NParamList *params, NStmt *body, SemanticContext *ctx) {
+    NType elem_type;
+    int base = FindMaxSlot(params, body) + 1;
+    int slot_arr = base++;
+    int slot_len = base++;
+    int slot_new = base++;
+    int slot_idx = base++;
+    jvmc_label *label_loop = jvmc_code_label_create(code);
+    jvmc_label *label_done = jvmc_code_label_create(code);
+
+    if (label_loop == NULL || label_done == NULL) {
+        return 0;
+    }
+    if (!GetElementTypeFromArray(array_expr ? array_expr->inferred_type : NULL, &elem_type)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, array_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!jvmc_code_array_length(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!EmitNewArrayForType(cls, code, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_loop)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!jvmc_code_if_icmp(code, JVMC_CMP_GE, label_done)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!EmitArrayLoadForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!EmitArrayStoreForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_loop)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_done)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, value_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!EmitArrayStoreForType(code, &elem_type)) {
+        return 0;
+    }
+    return jvmc_code_load_ref(code, (uint16_t)slot_new);
+}
+
+static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_expr, NExpr *rhs_expr,
+                                 NParamList *params, NStmt *body, SemanticContext *ctx) {
+    NType elem_type;
+    int base = FindMaxSlot(params, body) + 1;
+    int slot_arr = base++;
+    int slot_rhs = base++;
+    int slot_len1 = base++;
+    int slot_len2 = base++;
+    int slot_new = base++;
+    int slot_idx = base++;
+    jvmc_label *label_loop1 = jvmc_code_label_create(code);
+    jvmc_label *label_done1 = jvmc_code_label_create(code);
+    jvmc_label *label_loop2 = jvmc_code_label_create(code);
+    jvmc_label *label_done2 = jvmc_code_label_create(code);
+
+    if (label_loop1 == NULL || label_done1 == NULL || label_loop2 == NULL || label_done2 == NULL) {
+        return 0;
+    }
+    if (!GetElementTypeFromArray(array_expr ? array_expr->inferred_type : NULL, &elem_type)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, array_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, rhs_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_rhs)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!jvmc_code_array_length(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_rhs)) {
+        return 0;
+    }
+    if (!jvmc_code_array_length(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len2)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len2)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!EmitNewArrayForType(cls, code, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_loop1)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_if_icmp(code, JVMC_CMP_GE, label_done1)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!EmitArrayLoadForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!EmitArrayStoreForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_loop1)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_done1)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_loop2)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len2)) {
+        return 0;
+    }
+    if (!jvmc_code_if_icmp(code, JVMC_CMP_GE, label_done2)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_new)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_rhs)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!EmitArrayLoadForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!EmitArrayStoreForType(code, &elem_type)) {
+        return 0;
+    }
+    if (!jvmc_code_load_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    if (!jvmc_code_add_int(code)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_idx)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_loop2)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_done2)) {
+        return 0;
+    }
+    return jvmc_code_load_ref(code, (uint16_t)slot_new);
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx) {
     int slot = -1;
@@ -1024,9 +1407,46 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return EmitLoadByType(code, type, slot);
             }
             return EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type);
+        case EXPR_ARRAY_ACCESS: {
+            NExpr *arr = expr->value.array_access.array;
+            NExpr *idx = expr->value.array_access.index;
+            NType elem_type;
+            if (arr == NULL || idx == NULL) {
+                return 0;
+            }
+            if (!GetElementTypeFromArray(arr->inferred_type, &elem_type)) {
+                return 0;
+            }
+            if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
+                return 0;
+            }
+            if (!CodegenEmitExpr(cls, code, idx, params, body, ctx)) {
+                return 0;
+            }
+            return EmitArrayLoadForType(code, &elem_type);
+        }
         case EXPR_FUNC_CALL: {
             const char *fname = expr->value.func_call.func_name;
             if (fname != NULL) {
+                if (strcmp(fname, "__len") == 0 && expr->value.func_call.arg_count == 1) {
+                    if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
+                        return 0;
+                    }
+                    return jvmc_code_array_length(code);
+                }
+                if (strcmp(fname, "__append") == 0 && expr->value.func_call.arg_count == 2) {
+                    NExpr *arr = expr->value.func_call.args[0];
+                    NExpr *rhs = expr->value.func_call.args[1];
+                    if (arr == NULL || rhs == NULL) {
+                        return 0;
+                    }
+                    if (rhs->inferred_type != NULL &&
+                        (rhs->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
+                         rhs->inferred_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                        return EmitAppendArrayConcat(cls, code, arr, rhs, params, body, ctx);
+                    }
+                    return EmitAppendArrayElement(cls, code, arr, rhs, params, body, ctx);
+                }
                 if (strcmp(fname, "write") == 0 || strcmp(fname, "writeln") == 0) {
                     int is_writeln = (strcmp(fname, "writeln") == 0);
                     if (expr->value.func_call.arg_count == 0) {
@@ -1269,6 +1689,38 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             }
             return 1;
         }
+        case EXPR_MEMBER_ACCESS: {
+            NExpr *obj = expr->value.member_access.object;
+            if (obj != NULL && obj->inferred_type != NULL &&
+                (obj->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
+                 obj->inferred_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+                expr->value.member_access.member_name != NULL &&
+                strcmp(expr->value.member_access.member_name, "length") == 0) {
+                if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
+                    return 0;
+                }
+                return jvmc_code_array_length(code);
+            }
+            return 0;
+        }
+        case EXPR_NEW: {
+            if (expr->inferred_type != NULL &&
+                (expr->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
+                 expr->inferred_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                NType elem_type;
+                if (expr->value.new_expr.init_count < 1) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, expr->value.new_expr.init_exprs[0], params, body, ctx)) {
+                    return 0;
+                }
+                if (!GetElementTypeFromArray(expr->inferred_type, &elem_type)) {
+                    return 0;
+                }
+                return EmitNewArrayForType(cls, code, &elem_type);
+            }
+            return 0;
+        }
         case EXPR_UNARY_OP: {
             if (expr->value.unary.operand == NULL) {
                 return 0;
@@ -1422,6 +1874,30 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 return EmitGlobalStore(cls, code, ctx, name, &type);
             }
+            if (expr->value.binary.left != NULL &&
+                expr->value.binary.left->type == EXPR_ARRAY_ACCESS) {
+                NExpr *lhs = expr->value.binary.left;
+                NExpr *rhs = expr->value.binary.right;
+                NExpr *arr = lhs->value.array_access.array;
+                NExpr *idx = lhs->value.array_access.index;
+                NType elem_type;
+                if (rhs == NULL || arr == NULL || idx == NULL) {
+                    return 0;
+                }
+                if (!GetElementTypeFromArray(lhs->inferred_type, &elem_type)) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, idx, params, body, ctx)) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, rhs, params, body, ctx)) {
+                    return 0;
+                }
+                return EmitArrayStoreForType(code, &elem_type);
+            }
             return 0;
         default:
             return 0;
@@ -1453,7 +1929,13 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             if (stmt->value.decl.init_decls && stmt->value.decl.decl_type) {
                 for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
-                    if (decl && decl->initializer && decl->initializer->expr) {
+                if (decl && decl->initializer) {
+                    if (decl->initializer->is_array) {
+                        if (!EmitArrayLiteral(cls, code, stmt->value.decl.decl_type, decl->initializer,
+                                              params, stmts, ctx, decl->jvm_slot_index, NULL, NULL)) {
+                            return 0;
+                        }
+                    } else if (decl->initializer->expr) {
                         if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
                             return 0;
                         }
@@ -1461,6 +1943,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                             return 0;
                         }
                     }
+                }
                 }
             }
         } else if (stmt->type == STMT_EXPR) {
@@ -1817,23 +2300,29 @@ static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *c
                 NInitDecl *decl = item->value.decl.init_decls->decls[i];
                 if (decl == NULL || decl->name == NULL ||
                     decl->jvm_descriptor == NULL ||
-                    decl->initializer == NULL ||
-                    decl->initializer->expr == NULL) {
+                    decl->initializer == NULL) {
                     continue;
                 }
-                if (!CodegenEmitExpr(cls, code, decl->initializer->expr, NULL, NULL, ctx)) {
-                    return 0;
-                }
-                {
-                    jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
-                                                                            "Main",
-                                                                            decl->name,
-                                                                            decl->jvm_descriptor);
-                    if (fref == NULL) {
+                if (decl->initializer->is_array) {
+                    if (!EmitArrayLiteral(cls, code, item->value.decl.item_type, decl->initializer,
+                                          NULL, NULL, ctx, -1, decl->name, decl->jvm_descriptor)) {
                         return 0;
                     }
-                    if (!jvmc_code_putstatic(code, fref)) {
+                } else if (decl->initializer->expr) {
+                    if (!CodegenEmitExpr(cls, code, decl->initializer->expr, NULL, NULL, ctx)) {
                         return 0;
+                    }
+                    {
+                        jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                                "Main",
+                                                                                decl->name,
+                                                                                decl->jvm_descriptor);
+                        if (fref == NULL) {
+                            return 0;
+                        }
+                        if (!jvmc_code_putstatic(code, fref)) {
+                            return 0;
+                        }
                     }
                 }
             }
