@@ -543,6 +543,15 @@ int CanAssign(NType *target_type, NType *source_type) {
         return 1;
     }
 
+    if (target_type->kind == TYPE_KIND_BASE && source_type->kind == TYPE_KIND_BASE &&
+        IsNumericType(target_type) && IsNumericType(source_type)) {
+        int target_rank = 0;
+        int source_rank = 0;
+        if (GetNumericRank(target_type, &target_rank) && GetNumericRank(source_type, &source_rank)) {
+            return target_rank >= source_rank;
+        }
+    }
+
     if ((target_type->kind == TYPE_KIND_BASE_ARRAY || target_type->kind == TYPE_KIND_CLASS_ARRAY) ||
         (source_type->kind == TYPE_KIND_BASE_ARRAY || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
         if (target_type->kind != source_type->kind) {

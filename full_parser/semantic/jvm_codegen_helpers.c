@@ -174,7 +174,7 @@ const char *JvmPrintDescriptorForType(const NType *type) {
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         switch (type->base_type) {
             case TYPE_BOOL: return "Z";
-            case TYPE_CHAR: return "I";
+            case TYPE_CHAR: return "C";
             case TYPE_INT: return "I";
             case TYPE_FLOAT: return "F";
             case TYPE_DOUBLE: return "D";
