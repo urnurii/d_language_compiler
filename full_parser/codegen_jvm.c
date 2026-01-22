@@ -9,6 +9,15 @@
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx);
 
+typedef struct {
+    jvmc_label **break_labels;
+    int break_count;
+    int break_capacity;
+    jvmc_label **continue_labels;
+    int continue_count;
+    int continue_capacity;
+} FlowContext;
+
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
 }
@@ -570,6 +579,154 @@ static int EmitGlobalStore(jvmc_class *cls, jvmc_code *code, SemanticContext *ct
     return jvmc_code_putstatic(code, fref);
 }
 
+static int FlowPushLabel(jvmc_label ***labels, int *count, int *capacity, jvmc_label *label) {
+    jvmc_label **grown;
+    if (labels == NULL || count == NULL || capacity == NULL) {
+        return 0;
+    }
+    if (*count >= *capacity) {
+        int new_cap = (*capacity == 0) ? 4 : (*capacity * 2);
+        grown = (jvmc_label **)realloc(*labels, sizeof(jvmc_label *) * (size_t)new_cap);
+        if (grown == NULL) {
+            return 0;
+        }
+        *labels = grown;
+        *capacity = new_cap;
+    }
+    (*labels)[*count] = label;
+    *count += 1;
+    return 1;
+}
+
+static void FlowPopLabel(int *count) {
+    if (count == NULL || *count <= 0) {
+        return;
+    }
+    *count -= 1;
+}
+
+static int FlowPushLoop(FlowContext *flow, jvmc_label *break_label, jvmc_label *continue_label) {
+    if (flow == NULL) {
+        return 0;
+    }
+    if (!FlowPushLabel(&flow->break_labels, &flow->break_count, &flow->break_capacity, break_label)) {
+        return 0;
+    }
+    if (!FlowPushLabel(&flow->continue_labels, &flow->continue_count, &flow->continue_capacity, continue_label)) {
+        FlowPopLabel(&flow->break_count);
+        return 0;
+    }
+    return 1;
+}
+
+static int FlowPushSwitch(FlowContext *flow, jvmc_label *break_label) {
+    if (flow == NULL) {
+        return 0;
+    }
+    return FlowPushLabel(&flow->break_labels, &flow->break_count, &flow->break_capacity, break_label);
+}
+
+static void FlowPopLoop(FlowContext *flow) {
+    if (flow == NULL) {
+        return;
+    }
+    FlowPopLabel(&flow->break_count);
+    FlowPopLabel(&flow->continue_count);
+}
+
+static void FlowPopSwitch(FlowContext *flow) {
+    if (flow == NULL) {
+        return;
+    }
+    FlowPopLabel(&flow->break_count);
+}
+
+static jvmc_label *FlowTopBreak(const FlowContext *flow) {
+    if (flow == NULL || flow->break_count <= 0) {
+        return NULL;
+    }
+    return flow->break_labels[flow->break_count - 1];
+}
+
+static jvmc_label *FlowTopContinue(const FlowContext *flow) {
+    if (flow == NULL || flow->continue_count <= 0) {
+        return NULL;
+    }
+    return flow->continue_labels[flow->continue_count - 1];
+}
+
+static int IsRefType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_BASE_ARRAY) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING) {
+        return 1;
+    }
+    return 0;
+}
+
+static jvmc_compare InvertCompare(jvmc_compare cmp) {
+    switch (cmp) {
+        case JVMC_CMP_EQ: return JVMC_CMP_NE;
+        case JVMC_CMP_NE: return JVMC_CMP_EQ;
+        case JVMC_CMP_LT: return JVMC_CMP_GE;
+        case JVMC_CMP_LE: return JVMC_CMP_GT;
+        case JVMC_CMP_GT: return JVMC_CMP_LE;
+        case JVMC_CMP_GE: return JVMC_CMP_LT;
+        default: return JVMC_CMP_EQ;
+    }
+}
+
+static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
+                             SemanticContext *ctx, int jump_if_true, jvmc_label *label) {
+    jvmc_compare cmp;
+    if (expr == NULL || code == NULL || label == NULL) {
+        return 0;
+    }
+    if (expr->type == EXPR_BINARY_OP) {
+        switch (expr->value.binary.op) {
+            case OP_EQ: cmp = JVMC_CMP_EQ; break;
+            case OP_NEQ: cmp = JVMC_CMP_NE; break;
+            case OP_LT: cmp = JVMC_CMP_LT; break;
+            case OP_LE: cmp = JVMC_CMP_LE; break;
+            case OP_GT: cmp = JVMC_CMP_GT; break;
+            case OP_GE: cmp = JVMC_CMP_GE; break;
+            default: cmp = JVMC_CMP_EQ; break;
+        }
+        if (cmp != JVMC_CMP_EQ || expr->value.binary.op == OP_EQ) {
+            if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
+                return 0;
+            }
+            if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
+                return 0;
+            }
+            if (!jump_if_true) {
+                cmp = InvertCompare(cmp);
+            }
+            return jvmc_code_if_icmp(code, cmp, label);
+        }
+    }
+    if (!CodegenEmitExpr(cls, code, expr, params, body, ctx)) {
+        return 0;
+    }
+    if (IsRefType(expr->inferred_type)) {
+        if (jump_if_true) {
+            return jvmc_code_if_not_null(code, label);
+        }
+        return jvmc_code_if_null(code, label);
+    }
+    if (jump_if_true) {
+        return jvmc_code_if(code, JVMC_CMP_NE, label);
+    }
+    return jvmc_code_if(code, JVMC_CMP_EQ, label);
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx) {
     int slot = -1;
@@ -654,7 +811,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
 }
 
 static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params,
-                               int *return_emitted, SemanticContext *ctx) {
+                               int *return_emitted, SemanticContext *ctx, FlowContext *flow) {
     NStmt *stmt = stmts;
     while (stmt != NULL) {
         if (stmt->type == STMT_RETURN) {
@@ -699,11 +856,246 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                                      stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL,
                                      params,
                                      return_emitted,
-                                     ctx)) {
+                                     ctx,
+                                     flow)) {
                 return 0;
             }
             if (return_emitted && *return_emitted) {
                 return 1;
+            }
+        } else if (stmt->type == STMT_IF) {
+            jvmc_label *label_else = jvmc_code_label_create(code);
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            int local_return = 0;
+            if (label_else == NULL || label_end == NULL) {
+                return 0;
+            }
+            if (!EmitConditionJump(cls, code, stmt->value.if_stmt.condition, params, stmts, ctx, 0, label_else)) {
+                return 0;
+            }
+            if (!CodegenEmitStmtList(cls, code, stmt->value.if_stmt.then_stmt, params, &local_return, ctx, flow)) {
+                return 0;
+            }
+            if (stmt->value.if_stmt.else_stmt != NULL) {
+                if (!jvmc_code_goto(code, label_end)) {
+                    return 0;
+                }
+            }
+            if (!jvmc_code_label_place(code, label_else)) {
+                return 0;
+            }
+            if (stmt->value.if_stmt.else_stmt != NULL) {
+                local_return = 0;
+                if (!CodegenEmitStmtList(cls, code, stmt->value.if_stmt.else_stmt, params, &local_return, ctx, flow)) {
+                    return 0;
+                }
+            }
+            if (!jvmc_code_label_place(code, label_end)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_WHILE) {
+            jvmc_label *label_cond = jvmc_code_label_create(code);
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            int local_return = 0;
+            if (label_cond == NULL || label_end == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_cond)) {
+                return 0;
+            }
+            if (!EmitConditionJump(cls, code, stmt->value.while_stmt.condition, params, stmts, ctx, 0, label_end)) {
+                return 0;
+            }
+            if (!FlowPushLoop(flow, label_end, label_cond)) {
+                return 0;
+            }
+            if (!CodegenEmitStmtList(cls, code, stmt->value.while_stmt.body, params, &local_return, ctx, flow)) {
+                return 0;
+            }
+            FlowPopLoop(flow);
+            if (!jvmc_code_goto(code, label_cond)) {
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_end)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_DO_WHILE) {
+            jvmc_label *label_body = jvmc_code_label_create(code);
+            jvmc_label *label_cond = jvmc_code_label_create(code);
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            int local_return = 0;
+            if (label_body == NULL || label_cond == NULL || label_end == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_body)) {
+                return 0;
+            }
+            if (!FlowPushLoop(flow, label_end, label_cond)) {
+                return 0;
+            }
+            if (!CodegenEmitStmtList(cls, code, stmt->value.do_while_stmt.body, params, &local_return, ctx, flow)) {
+                return 0;
+            }
+            FlowPopLoop(flow);
+            if (!jvmc_code_label_place(code, label_cond)) {
+                return 0;
+            }
+            if (!EmitConditionJump(cls, code, stmt->value.do_while_stmt.condition, params, stmts, ctx, 1, label_body)) {
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_end)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_FOR) {
+            jvmc_label *label_cond = jvmc_code_label_create(code);
+            jvmc_label *label_iter = jvmc_code_label_create(code);
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            int local_return = 0;
+            if (label_cond == NULL || label_iter == NULL || label_end == NULL) {
+                return 0;
+            }
+            if (stmt->value.for_stmt.init_expr != NULL) {
+                if (!CodegenEmitExpr(cls, code, stmt->value.for_stmt.init_expr, params, stmts, ctx)) {
+                    return 0;
+                }
+            }
+            if (stmt->value.for_stmt.init_decls && stmt->value.for_stmt.init_decl_type) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
+                            return 0;
+                        }
+                        if (!EmitStoreByType(code, stmt->value.for_stmt.init_decl_type, decl->jvm_slot_index)) {
+                            return 0;
+                        }
+                    }
+                }
+            }
+            if (!jvmc_code_label_place(code, label_cond)) {
+                return 0;
+            }
+            if (stmt->value.for_stmt.cond_expr != NULL) {
+                if (!EmitConditionJump(cls, code, stmt->value.for_stmt.cond_expr, params, stmts, ctx, 0, label_end)) {
+                    return 0;
+                }
+            }
+            if (!FlowPushLoop(flow, label_end,
+                              (stmt->value.for_stmt.iter_expr != NULL) ? label_iter : label_cond)) {
+                return 0;
+            }
+            if (!CodegenEmitStmtList(cls, code, stmt->value.for_stmt.body, params, &local_return, ctx, flow)) {
+                return 0;
+            }
+            FlowPopLoop(flow);
+            if (!jvmc_code_label_place(code, label_iter)) {
+                return 0;
+            }
+            if (stmt->value.for_stmt.iter_expr != NULL) {
+                if (!CodegenEmitExpr(cls, code, stmt->value.for_stmt.iter_expr, params, stmts, ctx)) {
+                    return 0;
+                }
+            }
+            if (!jvmc_code_goto(code, label_cond)) {
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_end)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_SWITCH) {
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            jvmc_label **case_labels = NULL;
+            int case_count = stmt->value.switch_stmt.cases.count;
+            int default_index = -1;
+            int local_return = 0;
+            if (label_end == NULL) {
+                return 0;
+            }
+            if (case_count > 0) {
+                case_labels = (jvmc_label **)calloc((size_t)case_count, sizeof(jvmc_label *));
+                if (case_labels == NULL) {
+                    return 0;
+                }
+                for (int i = 0; i < case_count; i++) {
+                    case_labels[i] = jvmc_code_label_create(code);
+                    if (case_labels[i] == NULL) {
+                        free(case_labels);
+                        return 0;
+                    }
+                    if (stmt->value.switch_stmt.cases.items[i] &&
+                        stmt->value.switch_stmt.cases.items[i]->type == CASE_ITEM_DEFAULT) {
+                        default_index = i;
+                    }
+                }
+            }
+            for (int i = 0; i < case_count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item == NULL || item->type == CASE_ITEM_DEFAULT) {
+                    continue;
+                }
+                if (!CodegenEmitExpr(cls, code, stmt->value.switch_stmt.expr, params, stmts, ctx)) {
+                    free(case_labels);
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, item->case_expr, params, stmts, ctx)) {
+                    free(case_labels);
+                    return 0;
+                }
+                if (!jvmc_code_if_icmp(code, JVMC_CMP_EQ, case_labels[i])) {
+                    free(case_labels);
+                    return 0;
+                }
+            }
+            if (default_index >= 0) {
+                if (!jvmc_code_goto(code, case_labels[default_index])) {
+                    free(case_labels);
+                    return 0;
+                }
+            } else {
+                if (!jvmc_code_goto(code, label_end)) {
+                    free(case_labels);
+                    return 0;
+                }
+            }
+            if (!FlowPushSwitch(flow, label_end)) {
+                free(case_labels);
+                return 0;
+            }
+            for (int i = 0; i < case_count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (!jvmc_code_label_place(code, case_labels[i])) {
+                    FlowPopSwitch(flow);
+                    free(case_labels);
+                    return 0;
+                }
+                if (item && item->stmts) {
+                    if (!CodegenEmitStmtList(cls, code, item->stmts->first, params, &local_return, ctx, flow)) {
+                        FlowPopSwitch(flow);
+                        free(case_labels);
+                        return 0;
+                    }
+                }
+            }
+            FlowPopSwitch(flow);
+            free(case_labels);
+            if (!jvmc_code_label_place(code, label_end)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_BREAK) {
+            jvmc_label *target = FlowTopBreak(flow);
+            if (target == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_goto(code, target)) {
+                return 0;
+            }
+        } else if (stmt->type == STMT_CONTINUE) {
+            jvmc_label *target = FlowTopContinue(flow);
+            if (target == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_goto(code, target)) {
+                return 0;
             }
         }
         stmt = stmt->next;
@@ -743,9 +1135,15 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(params, body, is_static ? 0 : 1))) {
         return 0;
     }
-    if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx)) {
+    FlowContext flow;
+    memset(&flow, 0, sizeof(flow));
+    if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx, &flow)) {
+        free(flow.break_labels);
+        free(flow.continue_labels);
         return 0;
     }
+    free(flow.break_labels);
+    free(flow.continue_labels);
     if (!returned) {
         return CodegenEmitEmptyReturn(code, descriptor);
     }
