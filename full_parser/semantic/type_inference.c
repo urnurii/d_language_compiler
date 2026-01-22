@@ -15,6 +15,9 @@ static int IsDynamicArrayType(const NType *type);
 static void BuildElementType(const NType *array_type, NType *out);
 static void ReportAppendAssignError(NType *left_type, NType *right_type,
                                     SemanticContext *ctx, int line, int column);
+static int IsSameOrBaseClassName(const char *base_name, const char *derived_name);
+
+static SemanticContext *g_type_ctx = NULL;
 
 // ----- Вывод типов выражений -----
 
@@ -26,6 +29,10 @@ NType* InferExpressionType(NExpr *expr, SemanticContext *ctx) {
 
 NType* InferExpressionTypeSilent(NExpr *expr, SemanticContext *ctx) {
     return InferExpressionTypeInternal(expr, ctx, 0);
+}
+
+void SetTypeInferenceContext(SemanticContext *ctx) {
+    g_type_ctx = ctx;
 }
 
 static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int report_errors) {
@@ -515,6 +522,11 @@ int AreTypesCompatible(NType *type1, NType *type2, int strict) {
             strcmp(type1->class_name, type2->class_name) == 0) {
             return 1;
         }
+        if (type1->class_name != NULL && type2->class_name != NULL &&
+            (IsSameOrBaseClassName(type1->class_name, type2->class_name) ||
+             IsSameOrBaseClassName(type2->class_name, type1->class_name))) {
+            return 1;
+        }
         return 0;
     }
 
@@ -584,6 +596,10 @@ int CanAssign(NType *target_type, NType *source_type) {
         (source_type->kind == TYPE_KIND_CLASS || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
         if (target_type->class_name != NULL && source_type->class_name != NULL &&
             strcmp(target_type->class_name, source_type->class_name) == 0) {
+            return 1;
+        }
+        if (target_type->class_name != NULL && source_type->class_name != NULL &&
+            IsSameOrBaseClassName(target_type->class_name, source_type->class_name)) {
             return 1;
         }
         return 0;
@@ -716,6 +732,27 @@ static void BuildElementType(const NType *array_type, NType *out) {
         out->kind = TYPE_KIND_CLASS;
         out->class_name = array_type->class_name;
     }
+}
+
+static int IsSameOrBaseClassName(const char *base_name, const char *derived_name) {
+    ClassInfo *cls;
+    if (base_name == NULL || derived_name == NULL) {
+        return 0;
+    }
+    if (strcmp(base_name, derived_name) == 0) {
+        return 1;
+    }
+    if (g_type_ctx == NULL) {
+        return 0;
+    }
+    cls = LookupClass(g_type_ctx, derived_name);
+    while (cls != NULL && cls->base_class != NULL) {
+        if (strcmp(cls->base_class, base_name) == 0) {
+            return 1;
+        }
+        cls = LookupClass(g_type_ctx, cls->base_class);
+    }
+    return 0;
 }
 
 static void ReportAppendAssignError(NType *left_type, NType *right_type,

@@ -184,6 +184,7 @@ int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
     if (local_ctx == NULL) {
         return 1;
     }
+    SetTypeInferenceContext(local_ctx);
 
     if (FirstPassCollectDeclarations(root, local_ctx) != 0) {
         *ctx = local_ctx;

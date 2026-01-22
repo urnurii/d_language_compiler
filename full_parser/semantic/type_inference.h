@@ -23,6 +23,7 @@
    Использует: ReportError если не удаётся определить тип */
 NType* InferExpressionType(NExpr *expr, SemanticContext *ctx);
 NType* InferExpressionTypeSilent(NExpr *expr, SemanticContext *ctx);
+void SetTypeInferenceContext(SemanticContext *ctx);
 
 /* Определить тип для константы (литерала)
    INT -> TYPE_INT
