@@ -2904,8 +2904,21 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         had_error = 1;
                     }
 
-                    if (ctor != NULL) {
-                        int expected = (ctor->params != NULL) ? ctor->params->count : 0;
+                      if (ctor != NULL) {
+                          {
+                              char *owner_internal = BuildJvmInternalName(expr->value.new_expr.type->class_name);
+                              char *desc = BuildJvmMethodDescriptor(NULL, ctor->params);
+                              if (owner_internal != NULL && desc != NULL) {
+                                  SetResolvedCallInfo(expr, owner_internal, desc, ctor->params);
+                              }
+                              if (owner_internal != NULL) {
+                                  free(owner_internal);
+                              }
+                              if (desc != NULL) {
+                                  free(desc);
+                              }
+                          }
+                          int expected = (ctor->params != NULL) ? ctor->params->count : 0;
                         if (actual < expected && ctor->params != NULL) {
                             for (int i = actual; i < expected; i++) {
                                 NParam *param = ctor->params->params[i];
@@ -2917,7 +2930,14 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                                                                     expr->line,
                                                                                     expr->column);
                                         AddError(ctx->errors, &err);
-                                    }
+                      }
+                      if (ctor == NULL && actual == 0) {
+                          char *owner_internal = BuildJvmInternalName(expr->value.new_expr.type->class_name);
+                          if (owner_internal != NULL) {
+                              SetResolvedCallInfo(expr, owner_internal, "()V", NULL);
+                              free(owner_internal);
+                          }
+                      }
                                     had_error = 1;
                                     break;
                                 }

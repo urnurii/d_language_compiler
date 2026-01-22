@@ -18,6 +18,10 @@ typedef struct {
     int continue_capacity;
 } FlowContext;
 
+static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
+                           AccessSpec access, SemanticContext *ctx);
+static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx);
+
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
 }
@@ -1420,6 +1424,337 @@ static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_
     return jvmc_code_load_ref(code, (uint16_t)slot_new);
 }
 
+static int EmitNewClassExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params,
+                            NStmt *body, SemanticContext *ctx) {
+    char *owner_internal = NULL;
+    const char *ctor_desc = NULL;
+    jvmc_class_ref *cref;
+    jvmc_methodref *mref;
+    int arg_count;
+    int *ref_slots = NULL;
+    int temp_base;
+    int temp_obj;
+
+    if (cls == NULL || code == NULL || expr == NULL || expr->inferred_type == NULL) {
+        return 0;
+    }
+    owner_internal = expr->resolved_owner_internal
+        ? DuplicateString(expr->resolved_owner_internal)
+        : BuildJvmInternalName(expr->inferred_type->class_name);
+    if (owner_internal == NULL) {
+        return 0;
+    }
+    ctor_desc = (expr->resolved_member_descriptor != NULL) ? expr->resolved_member_descriptor : "()V";
+    cref = jvmc_class_get_or_create_class_ref(cls, owner_internal);
+    if (cref == NULL) {
+        free(owner_internal);
+        return 0;
+    }
+    if (!jvmc_code_new(code, cref)) {
+        free(owner_internal);
+        return 0;
+    }
+    if (!jvmc_code_dup(code)) {
+        free(owner_internal);
+        return 0;
+    }
+    temp_base = FindMaxSlot(params, body) + 1;
+    temp_obj = temp_base++;
+    if (!jvmc_code_store_ref(code, (uint16_t)temp_obj)) {
+        free(owner_internal);
+        return 0;
+    }
+
+    arg_count = expr->value.new_expr.init_count;
+    if (arg_count > 0) {
+        ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
+        if (ref_slots == NULL) {
+            free(owner_internal);
+            return 0;
+        }
+        for (int i = 0; i < arg_count; i++) {
+            ref_slots[i] = -1;
+        }
+    }
+    for (int i = 0; i < arg_count; i++) {
+        NExpr *arg = expr->value.new_expr.init_exprs[i];
+        int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                      i < expr->resolved_arg_count &&
+                      expr->resolved_arg_is_ref[i] != 0);
+        if (is_ref) {
+            int tmp_slot = temp_base++;
+            if (!jvmc_code_push_int(code, 1)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!jvmc_code_store_ref(code, (uint16_t)tmp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)tmp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!EmitLoadLValue(cls, code, arg, params, body, ctx, NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!EmitArrayStoreForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)tmp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            ref_slots[i] = tmp_slot;
+        } else {
+            if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+        }
+    }
+
+    mref = jvmc_class_get_or_create_methodref(cls, owner_internal, "<init>", ctor_desc);
+    if (mref == NULL) {
+        free(ref_slots);
+        free(owner_internal);
+        return 0;
+    }
+    if (!jvmc_code_invokespecial(code, mref)) {
+        free(ref_slots);
+        free(owner_internal);
+        return 0;
+    }
+
+    for (int i = 0; i < arg_count; i++) {
+        int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                      i < expr->resolved_arg_count &&
+                      expr->resolved_arg_is_ref[i] != 0);
+        if (is_ref && ref_slots && ref_slots[i] >= 0) {
+            NExpr *arg = expr->value.new_expr.init_exprs[i];
+            if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+            if (!EmitStoreLValue(cls, code, arg, arg ? arg->inferred_type : NULL, params, body, ctx)) {
+                free(ref_slots);
+                free(owner_internal);
+                return 0;
+            }
+        }
+    }
+
+    if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
+        free(ref_slots);
+        free(owner_internal);
+        return 0;
+    }
+    free(ref_slots);
+    free(owner_internal);
+    return 1;
+}
+
+static int EmitInstanceFieldInitializers(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx,
+                                         jvmc_code *code, NParamList *params, NStmt *body) {
+    NClassMember *member;
+    int temp_base;
+    char *owner_internal;
+    if (cls == NULL || class_def == NULL) {
+        return 0;
+    }
+    if (code == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName(class_def->class_name);
+    if (owner_internal == NULL) {
+        return 0;
+    }
+    temp_base = FindMaxSlot(params, body) + 1;
+    member = class_def->members.first;
+    while (member != NULL) {
+        if (member->type == CLASS_MEMBER_FIELD && member->value.field.init_decls) {
+            NInitDeclList *decls = member->value.field.init_decls;
+            for (int i = 0; i < decls->count; i++) {
+                NInitDecl *decl = decls->decls[i];
+                jvmc_fieldref *fref;
+                if (decl == NULL || decl->name == NULL || decl->jvm_descriptor == NULL ||
+                    decl->initializer == NULL) {
+                    continue;
+                }
+                fref = jvmc_class_get_or_create_fieldref(cls,
+                                                        owner_internal,
+                                                        decl->name,
+                                                        decl->jvm_descriptor);
+                if (fref == NULL) {
+                    free(owner_internal);
+                    return 0;
+                }
+                if (decl->initializer->is_array) {
+                    int tmp_slot = temp_base++;
+                    if (!EmitArrayLiteral(cls, code, member->value.field.field_type,
+                                          decl->initializer, params, body, ctx, tmp_slot, NULL, NULL)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                    if (!jvmc_code_load_ref(code, 0)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                    if (!jvmc_code_load_ref(code, (uint16_t)tmp_slot)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                    if (!jvmc_code_putfield(code, fref)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                } else if (decl->initializer->expr) {
+                    if (!jvmc_code_load_ref(code, 0)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code,
+                                         decl->initializer->expr, params, body, ctx)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                    if (!jvmc_code_putfield(code, fref)) {
+                        free(owner_internal);
+                        return 0;
+                    }
+                }
+            }
+        }
+        member = member->next;
+    }
+    free(owner_internal);
+    return 1;
+}
+
+static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code *code,
+                               NStmt *body, NParamList *params, SemanticContext *ctx) {
+    jvmc_methodref *mref;
+    char *base_internal;
+    int returned = 0;
+    FlowContext flow;
+    memset(&flow, 0, sizeof(flow));
+
+    if (cls == NULL || class_def == NULL || code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, 0)) {
+        return 0;
+    }
+    base_internal = BuildJvmInternalName(class_def->base_class_name ? class_def->base_class_name
+                                                                    : "java/lang/Object");
+    if (base_internal == NULL) {
+        return 0;
+    }
+    mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", "()V");
+    free(base_internal);
+    if (mref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_invokespecial(code, mref)) {
+        return 0;
+    }
+    if (!EmitInstanceFieldInitializers(cls, class_def, ctx, code, params, body)) {
+        free(flow.break_labels);
+        free(flow.continue_labels);
+        return 0;
+    }
+    if (body != NULL) {
+        if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx, &flow)) {
+            free(flow.break_labels);
+            free(flow.continue_labels);
+            return 0;
+        }
+    }
+    free(flow.break_labels);
+    free(flow.continue_labels);
+    if (!returned) {
+        return jvmc_code_return_void(code);
+    }
+    return 1;
+}
+
+static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
+                           AccessSpec access, SemanticContext *ctx) {
+    const char *ctor_desc;
+    jvmc_method *method;
+    jvmc_code *code;
+    if (cls == NULL || class_def == NULL || ctor == NULL) {
+        return 0;
+    }
+    ctor_desc = CodegenBuildMethodDescriptor(NULL, ctor->params);
+    if (ctor_desc == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, "<init>", ctor_desc);
+    free((void *)ctor_desc);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, CodegenAccessFromSpec(access))) {
+        return 0;
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+    return CodegenEmitCtorBody(cls, class_def, code, ctor->body, ctor->params, ctx);
+}
+
+static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx) {
+    jvmc_method *method;
+    jvmc_code *code;
+    if (cls == NULL || class_def == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, "<init>", "()V");
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_PUBLIC)) {
+        return 0;
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+    return CodegenEmitCtorBody(cls, class_def, code, NULL, NULL, ctx);
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx) {
     int slot = -1;
@@ -1806,6 +2141,9 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     return 0;
                 }
                 return EmitNewArrayForType(cls, code, &elem_type);
+            }
+            if (expr->inferred_type != NULL && expr->inferred_type->kind == TYPE_KIND_CLASS) {
+                return EmitNewClassExpr(cls, code, expr, params, body, ctx);
             }
             return 0;
         }
@@ -2570,6 +2908,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     char *out_file = NULL;
     size_t out_len = 0;
     int ok = 1;
+    int has_ctor = 0;
 
     (void)ctx;
 
@@ -2646,30 +2985,20 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                 return 1;
             }
         } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
-            const char *ctor_desc = CodegenBuildMethodDescriptor(NULL, member->value.ctor->params);
-            if (ctor_desc == NULL) {
+            has_ctor = 1;
+            if (!CodegenEmitCtor(cls, class_def, member->value.ctor, member->access, ctx)) {
                 jvmc_class_destroy(cls);
                 return 1;
             }
-            if (member->value.ctor->body != NULL) {
-                if (!CodegenAddMethodWithBody(cls, "<init>", ctor_desc,
-                                              CodegenAccessFromSpec(member->access), 0,
-                                              member->value.ctor->body,
-                                              member->value.ctor->params,
-                                              ctx)) {
-                    free((void *)ctor_desc);
-                    jvmc_class_destroy(cls);
-                    return 1;
-                }
-            } else if (!CodegenAddMethodStub(cls, "<init>", ctor_desc,
-                                             CodegenAccessFromSpec(member->access), 0)) {
-                free((void *)ctor_desc);
-                jvmc_class_destroy(cls);
-                return 1;
-            }
-            free((void *)ctor_desc);
         }
         member = member->next;
+    }
+
+    if (!has_ctor) {
+        if (!CodegenEmitDefaultCtor(cls, class_def, ctx)) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
     }
 
     out_len = strlen(class_def->class_name) + 7;
