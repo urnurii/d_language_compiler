@@ -112,6 +112,50 @@ static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, co
     return 0;
 }
 
+static int CheckStaticArrayInitSize(const NType *decl_type, const NInitializer *init,
+                                    SemanticContext *ctx, int line, int column) {
+    if (decl_type == NULL || init == NULL || !init->is_array) {
+        return 0;
+    }
+    if (decl_type->array_decl == NULL || !decl_type->array_decl->has_size) {
+        return 0;
+    }
+    if (init->array_init.count != decl_type->array_decl->size) {
+        if (ctx && ctx->errors) {
+            SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                  "Static array initializer length mismatch",
+                                                  line,
+                                                  column);
+            AddError(ctx->errors, &err);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static void GetInitializerLocation(const NInitializer *init, int fallback_line, int fallback_column,
+                                   int *out_line, int *out_column) {
+    int line = fallback_line;
+    int column = fallback_column;
+    if (init != NULL) {
+        if (init->is_array && init->array_init.elements != NULL && init->array_init.count > 0) {
+            NExpr *first = init->array_init.elements[0];
+            if (first != NULL) {
+                line = first->line;
+                column = first->column;
+            }
+        } else if (!init->is_array && init->expr != NULL) {
+            line = init->expr->line;
+            column = init->expr->column;
+        }
+    }
+    if (out_line != NULL) {
+        *out_line = line;
+    }
+    if (out_column != NULL) {
+        *out_column = column;
+    }
+}
 static ClassInfo *FindFieldOwnerInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
                                             const char *field_name) {
     ClassInfo *current = class_info;
@@ -1399,6 +1443,16 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                                 NInitDecl *decl = init_decls->decls[i];
                                 if (decl && decl->initializer) {
                                     if (decl->initializer->is_array) {
+                                        int line = 0;
+                                        int column = 0;
+                                        GetInitializerLocation(decl->initializer, 0, 0, &line, &column);
+                                        if (CheckStaticArrayInitSize(member->value.field.field_type,
+                                                                     decl->initializer,
+                                                                     ctx,
+                                                                     line,
+                                                                     column) != 0) {
+                                            had_error = 1;
+                                        }
                                         for (int j = 0; j < decl->initializer->array_init.count; j++) {
                                             if (CheckExpressions(decl->initializer->array_init.elements[j], ctx) != 0) {
                                                 had_error = 1;
@@ -1461,6 +1515,16 @@ int CheckSourceItems(NSourceItem *items, SemanticContext *ctx) {
                         NInitDecl *decl = init_decls->decls[i];
                         if (decl && decl->initializer) {
                             if (decl->initializer->is_array) {
+                                int line = 0;
+                                int column = 0;
+                                GetInitializerLocation(decl->initializer, 0, 0, &line, &column);
+                                if (CheckStaticArrayInitSize(item->value.decl.item_type,
+                                                             decl->initializer,
+                                                             ctx,
+                                                             line,
+                                                             column) != 0) {
+                                    had_error = 1;
+                                }
                                 for (int j = 0; j < decl->initializer->array_init.count; j++) {
                                     if (CheckExpressions(decl->initializer->array_init.elements[j], ctx) != 0) {
                                         had_error = 1;
@@ -1635,6 +1699,16 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
 
                     if (decl->initializer != NULL) {
                         if (decl->initializer->is_array) {
+                            int line = stmt->line;
+                            int column = stmt->column;
+                            GetInitializerLocation(decl->initializer, stmt->line, stmt->column, &line, &column);
+                            if (CheckStaticArrayInitSize(decl_type,
+                                                         decl->initializer,
+                                                         ctx,
+                                                         line,
+                                                         column) != 0) {
+                                had_error = 1;
+                            }
                             for (int j = 0; j < decl->initializer->array_init.count; j++) {
                                 NExpr *elem = decl->initializer->array_init.elements[j];
                                 if (CheckExpressions(elem, ctx) != 0) {
@@ -1824,6 +1898,16 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
 
                         if (decl->initializer != NULL) {
                             if (decl->initializer->is_array) {
+                                int line = stmt->line;
+                                int column = stmt->column;
+                                GetInitializerLocation(decl->initializer, stmt->line, stmt->column, &line, &column);
+                                if (CheckStaticArrayInitSize(decl_type,
+                                                             decl->initializer,
+                                                             ctx,
+                                                             line,
+                                                             column) != 0) {
+                                    had_error = 1;
+                                }
                                 for (int j = 0; j < decl->initializer->array_init.count; j++) {
                                     if (CheckExpressions(decl->initializer->array_init.elements[j], ctx) != 0) {
                                         had_error = 1;
