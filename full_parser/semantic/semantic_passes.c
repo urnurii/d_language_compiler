@@ -566,6 +566,155 @@ static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
     }
 }
 
+static int SetResolvedCallInfo(NExpr *expr, const char *owner_internal, const char *descriptor,
+                               const NParamList *params) {
+    if (expr == NULL) {
+        return 0;
+    }
+    if (owner_internal != NULL) {
+        expr->resolved_owner_internal = DuplicateString(owner_internal);
+    }
+    if (descriptor != NULL) {
+        expr->resolved_member_descriptor = DuplicateString(descriptor);
+    }
+    if (params != NULL && params->count > 0) {
+        expr->resolved_arg_is_ref = (unsigned char *)malloc((size_t)params->count);
+        if (expr->resolved_arg_is_ref == NULL) {
+            return 0;
+        }
+        expr->resolved_arg_count = params->count;
+        for (int i = 0; i < params->count; i++) {
+            NParam *param = params->params[i];
+            expr->resolved_arg_is_ref[i] = (param != NULL && param->is_ref) ? 1 : 0;
+        }
+    } else {
+        expr->resolved_arg_count = 0;
+    }
+    return 1;
+}
+
+static int CanMatchMethod(const MethodInfo *method, NExpr **args, int arg_count,
+                          SemanticContext *ctx, int *score_out) {
+    int expected;
+    int count;
+    int score = 0;
+
+    if (method == NULL) {
+        return 0;
+    }
+    expected = (method->params != NULL) ? method->params->count : 0;
+    if (arg_count > expected) {
+        return 0;
+    }
+    if (arg_count < expected && method->params != NULL) {
+        for (int i = arg_count; i < expected; i++) {
+            NParam *param = method->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                return 0;
+            }
+        }
+    }
+    if (method->params == NULL) {
+        if (score_out != NULL) {
+            *score_out = score;
+        }
+        return 1;
+    }
+    count = expected < arg_count ? expected : arg_count;
+    for (int i = 0; i < count; i++) {
+        NParam *param = method->params->params[i];
+        NExpr *arg = (args != NULL) ? args[i] : NULL;
+        NType *arg_type;
+        if (param == NULL || arg == NULL || param->param_type == NULL) {
+            return 0;
+        }
+        if (param->is_ref && !IsValidLValueExpr(arg)) {
+            return 0;
+        }
+        arg_type = InferExpressionTypeSilent(arg, ctx);
+        if (arg_type == NULL) {
+            return 0;
+        }
+        if (!IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+            return 0;
+        }
+        if (TypesEqual(param->param_type, arg_type)) {
+            score += 2;
+        } else {
+            score += 1;
+        }
+    }
+    if (score_out != NULL) {
+        *score_out = score;
+    }
+    return 1;
+}
+
+static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
+                                                    const char *method_name, NExpr **args, int arg_count,
+                                                    const NExpr *obj_expr, ClassInfo **owner_out,
+                                                    int *is_ambiguous) {
+    MethodInfo *best = NULL;
+    ClassInfo *best_owner = NULL;
+    int best_score = -1;
+    int ambiguous = 0;
+    ClassInfo *current = class_info;
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = 0;
+    }
+    if (owner_out != NULL) {
+        *owner_out = NULL;
+    }
+    if (ctx == NULL || class_info == NULL || method_name == NULL) {
+        return NULL;
+    }
+    while (current != NULL) {
+        for (int i = 0; i < current->method_count; i++) {
+            MethodInfo *method = current->methods[i];
+            int score = 0;
+            if (method == NULL || method->name == NULL) {
+                continue;
+            }
+            if (strcmp(method->name, method_name) != 0) {
+                continue;
+            }
+            {
+                int inside_class = IsInsideExactClass(ctx, obj_expr, current->name);
+                int inside_hierarchy = IsInsideHierarchyAccess(ctx, obj_expr, current->name);
+                if (!IsMethodAccessible(method, inside_class, inside_hierarchy)) {
+                    continue;
+                }
+            }
+            if (!CanMatchMethod(method, args, arg_count, ctx, &score)) {
+                continue;
+            }
+            if (score > best_score) {
+                best = method;
+                best_owner = current;
+                best_score = score;
+                ambiguous = 0;
+            } else if (score == best_score) {
+                ambiguous = 1;
+            }
+        }
+        if (current->base_class == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
+    }
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = ambiguous;
+    }
+    if (owner_out != NULL) {
+        *owner_out = best_owner;
+    }
+    if (ambiguous) {
+        return NULL;
+    }
+    return best;
+}
+
 static int AttributeJvmRefKeysInStmtList(NStmt *stmts, SemanticContext *ctx);
 static int AttributeJvmRefKeysInStmt(NStmt *stmt, SemanticContext *ctx);
 static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx);
@@ -573,6 +722,13 @@ static int FillRefKeyForMemberAccess(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForMethodCall(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForFuncCall(NExpr *expr, SemanticContext *ctx);
+static int SetResolvedCallInfo(NExpr *expr, const char *owner_internal, const char *descriptor,
+                               const NParamList *params);
+static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
+                                                    const char *method_name, NExpr **args, int arg_count,
+                                                    const NExpr *obj_expr, ClassInfo **owner_out, int *is_ambiguous);
+static int CanMatchMethod(const MethodInfo *method, NExpr **args, int arg_count,
+                          SemanticContext *ctx, int *score_out);
 
 /* ============================================================================
    ПЕРВЫЙ ПРОХОД: СБОР ВСЕХ ДЕКЛАРАЦИЙ
@@ -2065,28 +2221,54 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                                         expr->value.func_call.args,
                                                         expr->value.func_call.arg_count,
                                                         &ambiguous);
+            if (func != NULL) {
+                char *owner_internal = BuildJvmInternalName("Main");
+                char *desc = BuildJvmMethodDescriptor(func->return_type, func->params);
+                if (owner_internal != NULL && desc != NULL) {
+                    SetResolvedCallInfo(expr, owner_internal, desc, func->params);
+                }
+                if (owner_internal != NULL) {
+                    free(owner_internal);
+                }
+                if (desc != NULL) {
+                    free(desc);
+                }
+            }
             if (func == NULL && ctx->current_class != NULL) {
-                ClassInfo *owner = FindMethodOwnerInHierarchy(ctx,
-                                                              ctx->current_class,
-                                                              expr->value.func_call.func_name);
-                if (owner != NULL) {
-                    MethodInfo *method = LookupClassMethod(owner, expr->value.func_call.func_name);
-                    int inside_class = strcmp(ctx->current_class->name, owner->name) == 0;
-                    int inside_hierarchy = IsSameOrBaseClass(ctx,
-                                                             ctx->current_class->name,
-                                                             owner->name);
+                int ambiguous_method = 0;
+                ClassInfo *owner = NULL;
+                MethodInfo *method = LookupMethodOverloadInHierarchy(ctx,
+                                                                    ctx->current_class,
+                                                                    expr->value.func_call.func_name,
+                                                                    expr->value.func_call.args,
+                                                                    expr->value.func_call.arg_count,
+                                                                    NULL,
+                                                                    &owner,
+                                                                    &ambiguous_method);
+                if (ambiguous_method && ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "Ambiguous method overload",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                    had_error = 1;
+                }
+                if (method != NULL && owner != NULL) {
+                    char *owner_internal = BuildJvmInternalName(owner->name);
+                    char *desc = BuildJvmMethodDescriptor(method->return_type, method->params);
+                    if (owner_internal != NULL && desc != NULL) {
+                        SetResolvedCallInfo(expr, owner_internal, desc, method->params);
+                    }
+                    if (owner_internal != NULL) {
+                        free(owner_internal);
+                    }
+                    if (desc != NULL) {
+                        free(desc);
+                    }
+                }
+                if (method != NULL) {
                     int expected = method->params ? method->params->count : 0;
                     int actual = expr->value.func_call.arg_count;
-                    if (!IsMethodAccessible(method, inside_class, inside_hierarchy)) {
-                        if (ctx->errors != NULL) {
-                            SemanticError err = CreateAccessViolationError(method->name,
-                                                                          AccessSpecToString(method->access),
-                                                                          expr->line,
-                                                                          expr->column);
-                            AddError(ctx->errors, &err);
-                        }
-                        had_error = 1;
-                    }
                     if (actual > expected) {
                         if (ctx->errors != NULL) {
                             SemanticError err = CreateWrongArgCountError(method->name,
@@ -2130,9 +2312,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                             if (param->is_ref && !IsValidLValueExpr(arg)) {
                                 if (ctx->errors != NULL) {
                                     SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
-                                                                          "ref argument must be assignable",
-                                                                          arg->line,
-                                                                          arg->column);
+                                                                        "ref argument must be assignable",
+                                                                        arg->line,
+                                                                        arg->column);
                                     AddError(ctx->errors, &err);
                                 }
                                 had_error = 1;
@@ -2310,9 +2492,24 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         }
                         had_error = 1;
                     } else {
-                        MethodInfo *method = LookupClassMethodInHierarchy(ctx,
-                                                                          class_info,
-                                                                          expr->value.member_access.member_name);
+                        int ambiguous_method = 0;
+                        ClassInfo *owner = NULL;
+                        MethodInfo *method = LookupMethodOverloadInHierarchy(ctx,
+                                                                            class_info,
+                                                                            expr->value.member_access.member_name,
+                                                                            expr->value.member_access.args,
+                                                                            expr->value.member_access.arg_count,
+                                                                            obj,
+                                                                            &owner,
+                                                                            &ambiguous_method);
+                        if (ambiguous_method && ctx->errors != NULL) {
+                            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                  "Ambiguous method overload",
+                                                                  expr->line,
+                                                                  expr->column);
+                            AddError(ctx->errors, &err);
+                            had_error = 1;
+                        }
                         if (method == NULL) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
@@ -2323,17 +2520,18 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                             }
                             had_error = 1;
                         } else {
-                            int inside_class = IsInsideExactClass(ctx, obj, class_info->name);
-                            int inside_hierarchy = IsInsideHierarchyAccess(ctx, obj, class_info->name);
-                            if (!IsMethodAccessible(method, inside_class, inside_hierarchy)) {
-                                if (ctx->errors != NULL) {
-                                    SemanticError err = CreateAccessViolationError(method->name,
-                                                                                  AccessSpecToString(method->access),
-                                                                                  expr->line,
-                                                                                  expr->column);
-                                    AddError(ctx->errors, &err);
+                            if (owner != NULL) {
+                                char *owner_internal = BuildJvmInternalName(owner->name);
+                                char *desc = BuildJvmMethodDescriptor(method->return_type, method->params);
+                                if (owner_internal != NULL && desc != NULL) {
+                                    SetResolvedCallInfo(expr, owner_internal, desc, method->params);
                                 }
-                                had_error = 1;
+                                if (owner_internal != NULL) {
+                                    free(owner_internal);
+                                }
+                                if (desc != NULL) {
+                                    free(desc);
+                                }
                             }
                             {
                                     int expected = method->params ? method->params->count : 0;
@@ -2813,32 +3011,48 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     had_error = 1;
                     break;
                 }
-                MethodInfo *method = LookupClassMethodInHierarchy(ctx,
-                                                                  base_info,
-                                                                  expr->value.member_access.member_name);
-                if (method == NULL) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
-                                                                      base_info->name,
-                                                                      expr->line,
-                                                                      expr->column);
-                        AddError(ctx->errors, &err);
-                    }
-                    had_error = 1;
-                    break;
-                }
                 {
-                    int inside_class = IsInsideExactClass(ctx, expr, base_info->name);
-                    int inside_hierarchy = IsInsideHierarchyAccess(ctx, expr, base_info->name);
-                    if (!IsMethodAccessible(method, inside_class, inside_hierarchy)) {
+                    int ambiguous_method = 0;
+                    ClassInfo *owner = NULL;
+                    MethodInfo *method = LookupMethodOverloadInHierarchy(ctx,
+                                                                         base_info,
+                                                                         expr->value.member_access.member_name,
+                                                                         expr->value.member_access.args,
+                                                                         expr->value.member_access.arg_count,
+                                                                         NULL,
+                                                                         &owner,
+                                                                         &ambiguous_method);
+                    if (ambiguous_method && ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "Ambiguous method overload",
+                                                              expr->line,
+                                                              expr->column);
+                        AddError(ctx->errors, &err);
+                        had_error = 1;
+                    }
+                    if (method == NULL) {
                         if (ctx->errors != NULL) {
-                            SemanticError err = CreateAccessViolationError(method->name,
-                                                                          AccessSpecToString(method->access),
+                            SemanticError err = CreateMethodNotFoundError(expr->value.member_access.member_name,
+                                                                          base_info->name,
                                                                           expr->line,
                                                                           expr->column);
                             AddError(ctx->errors, &err);
                         }
                         had_error = 1;
+                        break;
+                    }
+                    if (owner != NULL) {
+                        char *owner_internal = BuildJvmInternalName(owner->name);
+                        char *desc = BuildJvmMethodDescriptor(method->return_type, method->params);
+                        if (owner_internal != NULL && desc != NULL) {
+                            SetResolvedCallInfo(expr, owner_internal, desc, method->params);
+                        }
+                        if (owner_internal != NULL) {
+                            free(owner_internal);
+                        }
+                        if (desc != NULL) {
+                            free(desc);
+                        }
                     }
                     {
                         int expected = method->params ? method->params->count : 0;
@@ -3490,6 +3704,16 @@ static int FillRefKeyForMethodCall(NExpr *expr, SemanticContext *ctx) {
     if (expr->jvm_ref_key.has_key) {
         return 1;
     }
+    if (expr->resolved_member_descriptor != NULL && expr->resolved_owner_internal != NULL) {
+        if (!SetJvmRefKey(&expr->jvm_ref_key,
+                          expr->resolved_owner_internal,
+                          expr->value.member_access.member_name,
+                          expr->resolved_member_descriptor,
+                          JVM_REF_METHOD)) {
+            return 0;
+        }
+        return 1;
+    }
     obj_type = InferExpressionTypeSilent(expr->value.member_access.object, ctx);
     if (obj_type == NULL || obj_type->kind != TYPE_KIND_CLASS) {
         return 0;
@@ -3541,6 +3765,16 @@ static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx) {
     if (expr->jvm_ref_key.has_key) {
         return 1;
     }
+    if (expr->resolved_member_descriptor != NULL && expr->resolved_owner_internal != NULL) {
+        if (!SetJvmRefKey(&expr->jvm_ref_key,
+                          expr->resolved_owner_internal,
+                          expr->value.member_access.member_name,
+                          expr->resolved_member_descriptor,
+                          JVM_REF_METHOD)) {
+            return 0;
+        }
+        return 1;
+    }
     if (ctx->current_class->base_class == NULL) {
         return 0;
     }
@@ -3584,6 +3818,19 @@ static int FillRefKeyForFuncCall(NExpr *expr, SemanticContext *ctx) {
         return 0;
     }
     if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    if (expr->resolved_member_descriptor != NULL) {
+        const char *owner_name = expr->resolved_owner_internal != NULL
+            ? expr->resolved_owner_internal
+            : "Main";
+        if (!SetJvmRefKey(&expr->jvm_ref_key,
+                          owner_name,
+                          expr->value.func_call.func_name,
+                          expr->resolved_member_descriptor,
+                          JVM_REF_METHOD)) {
+            return 0;
+        }
         return 1;
     }
     func = LookupFunctionOverload(ctx,

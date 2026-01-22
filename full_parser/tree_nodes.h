@@ -123,6 +123,10 @@ typedef struct NExpr {
     char *jvm_descriptor;
     struct NType *inferred_type;
     JvmRefKey jvm_ref_key;
+    char *resolved_owner_internal;
+    char *resolved_member_descriptor;
+    unsigned char *resolved_arg_is_ref;
+    int resolved_arg_count;
     
     union {
         char *ident_name;          // EXPR_IDENT, EXPR_SUPER

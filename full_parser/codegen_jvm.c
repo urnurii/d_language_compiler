@@ -1046,12 +1046,6 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
             }
             {
-                FunctionInfo *func = LookupFunctionOverload(ctx,
-                                                            expr->value.func_call.func_name,
-                                                            expr->value.func_call.args,
-                                                            expr->value.func_call.arg_count,
-                                                            NULL);
-                NParamList *call_params = func ? func->params : NULL;
                 int arg_count = expr->value.func_call.arg_count;
                 int *ref_slots = NULL;
                 int temp_base = FindMaxSlot(params, body) + 1;
@@ -1068,14 +1062,16 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 for (int i = 0; i < arg_count; i++) {
                     NExpr *arg = expr->value.func_call.args[i];
-                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
-                    if (param && param->is_ref) {
+                    int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                                  i < expr->resolved_arg_count &&
+                                  expr->resolved_arg_is_ref[i] != 0);
+                    if (is_ref) {
                         int temp_slot = temp_base++;
                         if (!jvmc_code_push_int(code, 1)) {
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitNewArrayForType(cls, code, param->param_type)) {
+                        if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
@@ -1095,7 +1091,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitArrayStoreForType(code, param->param_type)) {
+                        if (!EmitArrayStoreForType(code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
@@ -1125,8 +1121,10 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                 }
                 for (int i = 0; i < arg_count; i++) {
-                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
-                    if (param && param->is_ref && ref_slots && ref_slots[i] >= 0) {
+                    int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                                  i < expr->resolved_arg_count &&
+                                  expr->resolved_arg_is_ref[i] != 0);
+                    if (is_ref && ref_slots && ref_slots[i] >= 0) {
                         if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
                             free(ref_slots);
                             return 0;
@@ -1135,11 +1133,12 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitArrayLoadForType(code, param->param_type)) {
+                        if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitStoreLValue(cls, code, expr->value.func_call.args[i], param->param_type,
+                        if (!EmitStoreLValue(cls, code, expr->value.func_call.args[i],
+                                             arg ? arg->inferred_type : NULL,
                                              params, body, ctx)) {
                             free(ref_slots);
                             return 0;
@@ -1157,21 +1156,10 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             return 1;
         }
         case EXPR_METHOD_CALL: {
-            MethodInfo *method_info = NULL;
-            NType *obj_type = expr->value.member_access.object
-                ? expr->value.member_access.object->inferred_type
-                : NULL;
-            if (obj_type && obj_type->kind == TYPE_KIND_CLASS && obj_type->class_name) {
-                ClassInfo *cls_info = LookupClass(ctx, obj_type->class_name);
-                if (cls_info != NULL) {
-                    method_info = LookupClassMethod(cls_info, expr->value.member_access.member_name);
-                }
-            }
             if (!CodegenEmitExpr(cls, code, expr->value.member_access.object, params, body, ctx)) {
                 return 0;
             }
             {
-                NParamList *call_params = method_info ? method_info->params : NULL;
                 int arg_count = expr->value.member_access.arg_count;
                 int *ref_slots = NULL;
                 int temp_base = FindMaxSlot(params, body) + 1;
@@ -1188,14 +1176,16 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 for (int i = 0; i < arg_count; i++) {
                     NExpr *arg = expr->value.member_access.args[i];
-                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
-                    if (param && param->is_ref) {
+                    int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                                  i < expr->resolved_arg_count &&
+                                  expr->resolved_arg_is_ref[i] != 0);
+                    if (is_ref) {
                         int temp_slot = temp_base++;
                         if (!jvmc_code_push_int(code, 1)) {
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitNewArrayForType(cls, code, param->param_type)) {
+                        if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
@@ -1215,7 +1205,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitArrayStoreForType(code, param->param_type)) {
+                        if (!EmitArrayStoreForType(code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
@@ -1245,8 +1235,10 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                 }
                 for (int i = 0; i < arg_count; i++) {
-                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
-                    if (param && param->is_ref && ref_slots && ref_slots[i] >= 0) {
+                    int is_ref = (expr->resolved_arg_is_ref != NULL &&
+                                  i < expr->resolved_arg_count &&
+                                  expr->resolved_arg_is_ref[i] != 0);
+                    if (is_ref && ref_slots && ref_slots[i] >= 0) {
                         if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
                             free(ref_slots);
                             return 0;
@@ -1255,11 +1247,12 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitArrayLoadForType(code, param->param_type)) {
+                        if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
                             free(ref_slots);
                             return 0;
                         }
-                        if (!EmitStoreLValue(cls, code, expr->value.member_access.args[i], param->param_type,
+                        if (!EmitStoreLValue(cls, code, expr->value.member_access.args[i],
+                                             arg ? arg->inferred_type : NULL,
                                              params, body, ctx)) {
                             free(ref_slots);
                             return 0;
