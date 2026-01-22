@@ -21,6 +21,31 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
         return 1;
     }
 
+    {
+        const char *main_desc = "([Ljava/lang/String;)V";
+        jvmc_method *main_method = jvmc_class_get_or_create_method(cls, "main", main_desc);
+        jvmc_code *code = NULL;
+        if (main_method == NULL) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        ok = jvmc_method_add_flag(main_method, JVMC_METHOD_ACC_PUBLIC);
+        ok = ok && jvmc_method_add_flag(main_method, JVMC_METHOD_ACC_STATIC);
+        if (!ok) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        code = jvmc_method_get_code(main_method);
+        if (code == NULL) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        if (!jvmc_code_return_void(code)) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+    }
+
     if (!jvmc_class_write_to_file(cls, out_file)) {
         jvmc_class_destroy(cls);
         return 1;
