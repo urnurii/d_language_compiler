@@ -854,7 +854,9 @@ int IsFieldAccessible(FieldInfo *field, int inside_class, int inside_hierarchy) 
         case ACCESS_PUBLIC:
             return 1;
         case ACCESS_PRIVATE:
-            return inside_class ? 1 : 0;
+            // D-like rule: private is module/file-level. Current compiler has single input file,
+            // so private members are accessible anywhere in this compilation unit.
+            return 1;
         case ACCESS_PROTECTED:
             return inside_hierarchy ? 1 : 0;
         default:
@@ -870,7 +872,9 @@ int IsMethodAccessible(MethodInfo *method, int inside_class, int inside_hierarch
         case ACCESS_PUBLIC:
             return 1;
         case ACCESS_PRIVATE:
-            return inside_class ? 1 : 0;
+            // D-like rule: private is module/file-level. Current compiler has single input file,
+            // so private members are accessible anywhere in this compilation unit.
+            return 1;
         case ACCESS_PROTECTED:
             return inside_hierarchy ? 1 : 0;
         default:

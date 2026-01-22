@@ -63,6 +63,11 @@ typedef struct {
 static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params,
                                int *return_emitted, SemanticContext *ctx, FlowContext *flow);
 static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticContext *ctx);
+static int EmitImplicitThisFieldLoad(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx,
+                                     const char *name, NType **type_out);
+static int EmitImplicitThisFieldStore(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx,
+                                      const char *name, const NType *value_type,
+                                      NParamList *params, NStmt *body);
 
 static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
                            AccessSpec access, SemanticContext *ctx);
@@ -251,7 +256,9 @@ static int CodegenEmitEmptyReturn(jvmc_code *code, const char *descriptor) {
 static uint16_t CodegenAccessFromSpec(AccessSpec access) {
     switch (access) {
         case ACCESS_PRIVATE:
-            return JVMC_METHOD_ACC_PRIVATE;
+            // D-like private is module/file-level; for single-file compile
+            // map to package-private on JVM (no flag).
+            return 0;
         case ACCESS_PROTECTED:
             return JVMC_METHOD_ACC_PROTECTED;
         case ACCESS_PUBLIC:
@@ -1824,6 +1831,78 @@ static int EmitPopForType(jvmc_code *code, const NType *type) {
     return jvmc_code_pop(code);
 }
 
+static int EmitImplicitThisFieldLoad(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx,
+                                     const char *name, NType **type_out) {
+    FieldInfo *field;
+    char *desc;
+    jvmc_fieldref *fref;
+    if (cls == NULL || code == NULL || ctx == NULL || name == NULL) {
+        return 0;
+    }
+    if (ctx->current_class == NULL) {
+        return 0;
+    }
+    field = LookupClassFieldInHierarchy(ctx, ctx->current_class, name);
+    if (field == NULL) {
+        return 0;
+    }
+    desc = BuildJvmTypeDescriptor(field->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    fref = jvmc_class_get_or_create_fieldref(cls, ctx->current_class->name, name, desc);
+    free(desc);
+    if (fref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, 0)) {
+        return 0;
+    }
+    if (type_out) {
+        *type_out = field->type;
+    }
+    return jvmc_code_getfield(code, fref);
+}
+
+static int EmitImplicitThisFieldStore(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx,
+                                      const char *name, const NType *value_type,
+                                      NParamList *params, NStmt *body) {
+    FieldInfo *field;
+    char *desc;
+    jvmc_fieldref *fref;
+    int temp_slot;
+    if (cls == NULL || code == NULL || ctx == NULL || name == NULL) {
+        return 0;
+    }
+    if (ctx->current_class == NULL) {
+        return 0;
+    }
+    field = LookupClassFieldInHierarchy(ctx, ctx->current_class, name);
+    if (field == NULL) {
+        return 0;
+    }
+    desc = BuildJvmTypeDescriptor(field->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    fref = jvmc_class_get_or_create_fieldref(cls, ctx->current_class->name, name, desc);
+    free(desc);
+    if (fref == NULL) {
+        return 0;
+    }
+    temp_slot = GetTempBase(params, body);
+    if (!EmitStoreByType(code, value_type ? value_type : field->type, temp_slot)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, 0)) {
+        return 0;
+    }
+    if (!EmitLoadByType(code, value_type ? value_type : field->type, temp_slot)) {
+        return 0;
+    }
+    return jvmc_code_putfield(code, fref);
+}
+
 static void ResetCodegenScope(void) {
     free(g_var_stack);
     free(g_scope_stack);
@@ -2096,7 +2175,13 @@ static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const N
         if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &resolved)) {
             return EmitStoreByType(code, resolved, slot);
         }
-        return EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved);
+        if (EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved)) {
+            return 1;
+        }
+        if (EmitImplicitThisFieldStore(cls, code, ctx, lhs->value.ident_name, resolved, params, body)) {
+            return 1;
+        }
+        return 0;
     }
     if (lhs->type == EXPR_ARRAY_ACCESS) {
         NExpr *arr = lhs->value.array_access.array;
@@ -3077,6 +3162,9 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return 1;
             }
             if (EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type)) {
+                return 1;
+            }
+            if (EmitImplicitThisFieldLoad(cls, code, ctx, expr->value.ident_name, &type)) {
                 return 1;
             }
             fprintf(stderr,
@@ -4772,16 +4860,21 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     int has_enum = 0;
     int has_abstract = 0;
 
-    (void)ctx;
+    ClassInfo *prev_class = NULL;
 
     if (class_def == NULL || class_def->class_name == NULL) {
         CodegenReportFail("CodegenEmitClassFromDef: class_def is NULL");
         return 1;
     }
+    if (ctx != NULL) {
+        prev_class = ctx->current_class;
+        ctx->current_class = LookupClass(ctx, class_def->class_name);
+    }
 
     class_internal = BuildJvmInternalName(class_def->class_name);
     if (class_internal == NULL) {
         CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(class) failed");
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
     if (class_def->base_class_name != NULL) {
@@ -4792,6 +4885,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     if (base_internal == NULL) {
         CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(base) failed");
         free(class_internal);
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
 
@@ -4800,6 +4894,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     free(base_internal);
     if (cls == NULL) {
         CodegenReportFail("CodegenEmitClassFromDef: jvmc_class_create failed");
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
 
@@ -4808,6 +4903,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     if (!ok) {
         CodegenReportFail("CodegenEmitClassFromDef: add class flags failed");
         jvmc_class_destroy(cls);
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
 
@@ -4816,7 +4912,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
             if (member->type == CLASS_MEMBER_FIELD) {
                 uint16_t access = JVMC_FIELD_ACC_PUBLIC;
                 if (member->access == ACCESS_PRIVATE) {
-                    access = JVMC_FIELD_ACC_PRIVATE;
+                    access = 0;
                 } else if (member->access == ACCESS_PROTECTED) {
                     access = JVMC_FIELD_ACC_PROTECTED;
                 }
@@ -4958,6 +5054,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     if (out_file == NULL) {
         CodegenReportFail("CodegenEmitClassFromDef: out_file alloc failed");
         jvmc_class_destroy(cls);
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
     snprintf(out_file, out_len, "%s.class", class_def->class_name);
@@ -4965,6 +5062,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
         CodegenReportFail("CodegenEmitClassFromDef: write class file failed");
         free(out_file);
         jvmc_class_destroy(cls);
+        if (ctx != NULL) ctx->current_class = prev_class;
         return 1;
     }
     free(out_file);
