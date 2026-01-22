@@ -1985,6 +1985,17 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             }
             if (switch_expr != NULL) {
                 switch_type = InferExpressionTypeSilent(switch_expr, ctx);
+                if (switch_type != NULL && !IsIntegralType(switch_type)) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateTypeMismatchError("integral type",
+                                                                    TypeToString(switch_type),
+                                                                    "in switch expression",
+                                                                    switch_expr->line,
+                                                                    switch_expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
             }
             ctx->switch_depth += 1;
             for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {

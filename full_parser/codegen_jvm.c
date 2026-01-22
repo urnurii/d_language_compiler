@@ -3,6 +3,7 @@
 #include "semantic/jvm_layout.h"
 #include "semantic/jvm_codegen_helpers.h"
 #include "semantic/name_resolution.h"
+#include "semantic/type_inference.h"
 #include "ast_builder.h"
 #include <stdio.h>
 #include <string.h>
@@ -2973,8 +2974,18 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             int case_count = stmt->value.switch_stmt.cases.count;
             int default_index = -1;
             int local_return = 0;
+            NType *switch_type = NULL;
             if (label_end == NULL) {
                 return 0;
+            }
+            if (stmt->value.switch_stmt.expr != NULL) {
+                switch_type = stmt->value.switch_stmt.expr->inferred_type;
+                if (switch_type == NULL) {
+                    switch_type = InferExpressionTypeSilent(stmt->value.switch_stmt.expr, ctx);
+                }
+                if (switch_type != NULL && !IsIntegralType(switch_type)) {
+                    return 0;
+                }
             }
             if (case_count > 0) {
                 case_labels = (jvmc_label **)calloc((size_t)case_count, sizeof(jvmc_label *));
