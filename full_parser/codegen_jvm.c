@@ -1,5 +1,14 @@
 #include "codegen_jvm.h"
 #include "jvmc/jvmc.h"
+#include "semantic/jvm_layout.h"
+
+static char *CodegenBuildTypeDescriptor(const NType *type) {
+    return BuildJvmTypeDescriptor(type);
+}
+
+static char *CodegenBuildMethodDescriptor(const NType *return_type, const NParamList *params) {
+    return BuildJvmMethodDescriptor(return_type, params);
+}
 
 int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
     const char *class_name = "Main";
