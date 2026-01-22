@@ -8,5 +8,11 @@ void main()
 {
     int n;
     readf("%d", n);
-    writeln(fib(n));
+
+    for (int i = 0; i <= n; i += 1)
+    {
+        if (i != 0) write(" ");
+        write(fib(i));
+    }
+    writeln("");
 }
