@@ -30,7 +30,7 @@ MAIN_SOURCES = main.c ast_builder.c ast_visualizer.c codegen_jvm.c
 SEMANTIC_SOURCES = semantic/semantic_analyzer.c semantic/semantic_passes.c \
 	semantic/name_resolution.c semantic/type_inference.c \
 	semantic/error_reporting.c semantic/jvm_layout.c \
-	semantic/semantic_transforms.c
+	semantic/semantic_transforms.c semantic/jvm_codegen_helpers.c
 
 # Сгенерированные файлы парсером и лексером
 GENERATED_SOURCES = d_parser.tab.c lex.yy.c
