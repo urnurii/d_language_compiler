@@ -130,8 +130,15 @@ static void UpdateMaxLocalsFromStmt(NStmt *stmt, int *max_out) {
     }
 }
 
+static int MaxTempSlotsInExpr(NExpr *expr);
+static int MaxTempSlotsInStmt(NStmt *stmt);
+static int MaxTempSlotsInStmtList(NStmt *stmts);
+static int FindMaxSlot(NParamList *params, NStmt *body);
+
 static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
     int max_locals = include_this ? 1 : 0;
+    int max_temp = 0;
+    int base_slot = 0;
     if (params != NULL) {
         for (int i = 0; i < params->count; i++) {
             NParam *param = params->params[i];
@@ -151,6 +158,14 @@ static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
     }
     if (body != NULL) {
         UpdateMaxLocalsFromStmt(body, &max_locals);
+        max_temp = MaxTempSlotsInStmt(body);
+    }
+    base_slot = FindMaxSlot(params, body) + 1;
+    if (include_this && base_slot < 1) {
+        base_slot = 1;
+    }
+    if (base_slot + max_temp > max_locals) {
+        max_locals = base_slot + max_temp;
     }
     return (max_locals > 0) ? max_locals : 1;
 }
@@ -220,7 +235,7 @@ static int CodegenAddMethodStub(jvmc_class *cls, const char *name, const char *d
     if (code == NULL) {
         return 0;
     }
-    if (!jvmc_code_set_max_stack(code, 16)) {
+    if (!jvmc_code_set_max_stack(code, 32)) {
         return 0;
     }
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(NULL, NULL, is_static ? 0 : 1))) {
@@ -1154,6 +1169,256 @@ static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExp
 }
 
 static int FindMaxSlotInStmtList(NStmt *stmts);
+
+static int CountRefArgs(const unsigned char *flags, int count) {
+    int refs = 0;
+    if (flags == NULL || count <= 0) {
+        return 0;
+    }
+    for (int i = 0; i < count; i++) {
+        if (flags[i] != 0) {
+            refs++;
+        }
+    }
+    return refs;
+}
+
+static int TempReturnWidth(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_VOID) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_BASE &&
+        (type->base_type == TYPE_DOUBLE || type->base_type == TYPE_REAL)) {
+        return 2;
+    }
+    return 1;
+}
+
+static int MaxTempSlotsInExpr(NExpr *expr) {
+    int max = 0;
+    int local = 0;
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_PAREN:
+            return MaxTempSlotsInExpr(expr->value.inner_expr);
+        case EXPR_CAST:
+            return MaxTempSlotsInExpr(expr->value.cast.expr);
+        case EXPR_UNARY_OP:
+            return MaxTempSlotsInExpr(expr->value.unary.operand);
+        case EXPR_BINARY_OP: {
+            int left_max = MaxTempSlotsInExpr(expr->value.binary.left);
+            int right_max = MaxTempSlotsInExpr(expr->value.binary.right);
+            max = (left_max > right_max) ? left_max : right_max;
+            if ((expr->value.binary.op == OP_EQ || expr->value.binary.op == OP_NEQ) &&
+                (IsStringType(expr->value.binary.left ? expr->value.binary.left->inferred_type : NULL) ||
+                 IsStringType(expr->value.binary.right ? expr->value.binary.right->inferred_type : NULL))) {
+                local = 2;
+            }
+            break;
+        }
+        case EXPR_ASSIGN: {
+            int left_max = MaxTempSlotsInExpr(expr->value.binary.left);
+            int right_max = MaxTempSlotsInExpr(expr->value.binary.right);
+            max = (left_max > right_max) ? left_max : right_max;
+            break;
+        }
+        case EXPR_ARRAY_ACCESS: {
+            int a = MaxTempSlotsInExpr(expr->value.array_access.array);
+            int b = MaxTempSlotsInExpr(expr->value.array_access.index);
+            int c = MaxTempSlotsInExpr(expr->value.array_access.index_end);
+            max = a;
+            if (b > max) max = b;
+            if (c > max) max = c;
+            break;
+        }
+        case EXPR_MEMBER_ACCESS:
+            max = MaxTempSlotsInExpr(expr->value.member_access.object);
+            break;
+        case EXPR_METHOD_CALL:
+        case EXPR_SUPER_METHOD: {
+            int obj_max = MaxTempSlotsInExpr(expr->value.member_access.object);
+            max = obj_max;
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                int arg_max = MaxTempSlotsInExpr(expr->value.member_access.args[i]);
+                if (arg_max > max) {
+                    max = arg_max;
+                }
+            }
+            local = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
+            local += TempReturnWidth(expr->inferred_type);
+            break;
+        }
+        case EXPR_FUNC_CALL: {
+            max = 0;
+            for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                int arg_max = MaxTempSlotsInExpr(expr->value.func_call.args[i]);
+                if (arg_max > max) {
+                    max = arg_max;
+                }
+            }
+            if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "readf") == 0) {
+                local = 2;
+            } else {
+                local = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
+                local += TempReturnWidth(expr->inferred_type);
+            }
+            break;
+        }
+        case EXPR_NEW: {
+            max = 0;
+            for (int i = 0; i < expr->value.new_expr.init_count; i++) {
+                int arg_max = MaxTempSlotsInExpr(expr->value.new_expr.init_exprs[i]);
+                if (arg_max > max) {
+                    max = arg_max;
+                }
+            }
+            local = 1 + CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
+            break;
+        }
+        case EXPR_IDENT:
+        case EXPR_INT:
+        case EXPR_FLOAT:
+        case EXPR_CHAR:
+        case EXPR_STRING:
+        case EXPR_BOOL:
+        case EXPR_NULL:
+        case EXPR_NAN:
+        case EXPR_THIS:
+        case EXPR_SUPER:
+            break;
+        default:
+            break;
+    }
+    if (local > max) {
+        max = local;
+    }
+    return max;
+}
+
+static int MaxTempSlotsInStmt(NStmt *stmt) {
+    int max = 0;
+    if (stmt == NULL) {
+        return 0;
+    }
+    switch (stmt->type) {
+        case STMT_EXPR:
+        case STMT_RETURN:
+            return MaxTempSlotsInExpr(stmt->value.expr);
+        case STMT_DECL:
+            if (stmt->value.decl.init_decls) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->initializer) {
+                        if (decl->initializer->is_array) {
+                            for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                                int elem_max = MaxTempSlotsInExpr(decl->initializer->array_init.elements[j]);
+                                if (elem_max > max) {
+                                    max = elem_max;
+                                }
+                            }
+                        } else {
+                            int expr_max = MaxTempSlotsInExpr(decl->initializer->expr);
+                            if (expr_max > max) {
+                                max = expr_max;
+                            }
+                        }
+                    }
+                }
+            }
+            return max;
+        case STMT_COMPOUND:
+            return MaxTempSlotsInStmtList(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL);
+        case STMT_IF: {
+            int a = MaxTempSlotsInExpr(stmt->value.if_stmt.condition);
+            int b = MaxTempSlotsInStmt(stmt->value.if_stmt.then_stmt);
+            int c = MaxTempSlotsInStmt(stmt->value.if_stmt.else_stmt);
+            max = a;
+            if (b > max) max = b;
+            if (c > max) max = c;
+            return max;
+        }
+        case STMT_WHILE: {
+            int a = MaxTempSlotsInExpr(stmt->value.while_stmt.condition);
+            int b = MaxTempSlotsInStmt(stmt->value.while_stmt.body);
+            return (a > b) ? a : b;
+        }
+        case STMT_DO_WHILE: {
+            int a = MaxTempSlotsInStmt(stmt->value.do_while_stmt.body);
+            int b = MaxTempSlotsInExpr(stmt->value.do_while_stmt.condition);
+            return (a > b) ? a : b;
+        }
+        case STMT_FOR: {
+            int a = MaxTempSlotsInExpr(stmt->value.for_stmt.init_expr);
+            int b = MaxTempSlotsInExpr(stmt->value.for_stmt.cond_expr);
+            int c = MaxTempSlotsInExpr(stmt->value.for_stmt.iter_expr);
+            int d = MaxTempSlotsInStmt(stmt->value.for_stmt.body);
+            max = a;
+            if (b > max) max = b;
+            if (c > max) max = c;
+            if (d > max) max = d;
+            if (stmt->value.for_stmt.init_decls) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        int e = MaxTempSlotsInExpr(decl->initializer->expr);
+                        if (e > max) {
+                            max = e;
+                        }
+                    }
+                }
+            }
+            return max;
+        }
+        case STMT_FOREACH: {
+            int a = MaxTempSlotsInExpr(stmt->value.foreach_stmt.collection);
+            int b = MaxTempSlotsInStmt(stmt->value.foreach_stmt.body);
+            return (a > b) ? a : b;
+        }
+        case STMT_SWITCH: {
+            int a = MaxTempSlotsInExpr(stmt->value.switch_stmt.expr);
+            max = a;
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->case_expr) {
+                    int e = MaxTempSlotsInExpr(item->case_expr);
+                    if (e > max) {
+                        max = e;
+                    }
+                }
+                if (item && item->stmts) {
+                    int s = MaxTempSlotsInStmtList(item->stmts->first);
+                    if (s > max) {
+                        max = s;
+                    }
+                }
+            }
+            return max;
+        }
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            return 0;
+    }
+    return max;
+}
+
+static int MaxTempSlotsInStmtList(NStmt *stmts) {
+    int max = 0;
+    NStmt *cur = stmts;
+    while (cur != NULL) {
+        int local = MaxTempSlotsInStmt(cur);
+        if (local > max) {
+            max = local;
+        }
+        cur = cur->next;
+    }
+    return max;
+}
 
 static int FindMaxSlotInStmt(NStmt *stmt) {
     int max = -1;
@@ -2112,6 +2377,28 @@ static int EmitInstanceFieldInitializers(jvmc_class *cls, NClassDef *class_def, 
     return 1;
 }
 
+static int CountArrayFieldInitTemps(const NClassDef *class_def) {
+    int count = 0;
+    NClassMember *member;
+    if (class_def == NULL) {
+        return 0;
+    }
+    member = class_def->members.first;
+    while (member != NULL) {
+        if (member->type == CLASS_MEMBER_FIELD && member->value.field.init_decls) {
+            NInitDeclList *decls = member->value.field.init_decls;
+            for (int i = 0; i < decls->count; i++) {
+                NInitDecl *decl = decls->decls[i];
+                if (decl != NULL && decl->initializer && decl->initializer->is_array) {
+                    count++;
+                }
+            }
+        }
+        member = member->next;
+    }
+    return count;
+}
+
 static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code *code,
                                NStmt *body, NParamList *params, SemanticContext *ctx) {
     jvmc_methodref *mref;
@@ -2164,6 +2451,9 @@ static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor
     const char *ctor_desc;
     jvmc_method *method;
     jvmc_code *code;
+    int max_locals;
+    int base_slot;
+    int extra_slots;
     if (cls == NULL || class_def == NULL || ctor == NULL) {
         return 0;
     }
@@ -2183,12 +2473,30 @@ static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor
     if (code == NULL) {
         return 0;
     }
+    if (!jvmc_code_set_max_stack(code, 32)) {
+        return 0;
+    }
+    max_locals = ComputeMaxLocals(ctor->params, ctor->body, 1);
+    base_slot = FindMaxSlot(ctor->params, ctor->body) + 1;
+    if (base_slot < 1) {
+        base_slot = 1;
+    }
+    extra_slots = CountArrayFieldInitTemps(class_def);
+    if (base_slot + extra_slots > max_locals) {
+        max_locals = base_slot + extra_slots;
+    }
+    if (!jvmc_code_set_max_locals(code, (uint16_t)max_locals)) {
+        return 0;
+    }
     return CodegenEmitCtorBody(cls, class_def, code, ctor->body, ctor->params, ctx);
 }
 
 static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx) {
     jvmc_method *method;
     jvmc_code *code;
+    int max_locals;
+    int base_slot;
+    int extra_slots;
     if (cls == NULL || class_def == NULL) {
         return 0;
     }
@@ -2201,6 +2509,21 @@ static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, Semanti
     }
     code = jvmc_method_get_code(method);
     if (code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_stack(code, 32)) {
+        return 0;
+    }
+    max_locals = ComputeMaxLocals(NULL, NULL, 1);
+    base_slot = FindMaxSlot(NULL, NULL) + 1;
+    if (base_slot < 1) {
+        base_slot = 1;
+    }
+    extra_slots = CountArrayFieldInitTemps(class_def);
+    if (base_slot + extra_slots > max_locals) {
+        max_locals = base_slot + extra_slots;
+    }
+    if (!jvmc_code_set_max_locals(code, (uint16_t)max_locals)) {
         return 0;
     }
     return CodegenEmitCtorBody(cls, class_def, code, NULL, NULL, ctx);
@@ -3338,7 +3661,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     if (code == NULL) {
         return 0;
     }
-    if (!jvmc_code_set_max_stack(code, 16)) {
+    if (!jvmc_code_set_max_stack(code, 32)) {
         return 0;
     }
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(params, body, is_static ? 0 : 1))) {
