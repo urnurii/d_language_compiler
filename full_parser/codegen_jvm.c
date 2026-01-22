@@ -2500,6 +2500,34 @@ static int EmitInstanceFieldInitializers(jvmc_class *cls, NClassDef *class_def, 
                 jvmc_fieldref *fref;
                 if (decl == NULL || decl->name == NULL || decl->jvm_descriptor == NULL ||
                     decl->initializer == NULL) {
+                    if (decl != NULL && decl->initializer == NULL &&
+                        member->value.field.field_type != NULL &&
+                        member->value.field.field_type->kind == TYPE_KIND_BASE) {
+                        if (member->value.field.field_type->base_type == TYPE_FLOAT ||
+                            member->value.field.field_type->base_type == TYPE_DOUBLE ||
+                            member->value.field.field_type->base_type == TYPE_REAL) {
+                            double nan_val = 0.0 / 0.0;
+                            if (!jvmc_code_load_ref(code, 0)) {
+                                free(owner_internal);
+                                return 0;
+                            }
+                            if (member->value.field.field_type->base_type == TYPE_FLOAT) {
+                                if (!jvmc_code_push_float(code, (float)nan_val)) {
+                                    free(owner_internal);
+                                    return 0;
+                                }
+                            } else {
+                                if (!jvmc_code_push_double(code, nan_val)) {
+                                    free(owner_internal);
+                                    return 0;
+                                }
+                            }
+                            if (!jvmc_code_putfield(code, fref)) {
+                                free(owner_internal);
+                                return 0;
+                            }
+                        }
+                    }
                     continue;
                 }
                 fref = jvmc_class_get_or_create_fieldref(cls,
