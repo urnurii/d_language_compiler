@@ -3,14 +3,12 @@ void main()
     // int literals
     int dec = 123;
     int bin = 0b101010;   // 42
-    int oct = 052;        // 42
     int hex = 0x2A;       // 42
     int million = 1_000_000;
 
     writeln("INT LITERALS:");
     writeln(dec);
     writeln(bin);
-    writeln(oct);
     writeln(hex);
     writeln(million);
 
