@@ -73,7 +73,8 @@ public final class Runtime {
                 case 'd': {
                     String tok = SCANNER.next();
                     try {
-                        int val = Integer.parseInt(tok);
+                        double num = Double.parseDouble(tok);
+                        int val = (int) num;
                         if (arg instanceof int[]) {
                             int[] a = (int[]) arg;
                             if (a.length > 0) {
@@ -82,7 +83,7 @@ public final class Runtime {
                             }
                         }
                     } catch (Exception ex) {
-                        return assigned;
+                        throw new RuntimeException("Invalid integer input: " + tok);
                     }
                     break;
                 }
