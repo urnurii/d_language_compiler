@@ -1,6 +1,7 @@
 #include "semantic_transforms.h"
 #include "../ast_builder.h"
 #include "type_inference.h"
+#include "name_resolution.h"
 #include <stdio.h>
 
 static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls);
@@ -24,6 +25,10 @@ static int PrepareLValueRValue(NExpr *lhs, NExpr *rhs, SemanticContext *ctx);
 static int TryInsertImplicitCast(NExpr **expr_ptr, const NType *target_type, SemanticContext *ctx);
 static NExpr *CloneLValueExpr(const NExpr *expr);
 static int IsArrayType(const NType *type);
+static NExpr *CloneExpr(const NExpr *expr);
+static int ExpandDefaultArgsForFuncCall(NExpr *expr, SemanticContext *ctx);
+static int ExpandDefaultArgsForMethodCall(NExpr *expr, SemanticContext *ctx);
+static int ExpandDefaultArgsForSuperMethod(NExpr *expr, SemanticContext *ctx);
 
 int TransformProgram(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -201,12 +206,14 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
             TransformExpression(expr->value.member_access.object, ctx);
             break;
         case EXPR_METHOD_CALL:
+            ExpandDefaultArgsForMethodCall(expr, ctx);
             TransformExpression(expr->value.member_access.object, ctx);
             for (int i = 0; i < expr->value.member_access.arg_count; i++) {
                 TransformExpression(expr->value.member_access.args[i], ctx);
             }
             break;
         case EXPR_FUNC_CALL:
+            ExpandDefaultArgsForFuncCall(expr, ctx);
             for (int i = 0; i < expr->value.func_call.arg_count; i++) {
                 TransformExpression(expr->value.func_call.args[i], ctx);
             }
@@ -214,6 +221,7 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
         case EXPR_SUPER:
             break;
         case EXPR_SUPER_METHOD:
+            ExpandDefaultArgsForSuperMethod(expr, ctx);
             for (int i = 0; i < expr->value.member_access.arg_count; i++) {
                 TransformExpression(expr->value.member_access.args[i], ctx);
             }
@@ -696,4 +704,218 @@ static NExpr *CloneLValueExpr(const NExpr *expr) {
         default:
             return CreateIdentExpr("__invalid_lvalue");
     }
+}
+
+static NExpr *CloneExpr(const NExpr *expr) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    switch (expr->type) {
+        case EXPR_IDENT:
+            return CreateIdentExpr(expr->value.ident_name);
+        case EXPR_INT:
+            return CreateIntExpr(expr->value.int_value);
+        case EXPR_FLOAT:
+            return CreateFloatExpr(expr->value.float_value);
+        case EXPR_CHAR:
+            return CreateCharExpr(expr->value.char_value);
+        case EXPR_STRING:
+            return CreateStringExpr(expr->value.string_value ? expr->value.string_value : "");
+        case EXPR_BOOL:
+            return CreateBoolExpr(expr->value.int_value);
+        case EXPR_NULL:
+            return CreateNullExpr();
+        case EXPR_NAN:
+            return CreateNanExpr();
+        case EXPR_THIS:
+            return CreateThisExpr();
+        case EXPR_SUPER:
+            return CreateSuperExpr(expr->value.ident_name);
+        case EXPR_PAREN:
+            return CreateParenExpr(CloneExpr(expr->value.inner_expr));
+        case EXPR_UNARY_OP:
+            return CreateUnaryOpExpr(expr->value.unary.op, CloneExpr(expr->value.unary.operand));
+        case EXPR_BINARY_OP:
+        case EXPR_ASSIGN:
+            return CreateBinaryOpExpr(expr->value.binary.op,
+                                      CloneExpr(expr->value.binary.left),
+                                      CloneExpr(expr->value.binary.right));
+        case EXPR_FUNC_CALL: {
+            NExprList *list = CreateExprList();
+            for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                AddExprToList(list, CloneExpr(expr->value.func_call.args[i]));
+            }
+            return CreateFuncCallExpr(expr->value.func_call.func_name, list->elements, list->count);
+        }
+        case EXPR_MEMBER_ACCESS:
+            return CreateMemberAccessExpr(CloneExpr(expr->value.member_access.object),
+                                          expr->value.member_access.member_name);
+        case EXPR_METHOD_CALL: {
+            NExprList *list = CreateExprList();
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                AddExprToList(list, CloneExpr(expr->value.member_access.args[i]));
+            }
+            return CreateMethodCallExpr(CloneExpr(expr->value.member_access.object),
+                                        expr->value.member_access.member_name,
+                                        list->elements,
+                                        list->count);
+        }
+        case EXPR_SUPER_METHOD: {
+            NExprList *list = CreateExprList();
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                AddExprToList(list, CloneExpr(expr->value.member_access.args[i]));
+            }
+            return CreateSuperMethodCallExpr(expr->value.member_access.member_name, list->elements, list->count);
+        }
+        case EXPR_ARRAY_ACCESS:
+            return CreateArrayAccessExpr(CloneExpr(expr->value.array_access.array),
+                                         CloneExpr(expr->value.array_access.index),
+                                         CloneExpr(expr->value.array_access.index_end));
+        case EXPR_NEW: {
+            NExprList *list = CreateExprList();
+            NType *type_copy = CopyTypeNoContext(expr->value.new_expr.type);
+            for (int i = 0; i < expr->value.new_expr.init_count; i++) {
+                AddExprToList(list, CloneExpr(expr->value.new_expr.init_exprs[i]));
+            }
+            return CreateNewExpr(type_copy, list->elements, list->count);
+        }
+        default:
+            return CreateIdentExpr("__invalid_default");
+    }
+}
+
+static int ExpandDefaultArgsForFuncCall(NExpr *expr, SemanticContext *ctx) {
+    FunctionInfo *func;
+    int expected;
+    int count;
+    if (expr == NULL || expr->type != EXPR_FUNC_CALL || ctx == NULL) {
+        return 0;
+    }
+    func = LookupFunctionOverload(ctx,
+                                  expr->value.func_call.func_name,
+                                  expr->value.func_call.args,
+                                  expr->value.func_call.arg_count,
+                                  NULL);
+    if (func == NULL || func->params == NULL) {
+        return 0;
+    }
+    expected = func->params->count;
+    count = expr->value.func_call.arg_count;
+    if (count >= expected) {
+        return 0;
+    }
+    {
+        NExpr **new_args = (NExpr **)malloc(sizeof(NExpr *) * (size_t)expected);
+        if (new_args == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < count; i++) {
+            new_args[i] = expr->value.func_call.args[i];
+        }
+        for (int i = count; i < expected; i++) {
+            NParam *param = func->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                free(new_args);
+                return 0;
+            }
+            new_args[i] = CloneExpr(param->default_value);
+        }
+        expr->value.func_call.args = new_args;
+        expr->value.func_call.arg_count = expected;
+    }
+    return 1;
+}
+
+static int ExpandDefaultArgsForMethodCall(NExpr *expr, SemanticContext *ctx) {
+    ClassInfo *cls;
+    MethodInfo *method;
+    NType *obj_type;
+    int expected;
+    int count;
+    if (expr == NULL || expr->type != EXPR_METHOD_CALL || ctx == NULL) {
+        return 0;
+    }
+    obj_type = InferExpressionTypeSilent(expr->value.member_access.object, ctx);
+    if (obj_type == NULL || obj_type->kind != TYPE_KIND_CLASS) {
+        return 0;
+    }
+    cls = LookupClass(ctx, obj_type->class_name);
+    if (cls == NULL) {
+        return 0;
+    }
+    method = LookupClassMethod(cls, expr->value.member_access.member_name);
+    if (method == NULL || method->params == NULL) {
+        return 0;
+    }
+    expected = method->params->count;
+    count = expr->value.member_access.arg_count;
+    if (count >= expected) {
+        return 0;
+    }
+    {
+        NExpr **new_args = (NExpr **)malloc(sizeof(NExpr *) * (size_t)expected);
+        if (new_args == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < count; i++) {
+            new_args[i] = expr->value.member_access.args[i];
+        }
+        for (int i = count; i < expected; i++) {
+            NParam *param = method->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                free(new_args);
+                return 0;
+            }
+            new_args[i] = CloneExpr(param->default_value);
+        }
+        expr->value.member_access.args = new_args;
+        expr->value.member_access.arg_count = expected;
+    }
+    return 1;
+}
+
+static int ExpandDefaultArgsForSuperMethod(NExpr *expr, SemanticContext *ctx) {
+    ClassInfo *base;
+    MethodInfo *method;
+    int expected;
+    int count;
+    if (expr == NULL || expr->type != EXPR_SUPER_METHOD || ctx == NULL || ctx->current_class == NULL) {
+        return 0;
+    }
+    if (ctx->current_class->base_class == NULL) {
+        return 0;
+    }
+    base = LookupClass(ctx, ctx->current_class->base_class);
+    if (base == NULL) {
+        return 0;
+    }
+    method = LookupClassMethod(base, expr->value.member_access.member_name);
+    if (method == NULL || method->params == NULL) {
+        return 0;
+    }
+    expected = method->params->count;
+    count = expr->value.member_access.arg_count;
+    if (count >= expected) {
+        return 0;
+    }
+    {
+        NExpr **new_args = (NExpr **)malloc(sizeof(NExpr *) * (size_t)expected);
+        if (new_args == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < count; i++) {
+            new_args[i] = expr->value.member_access.args[i];
+        }
+        for (int i = count; i < expected; i++) {
+            NParam *param = method->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                free(new_args);
+                return 0;
+            }
+            new_args[i] = CloneExpr(param->default_value);
+        }
+        expr->value.member_access.args = new_args;
+        expr->value.member_access.arg_count = expected;
+    }
+    return 1;
 }
