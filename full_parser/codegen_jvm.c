@@ -475,6 +475,101 @@ static int EmitNumericCast(jvmc_code *code, const NType *from, const NType *to) 
     return JvmEmitNumericCast(code, from, to);
 }
 
+static int IsFloatLikeType(const NType *type, int *is_double_out) {
+    if (is_double_out) {
+        *is_double_out = 0;
+    }
+    if (type == NULL || type->kind != TYPE_KIND_BASE) {
+        return 0;
+    }
+    switch (type->base_type) {
+        case TYPE_FLOAT:
+            if (is_double_out) *is_double_out = 0;
+            return 1;
+        case TYPE_DOUBLE:
+        case TYPE_REAL:
+            if (is_double_out) *is_double_out = 1;
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static int EmitNumericBinaryOp(jvmc_code *code, OpType op, const NType *type) {
+    int is_double = 0;
+    if (code == NULL) {
+        return 0;
+    }
+    if (IsFloatLikeType(type, &is_double)) {
+        if (is_double) {
+            switch (op) {
+                case OP_PLUS:  return jvmc_code_add_double(code);
+                case OP_MINUS: return jvmc_code_sub_double(code);
+                case OP_MUL:   return jvmc_code_mul_double(code);
+                case OP_DIV:   return jvmc_code_div_double(code);
+                default:       return 0;
+            }
+        }
+        switch (op) {
+            case OP_PLUS:  return jvmc_code_add_float(code);
+            case OP_MINUS: return jvmc_code_sub_float(code);
+            case OP_MUL:   return jvmc_code_mul_float(code);
+            case OP_DIV:   return jvmc_code_div_float(code);
+            default:       return 0;
+        }
+    }
+    switch (op) {
+        case OP_PLUS:  return jvmc_code_add_int(code);
+        case OP_MINUS: return jvmc_code_sub_int(code);
+        case OP_MUL:   return jvmc_code_mul_int(code);
+        case OP_DIV:   return jvmc_code_div_int(code);
+        default:       return 0;
+    }
+}
+
+static int EmitNumericNeg(jvmc_code *code, const NType *type) {
+    int is_double = 0;
+    if (code == NULL) {
+        return 0;
+    }
+    if (IsFloatLikeType(type, &is_double)) {
+        return is_double ? jvmc_code_neg_double(code) : jvmc_code_neg_float(code);
+    }
+    if (!jvmc_code_push_int(code, -1)) {
+        return 0;
+    }
+    return jvmc_code_mul_int(code);
+}
+
+static int EmitCompareZeroResult(jvmc_code *code, jvmc_compare cmp) {
+    jvmc_label *label_true;
+    jvmc_label *label_end;
+    if (code == NULL) {
+        return 0;
+    }
+    label_true = jvmc_code_label_create(code);
+    label_end = jvmc_code_label_create(code);
+    if (label_true == NULL || label_end == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_if(code, cmp, label_true)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_end)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_true)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    return jvmc_code_label_place(code, label_end);
+}
+
 static int EmitBoxIfNeeded(jvmc_class *cls, jvmc_code *code, const NType *type) {
     jvmc_methodref *mref = NULL;
     if (code == NULL || cls == NULL || type == NULL) {
@@ -735,6 +830,7 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
             default: cmp = JVMC_CMP_EQ; break;
         }
         if (cmp != JVMC_CMP_EQ || expr->value.binary.op == OP_EQ) {
+            int is_double = 0;
             if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
                 return 0;
             }
@@ -743,6 +839,19 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
             }
             if (!jump_if_true) {
                 cmp = InvertCompare(cmp);
+            }
+            if (IsFloatLikeType(expr->value.binary.left ? expr->value.binary.left->inferred_type : NULL,
+                                &is_double)) {
+                if (is_double) {
+                    if (!jvmc_code_cmp_double_g(code)) {
+                        return 0;
+                    }
+                } else {
+                    if (!jvmc_code_cmp_float_g(code)) {
+                        return 0;
+                    }
+                }
+                return jvmc_code_if(code, cmp, label);
             }
             return jvmc_code_if_icmp(code, cmp, label);
         }
@@ -756,6 +865,27 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
         }
         return jvmc_code_if_null(code, label);
     }
+    {
+        int is_double = 0;
+        if (IsFloatLikeType(expr->inferred_type, &is_double)) {
+            if (is_double) {
+                if (!jvmc_code_push_double(code, 0.0)) {
+                    return 0;
+                }
+                if (!jvmc_code_cmp_double_g(code)) {
+                    return 0;
+                }
+            } else {
+                if (!jvmc_code_push_float(code, 0.0f)) {
+                    return 0;
+                }
+                if (!jvmc_code_cmp_float_g(code)) {
+                    return 0;
+                }
+            }
+            return jvmc_code_if(code, jump_if_true ? JVMC_CMP_NE : JVMC_CMP_EQ, label);
+        }
+    }
     if (jump_if_true) {
         return jvmc_code_if(code, JVMC_CMP_NE, label);
     }
@@ -764,6 +894,7 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
 
 static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExpr *right, NParamList *params,
                              NStmt *body, SemanticContext *ctx, jvmc_compare cmp) {
+    int is_double = 0;
     if (code == NULL) {
         return 0;
     }
@@ -772,6 +903,18 @@ static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExp
     }
     if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
         return 0;
+    }
+    if (IsFloatLikeType(left ? left->inferred_type : NULL, &is_double)) {
+        if (is_double) {
+            if (!jvmc_code_cmp_double_g(code)) {
+                return 0;
+            }
+        } else {
+            if (!jvmc_code_cmp_float_g(code)) {
+                return 0;
+            }
+        }
+        return EmitCompareZeroResult(code, cmp);
     }
     return JvmEmitCompareIntResult(code, cmp);
 }
@@ -2399,10 +2542,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return 0;
             }
             if (expr->value.unary.op == OP_MINUS) {
-                if (!jvmc_code_push_int(code, -1)) {
-                    return 0;
-                }
-                return jvmc_code_mul_int(code);
+                return EmitNumericNeg(code, expr->value.unary.operand->inferred_type);
             }
             return 1;
         }
@@ -2491,16 +2631,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
                         return 0;
                     }
-                    if (expr->value.binary.op == OP_PLUS) {
-                        return jvmc_code_add_int(code);
-                    }
-                    if (expr->value.binary.op == OP_MINUS) {
-                        return jvmc_code_sub_int(code);
-                    }
-                    if (expr->value.binary.op == OP_MUL) {
-                        return jvmc_code_mul_int(code);
-                    }
-                    return jvmc_code_div_int(code);
+                    return EmitNumericBinaryOp(code, expr->value.binary.op, expr->inferred_type);
                 default:
                     return 0;
             }

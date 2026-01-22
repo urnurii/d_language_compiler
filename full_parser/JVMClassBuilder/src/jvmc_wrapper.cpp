@@ -311,6 +311,54 @@ int jvmc_code_div_int(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->DivInt());
 }
+int jvmc_code_add_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->AddFloat());
+}
+int jvmc_code_sub_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->SubFloat());
+}
+int jvmc_code_mul_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->MulFloat());
+}
+int jvmc_code_div_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->DivFloat());
+}
+int jvmc_code_add_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->AddDouble());
+}
+int jvmc_code_sub_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->SubDouble());
+}
+int jvmc_code_mul_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->MulDouble());
+}
+int jvmc_code_div_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->DivDouble());
+}
+int jvmc_code_neg_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->NegFloat());
+}
+int jvmc_code_neg_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->NegDouble());
+}
+int jvmc_code_cmp_float_g(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->CompareFloat(jvm::Instruction::StrictCompare::greater));
+}
+int jvmc_code_cmp_double_g(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->CompareDouble(jvm::Instruction::StrictCompare::greater));
+}
 int jvmc_code_i2f(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->IntToFloat());
