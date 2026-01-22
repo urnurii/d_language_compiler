@@ -702,6 +702,13 @@ static int IsRefType(const NType *type) {
     return 0;
 }
 
+static int IsStringType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING;
+}
+
 static jvmc_compare InvertCompare(jvmc_compare cmp) {
     switch (cmp) {
         case JVMC_CMP_EQ: return JVMC_CMP_NE;
@@ -712,6 +719,129 @@ static jvmc_compare InvertCompare(jvmc_compare cmp) {
         case JVMC_CMP_GE: return JVMC_CMP_LT;
         default: return JVMC_CMP_EQ;
     }
+}
+
+static int EmitStringEqualsResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExpr *right,
+                                  NParamList *params, NStmt *body, SemanticContext *ctx) {
+    int temp_base;
+    int left_slot;
+    int right_slot;
+    jvmc_label *label_left_null;
+    jvmc_label *label_right_null;
+    jvmc_label *label_end;
+    jvmc_methodref *mref;
+
+    if (cls == NULL || code == NULL || left == NULL || right == NULL) {
+        return 0;
+    }
+
+    temp_base = FindMaxSlot(params, body) + 1;
+    left_slot = temp_base;
+    right_slot = temp_base + 1;
+
+    if (!CodegenEmitExpr(cls, code, left, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)left_slot)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)right_slot)) {
+        return 0;
+    }
+
+    label_left_null = jvmc_code_label_create(code);
+    label_right_null = jvmc_code_label_create(code);
+    label_end = jvmc_code_label_create(code);
+    if (label_left_null == NULL || label_right_null == NULL || label_end == NULL) {
+        return 0;
+    }
+
+    if (!jvmc_code_load_ref(code, (uint16_t)left_slot)) {
+        return 0;
+    }
+    if (!jvmc_code_if_null(code, label_left_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)left_slot)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)right_slot)) {
+        return 0;
+    }
+    mref = jvmc_class_get_or_create_methodref(cls,
+                                              "java/lang/String",
+                                              "equals",
+                                              "(Ljava/lang/Object;)Z");
+    if (mref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_invokevirtual(code, mref)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_end)) {
+        return 0;
+    }
+
+    if (!jvmc_code_label_place(code, label_left_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)right_slot)) {
+        return 0;
+    }
+    if (!jvmc_code_if_null(code, label_right_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_end)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_right_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    return jvmc_code_label_place(code, label_end);
+}
+
+static int EmitRefCompareResult(jvmc_code *code, jvmc_compare cmp) {
+    jvmc_label *label_true;
+    jvmc_label *label_end;
+    if (code == NULL) {
+        return 0;
+    }
+    label_true = jvmc_code_label_create(code);
+    label_end = jvmc_code_label_create(code);
+    if (label_true == NULL || label_end == NULL) {
+        return 0;
+    }
+    if (cmp == JVMC_CMP_EQ) {
+        if (!jvmc_code_if_acmp_eq(code, label_true)) {
+            return 0;
+        }
+    } else {
+        if (!jvmc_code_if_acmp_ne(code, label_true)) {
+            return 0;
+        }
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_end)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_true)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    return jvmc_code_label_place(code, label_end);
 }
 
 static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
@@ -731,6 +861,40 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
             default: cmp = JVMC_CMP_EQ; break;
         }
         if (cmp != JVMC_CMP_EQ || expr->value.binary.op == OP_EQ) {
+            NType *left_type = expr->value.binary.left ? expr->value.binary.left->inferred_type : NULL;
+            NType *right_type = expr->value.binary.right ? expr->value.binary.right->inferred_type : NULL;
+            if (expr->value.binary.op == OP_EQ || expr->value.binary.op == OP_NEQ) {
+                if (IsStringType(left_type) || IsStringType(right_type)) {
+                    if (!EmitStringEqualsResult(cls, code,
+                                                expr->value.binary.left,
+                                                expr->value.binary.right,
+                                                params, body, ctx)) {
+                        return 0;
+                    }
+                    if (expr->value.binary.op == OP_NEQ) {
+                        jump_if_true = !jump_if_true;
+                    }
+                    if (jump_if_true) {
+                        return jvmc_code_if(code, JVMC_CMP_NE, label);
+                    }
+                    return jvmc_code_if(code, JVMC_CMP_EQ, label);
+                }
+                if (IsRefType(left_type) || IsRefType(right_type)) {
+                    if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (expr->value.binary.op == OP_NEQ) {
+                        jump_if_true = !jump_if_true;
+                    }
+                    if (jump_if_true) {
+                        return jvmc_code_if_acmp_eq(code, label);
+                    }
+                    return jvmc_code_if_acmp_ne(code, label);
+                }
+            }
             if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
                 return 0;
             }
@@ -762,6 +926,48 @@ static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExp
                              NStmt *body, SemanticContext *ctx, jvmc_compare cmp) {
     if (code == NULL) {
         return 0;
+    }
+    if ((cmp == JVMC_CMP_EQ || cmp == JVMC_CMP_NE) && left != NULL && right != NULL) {
+        NType *left_type = left->inferred_type;
+        NType *right_type = right->inferred_type;
+        if (IsStringType(left_type) || IsStringType(right_type)) {
+            if (!EmitStringEqualsResult(cls, code, left, right, params, body, ctx)) {
+                return 0;
+            }
+            if (cmp == JVMC_CMP_NE) {
+                jvmc_label *label_true = jvmc_code_label_create(code);
+                jvmc_label *label_end = jvmc_code_label_create(code);
+                if (label_true == NULL || label_end == NULL) {
+                    return 0;
+                }
+                if (!jvmc_code_if(code, JVMC_CMP_EQ, label_true)) {
+                    return 0;
+                }
+                if (!jvmc_code_push_int(code, 0)) {
+                    return 0;
+                }
+                if (!jvmc_code_goto(code, label_end)) {
+                    return 0;
+                }
+                if (!jvmc_code_label_place(code, label_true)) {
+                    return 0;
+                }
+                if (!jvmc_code_push_int(code, 1)) {
+                    return 0;
+                }
+                return jvmc_code_label_place(code, label_end);
+            }
+            return 1;
+        }
+        if (IsRefType(left_type) || IsRefType(right_type)) {
+            if (!CodegenEmitExpr(cls, code, left, params, body, ctx)) {
+                return 0;
+            }
+            if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
+                return 0;
+            }
+            return EmitRefCompareResult(code, cmp);
+        }
     }
     if (!CodegenEmitExpr(cls, code, left, params, body, ctx)) {
         return 0;
