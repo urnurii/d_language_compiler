@@ -1,8 +1,11 @@
 #include "codegen_jvm.h"
 #include "jvmc/jvmc.h"
 #include "semantic/jvm_layout.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body);
 
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
@@ -31,6 +34,101 @@ static int CodegenAddFieldDecls(jvmc_class *cls, NInitDeclList *decls, uint16_t 
         }
     }
     return 1;
+}
+
+static void UpdateMaxLocalsFromDecls(const NType *decl_type, NInitDeclList *decls, int *max_out) {
+    int width;
+    if (decl_type == NULL || decls == NULL || max_out == NULL) {
+        return;
+    }
+    width = GetJvmSlotWidthForType(decl_type);
+    for (int i = 0; i < decls->count; i++) {
+        NInitDecl *decl = decls->decls[i];
+        if (decl == NULL || decl->jvm_slot_index < 0) {
+            continue;
+        }
+        if (decl->jvm_slot_index + width > *max_out) {
+            *max_out = decl->jvm_slot_index + width;
+        }
+    }
+}
+
+static void UpdateMaxLocalsFromStmt(NStmt *stmt, int *max_out) {
+    if (stmt == NULL || max_out == NULL) {
+        return;
+    }
+    switch (stmt->type) {
+        case STMT_DECL:
+            UpdateMaxLocalsFromDecls(stmt->value.decl.decl_type,
+                                     stmt->value.decl.init_decls,
+                                     max_out);
+            break;
+        case STMT_COMPOUND: {
+            NStmt *cur = stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL;
+            while (cur != NULL) {
+                UpdateMaxLocalsFromStmt(cur, max_out);
+                cur = cur->next;
+            }
+            break;
+        }
+        case STMT_IF:
+            UpdateMaxLocalsFromStmt(stmt->value.if_stmt.then_stmt, max_out);
+            UpdateMaxLocalsFromStmt(stmt->value.if_stmt.else_stmt, max_out);
+            break;
+        case STMT_WHILE:
+            UpdateMaxLocalsFromStmt(stmt->value.while_stmt.body, max_out);
+            break;
+        case STMT_DO_WHILE:
+            UpdateMaxLocalsFromStmt(stmt->value.do_while_stmt.body, max_out);
+            break;
+        case STMT_FOR:
+            UpdateMaxLocalsFromDecls(stmt->value.for_stmt.init_decl_type,
+                                     stmt->value.for_stmt.init_decls,
+                                     max_out);
+            UpdateMaxLocalsFromStmt(stmt->value.for_stmt.body, max_out);
+            break;
+        case STMT_FOREACH:
+            UpdateMaxLocalsFromStmt(stmt->value.foreach_stmt.body, max_out);
+            break;
+        case STMT_SWITCH:
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->stmts) {
+                    UpdateMaxLocalsFromStmt(item->stmts->first, max_out);
+                }
+            }
+            break;
+        case STMT_EXPR:
+        case STMT_RETURN:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+}
+
+static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
+    int max_locals = include_this ? 1 : 0;
+    if (params != NULL) {
+        for (int i = 0; i < params->count; i++) {
+            NParam *param = params->params[i];
+            int width = 1;
+            if (param == NULL || param->jvm_slot_index < 0) {
+                continue;
+            }
+            if (param->is_ref) {
+                width = 1;
+            } else {
+                width = GetJvmSlotWidthForType(param->param_type);
+            }
+            if (param->jvm_slot_index + width > max_locals) {
+                max_locals = param->jvm_slot_index + width;
+            }
+        }
+    }
+    if (body != NULL) {
+        UpdateMaxLocalsFromStmt(body, &max_locals);
+    }
+    return (max_locals > 0) ? max_locals : 1;
 }
 
 static int CodegenEmitEmptyReturn(jvmc_code *code, const char *descriptor) {
@@ -96,6 +194,12 @@ static int CodegenAddMethodStub(jvmc_class *cls, const char *name, const char *d
     }
     code = jvmc_method_get_code(method);
     if (code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_stack(code, 16)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(NULL, NULL, is_static ? 0 : 1))) {
         return 0;
     }
     return CodegenEmitEmptyReturn(code, descriptor);
@@ -574,6 +678,12 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     if (code == NULL) {
         return 0;
     }
+    if (!jvmc_code_set_max_stack(code, 16)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(params, body, is_static ? 0 : 1))) {
+        return 0;
+    }
     if (!CodegenEmitStmtList(cls, code, body, params, &returned)) {
         return 0;
     }
@@ -619,6 +729,12 @@ static int EmitJavaEntryMain(jvmc_class *cls, int call_noarg_main) {
     }
     code = jvmc_method_get_code(method);
     if (code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_stack(code, 4)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_locals(code, 1)) {
         return 0;
     }
     if (call_noarg_main) {

@@ -448,4 +448,28 @@ int jvmc_code_if_not_null(jvmc_code *code, jvmc_label *label) {
     return AddInstruction(code->impl, code->impl->IfNotNull(label->impl));
 }
 
+int jvmc_code_set_max_stack(jvmc_code *code, uint16_t value) {
+    if (code == nullptr || code->impl == nullptr) {
+        return 0;
+    }
+    try {
+        code->impl->setMaxStack(value);
+        return 1;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int jvmc_code_set_max_locals(jvmc_code *code, uint16_t value) {
+    if (code == nullptr || code->impl == nullptr) {
+        return 0;
+    }
+    try {
+        code->impl->setMaxLocals(value);
+        return 1;
+    } catch (...) {
+        return 0;
+    }
+}
+
 } // extern "C"

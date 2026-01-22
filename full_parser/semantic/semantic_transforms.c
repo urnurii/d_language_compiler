@@ -1,5 +1,5 @@
 #include "semantic_transforms.h"
-#include "ast_builder.h"
+#include "../ast_builder.h"
 #include "type_inference.h"
 #include <stdio.h>
 

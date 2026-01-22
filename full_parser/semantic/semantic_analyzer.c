@@ -8,7 +8,7 @@
 #include "semantic_passes.h"
 #include "jvm_layout.h"
 #include "semantic_transforms.h"
-#include "ast_builder.h"
+#include "../ast_builder.h"
 
 static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
@@ -656,11 +656,9 @@ void PrintSymbolTables(SemanticContext *ctx) {
         return;
     }
 
-    fprintf(stdout, "===== SYMBOL TABLES =====
-");
+    fprintf(stdout, "===== SYMBOL TABLES =====");
 
-    fprintf(stdout, "Global Variables:
-");
+    fprintf(stdout, "Global Variables:");
     if (ctx->global_symbols != NULL) {
         for (int i = 0; i < ctx->global_symbols->count; i++) {
             Symbol *sym = ctx->global_symbols->symbols[i];
@@ -668,8 +666,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
                 continue;
             }
             VariableInfo *var = sym->info.var_info;
-            fprintf(stdout, "  %s: %s (initialized=%s, line=%d, column=%d)
-",
+            fprintf(stdout, "  %s: %s (initialized=%s, line=%d, column=%d)",
                     var->name ? var->name : "<unnamed>",
                     TypeToString(var->type),
                     BoolToYesNo(var->is_initialized),
@@ -678,8 +675,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
         }
     }
 
-    fprintf(stdout, "Global Functions:
-");
+    fprintf(stdout, "Global Functions:");
     if (ctx->functions != NULL) {
         for (int i = 0; i < ctx->function_count; i++) {
             FunctionInfo *func = ctx->functions[i];
@@ -687,8 +683,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
                 ? TypeToString(func->return_type)
                 : "void";
             int param_count = (func != NULL && func->params != NULL) ? func->params->count : 0;
-            fprintf(stdout, "  %s: %s (params=%d, line=%d, column=%d)
-",
+            fprintf(stdout, "  %s: %s (params=%d, line=%d, column=%d)",
                     (func && func->name) ? func->name : "<unnamed>",
                     ret_type,
                     param_count,
@@ -697,14 +692,12 @@ void PrintSymbolTables(SemanticContext *ctx) {
         }
     }
 
-    fprintf(stdout, "Classes:
-");
+    fprintf(stdout, "Classes:");
     if (ctx->classes != NULL) {
         for (int i = 0; i < ctx->class_count; i++) {
             ClassInfo *cls = ctx->classes[i];
             const char *base = (cls && cls->base_class) ? cls->base_class : "<none>";
-            fprintf(stdout, "  %s: class (base=%s, line=%d, column=%d)
-",
+            fprintf(stdout, "  %s: class (base=%s, line=%d, column=%d)",
                     (cls && cls->name) ? cls->name : "<unnamed>",
                     base,
                     cls ? cls->line : 0,
@@ -717,8 +710,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
                 if (field == NULL) {
                     continue;
                 }
-                fprintf(stdout, "    %s: %s (field, access=%s, line=%d, column=%d)
-",
+                fprintf(stdout, "    %s: %s (field, access=%s, line=%d, column=%d)",
                         field->name ? field->name : "<unnamed>",
                         TypeToString(field->type),
                         AccessSpecToString(field->access),
@@ -731,8 +723,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
                     continue;
                 }
                 fprintf(stdout,
-                        "    %s: %s (method, access=%s, params=%d, override=%s, line=%d, column=%d)
-",
+                        "    %s: %s (method, access=%s, params=%d, override=%s, line=%d, column=%d)",
                         method->name ? method->name : "<unnamed>",
                         method->return_type ? TypeToString(method->return_type) : "void",
                         AccessSpecToString(method->access),
@@ -744,13 +735,11 @@ void PrintSymbolTables(SemanticContext *ctx) {
         }
     }
 
-    fprintf(stdout, "Enums:
-");
+    fprintf(stdout, "Enums:");
     if (ctx->enums != NULL) {
         for (int i = 0; i < ctx->enum_count; i++) {
             EnumInfo *en = ctx->enums[i];
-            fprintf(stdout, "  %s: enum (items=%d, line=%d, column=%d)
-",
+            fprintf(stdout, "  %s: enum (items=%d, line=%d, column=%d)",
                     (en && en->name) ? en->name : "<anonymous>",
                     en ? en->item_count : 0,
                     en ? en->line : 0,
@@ -763,8 +752,7 @@ void PrintSymbolTables(SemanticContext *ctx) {
                 if (item == NULL) {
                     continue;
                 }
-                fprintf(stdout, "    %s: int (value=%d)
-",
+                fprintf(stdout, "    %s: int (value=%d)",
                         item->name ? item->name : "<unnamed>",
                         item->value);
             }

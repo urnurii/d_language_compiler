@@ -5,6 +5,7 @@
 #include "ast_builder.h"
 #include "ast_visualizer.h"
 #include "semantic/semantic_analyzer.h"
+#include "codegen_jvm.h"
 
 extern int yylex(void);
 extern int yyparse(void);
@@ -147,6 +148,11 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "\nError: Semantic analysis failed!\n");
             DestroySemanticContext(sem_ctx);
             return 5;
+        }
+        if (GenerateClassFiles(root, sem_ctx) != 0) {
+            fprintf(stderr, "\nError: JVM class generation failed!\n");
+            DestroySemanticContext(sem_ctx);
+            return 6;
         }
         DestroySemanticContext(sem_ctx);
     }

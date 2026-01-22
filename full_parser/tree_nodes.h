@@ -95,7 +95,7 @@ typedef struct {
 } NArrayDecl;
 
 // Полное описание типа: base_type [array] или CLASSNAME [array] 
-typedef struct {
+typedef struct NType {
     TypeKind kind;
     BaseType base_type; // если kind == TYPE_KIND_BASE или TYPE_KIND_BASE_ARRAY
     char *class_name;   // если kind == TYPE_KIND_CLASS или TYPE_KIND_CLASS_ARRAY

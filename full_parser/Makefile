@@ -4,6 +4,13 @@ CXX = C:/msys64/mingw64/bin/g++.exe
 LD = $(CXX)
 BISON = bison
 FLEX = flex
+CMAKE ?= cmake
+
+# Try to find cmake in common MSYS2 paths
+MSYS2_CMAKE := $(firstword $(wildcard C:/msys64/mingw64/bin/cmake.exe C:/msys64/usr/bin/cmake.exe))
+ifneq ($(MSYS2_CMAKE),)
+  CMAKE := $(MSYS2_CMAKE)
+endif
 
 # Флаги компилятора
 CFLAGS = -Wall -Wextra -std=c99 -g
@@ -19,7 +26,7 @@ JVMCB_INCLUDES ?= -I$(JVMCB_DIR)/include
 TARGET = compiler.exe
 
 # Исходные файлы (главные)
-MAIN_SOURCES = main.c ast_builder.c ast_visualizer.c
+MAIN_SOURCES = main.c ast_builder.c ast_visualizer.c codegen_jvm.c
 SEMANTIC_SOURCES = semantic/semantic_analyzer.c semantic/semantic_passes.c \
 	semantic/name_resolution.c semantic/type_inference.c \
 	semantic/error_reporting.c semantic/jvm_layout.c \
@@ -43,15 +50,31 @@ HEADERS = tree_nodes.h ast_builder.h d_parser.tab.h
 all: $(TARGET)
 
 # Построение исполняемого файла
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) $(JVMCB_LIB)
 	@echo ""
 	@echo "========================================"
 	@echo "Linking..."
 	@echo "========================================"
-	$(LD) $(CFLAGS) -o $@ $^ $(JVMCB_LIB) $(LDFLAGS)
+	$(LD) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo ""
 	@echo "OK Compilation successful!"
 	@echo "Executable: $(TARGET)"
+	@echo ""
+
+# ----- JVM Class Builder -----
+
+$(JVMCB_LIB): $(JVMCB_DIR)/CMakeLists.txt \
+	$(JVMCB_DIR)/src/jvmc_wrapper.cpp \
+	$(JVMCB_DIR)/include/jvmc/jvmc.h
+	@echo ""
+	@echo "========================================"
+	@echo "Building JVM Class Builder..."
+	@echo "========================================"
+	@if [ -f "$(JVMCB_BUILD_DIR)/CMakeCache.txt" ]; then rm -rf "$(JVMCB_BUILD_DIR)"; fi
+	$(CMAKE) -S $(JVMCB_DIR) -B $(JVMCB_BUILD_DIR) -DJVMC_ENABLE_JAVA_FIX=OFF
+	$(CMAKE) --build $(JVMCB_BUILD_DIR)
+	@echo ""
+	@echo "OK JVM Class Builder built: $(JVMCB_LIB)"
 	@echo ""
 
 # ----- Генерация файлов -----
@@ -92,7 +115,8 @@ clean:
 	@echo "========================================"
 	@echo "Cleaning up..."
 	@echo "========================================"
-	rm -f *.o
+	find . -name "*.o" -type f -delete
+	find . -name "*.obj" -type f -delete
 	rm -f d_parser.tab.c d_parser.tab.h
 	rm -f lex.yy.c
 	rm -f $(TARGET)

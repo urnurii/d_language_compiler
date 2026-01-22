@@ -6,6 +6,7 @@
 #include "type_inference.h"
 #include "error_reporting.h"
 #include "jvm_layout.h"
+#include "../ast_builder.h"
 
 
 static int ReportOutOfMemory(SemanticContext *ctx) {
@@ -1945,6 +1946,7 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                 }
                 had_error = 1;
             }
+            /* fall through */
         case STMT_CONTINUE:
             if (stmt->type == STMT_CONTINUE && ctx->loop_depth <= 0) {
                 if (ctx->errors != NULL) {

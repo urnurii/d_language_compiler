@@ -22,44 +22,66 @@ static void DotPrintf(const char *format, ...) {
 
 // Экранирует специальные символы для DOT
 static const char* EscapeString(const char *str) {
-    if (!str) return "";
-
     static char buffer[1024];
     int j = 0;
 
-    for (int i = 0; str[i] && j < 1022; i++) {
+    if (str == NULL) {
+        buffer[0] = '\0';
+        return buffer;
+    }
+
+    for (int i = 0; str[i] != '\0' && j < 1022; i++) {
         switch (str[i]) {
-            case '"':  buffer[j++] = '\'; buffer[j++] = '"'; break;
-            case '\': buffer[j++] = '\'; buffer[j++] = '\'; break;
-            case '
-': buffer[j++] = '\'; buffer[j++] = 'n'; break;
-            case '': buffer[j++] = '\'; buffer[j++] = 'r'; break;
-            case '	': buffer[j++] = '\'; buffer[j++] = 't'; break;
-            default:   buffer[j++] = str[i];
+            case '"':
+                buffer[j++] = '\\';
+                buffer[j++] = '"';
+                break;
+            case '\\':
+                buffer[j++] = '\\';
+                buffer[j++] = '\\';
+                break;
+            case '\n':
+                buffer[j++] = '\\';
+                buffer[j++] = 'n';
+                break;
+            case '\r':
+                buffer[j++] = '\\';
+                buffer[j++] = 'r';
+                break;
+            case '\t':
+                buffer[j++] = '\\';
+                buffer[j++] = 't';
+                break;
+            default:
+                buffer[j++] = str[i];
+                break;
         }
     }
-    buffer[j] = '';
+    buffer[j] = '\0';
     return buffer;
 }
 
 static void AppendAttr(char *buf, size_t size, const char *key, const char *value) {
     size_t len;
-    if (buf == NULL || size == 0 || key == NULL || value == NULL || value[0] == '') {
+    if (buf == NULL || size == 0 || key == NULL || value == NULL || value[0] == '\0') {
         return;
     }
     len = strlen(buf);
     if (len + 1 < size && len > 0) {
-        buf[len++] = '
-';
-        buf[len] = '';
+        buf[len++] = '\n';
+        buf[len] = '\0';
     }
     if (len < size) {
         snprintf(buf + len, size - len, "%s=%s", key, value);
     }
 }
 
+static const char* BaseTypeToString(BaseType type);
+
 static void TypeToStringForAttr(NType *type, char *buf, size_t size) {
-    if (buf == NULL || size == 0) return;
+    if (buf == NULL || size == 0) {
+        return;
+    }
     if (type == NULL) {
         snprintf(buf, size, "unknown");
         return;
@@ -95,8 +117,10 @@ static void TypeToStringForAttr(NType *type, char *buf, size_t size) {
 
 static void BuildExprAttr(const NExpr *expr, char *buf, size_t size) {
     char tmp[256];
-    buf[0] = '';
-    if (expr == NULL) return;
+    buf[0] = '\0';
+    if (expr == NULL) {
+        return;
+    }
     if (expr->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", expr->resolved_symbol_id);
         AppendAttr(buf, size, "sym", tmp);
@@ -128,8 +152,10 @@ static void BuildExprAttr(const NExpr *expr, char *buf, size_t size) {
 
 static void BuildStmtAttr(const NStmt *stmt, char *buf, size_t size) {
     char tmp[64];
-    buf[0] = '';
-    if (stmt == NULL) return;
+    buf[0] = '\0';
+    if (stmt == NULL) {
+        return;
+    }
     if (stmt->scope_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", stmt->scope_id);
         AppendAttr(buf, size, "scope", tmp);
@@ -138,8 +164,10 @@ static void BuildStmtAttr(const NStmt *stmt, char *buf, size_t size) {
 
 static void BuildParamAttr(const NParam *param, char *buf, size_t size) {
     char tmp[128];
-    buf[0] = '';
-    if (param == NULL) return;
+    buf[0] = '\0';
+    if (param == NULL) {
+        return;
+    }
     if (param->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", param->resolved_symbol_id);
         AppendAttr(buf, size, "sym", tmp);
@@ -155,8 +183,10 @@ static void BuildParamAttr(const NParam *param, char *buf, size_t size) {
 
 static void BuildInitDeclAttr(const NInitDecl *decl, char *buf, size_t size) {
     char tmp[128];
-    buf[0] = '';
-    if (decl == NULL) return;
+    buf[0] = '\0';
+    if (decl == NULL) {
+        return;
+    }
     if (decl->resolved_symbol_id >= 0) {
         snprintf(tmp, sizeof(tmp), "%d", decl->resolved_symbol_id);
         AppendAttr(buf, size, "sym", tmp);
@@ -171,16 +201,20 @@ static void BuildInitDeclAttr(const NInitDecl *decl, char *buf, size_t size) {
 }
 
 static void BuildFuncAttr(const NFuncDef *func, char *buf, size_t size) {
-    buf[0] = '';
-    if (func == NULL) return;
+    buf[0] = '\0';
+    if (func == NULL) {
+        return;
+    }
     if (func->jvm_descriptor != NULL) {
         AppendAttr(buf, size, "desc", func->jvm_descriptor);
     }
 }
 
 static void BuildMethodAttr(const NMethodDef *method, char *buf, size_t size) {
-    buf[0] = '';
-    if (method == NULL) return;
+    buf[0] = '\0';
+    if (method == NULL) {
+        return;
+    }
     if (method->jvm_descriptor != NULL) {
         AppendAttr(buf, size, "desc", method->jvm_descriptor);
     }
@@ -188,21 +222,16 @@ static void BuildMethodAttr(const NMethodDef *method, char *buf, size_t size) {
 
 static void EmitAttrNode(long parent_id, const char *attrs) {
     long attr_id;
-    if (attrs == NULL || attrs[0] == '') return;
-    attr_id = GenerateNodeId();
-    DotPrintf("    node_%ld [label="attrs: %s", shape=note, fontsize=9];
-",
-             attr_id, EscapeString(attrs));
-    DotPrintf("    node_%ld -> node_%ld [style=dashed, label="attrs"];
-",
-             parent_id, attr_id);
-}
+    if (attrs == NULL || attrs[0] == '\0') {
+        return;
     }
-    buffer[j] = '\0';
-    return buffer;
+    attr_id = GenerateNodeId();
+    DotPrintf("    node_%ld [label=\"attrs: %s\", shape=note, fontsize=9];\n",
+              attr_id, EscapeString(attrs));
+    DotPrintf("    node_%ld -> node_%ld [style=dashed, label=\"attrs\"];\n",
+              parent_id, attr_id);
 }
 
-// Получает строковое представление типа базового типа
 static const char* BaseTypeToString(BaseType type) {
     switch (type) {
         case TYPE_INT:      return "int";

@@ -2,7 +2,7 @@
 #define SEMANTIC_TYPES_H
 
 #include <time.h>
-#include "tree_nodes.h"
+#include "../tree_nodes.h"
 
 typedef struct JvmLayoutContext JvmLayoutContext;
 

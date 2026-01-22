@@ -1,0 +1,7 @@
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/jvm-class-builder.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/list_install_components.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/install.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/install/local.dir
+C:/My/VUZ/Kompil/DCompiler/d_language_compiler/full_parser/JVMClassBuilder/out/build/x64-Debug/CMakeFiles/install/strip.dir

@@ -1,0 +1,31 @@
+digraph AST {
+    rankdir=TB;
+    node [shape=box, style=rounded, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    node_0 [label="Program"];
+    node_1 [label="func: main()"];
+    node_2 [label="attrs: desc=()V", shape=note, fontsize=9];
+    node_1 -> node_2 [style=dashed, label="attrs"];
+    node_3 [label="return_type: void"];
+    node_1 -> node_3 [label="return_type"];
+    node_4 [label="compound"];
+    node_5 [label="expr_stmt"];
+    node_6 [label="func_call"];
+    node_6 [label="func_call: writeln"];
+    node_7 [label="string_lit"];
+    node_7 [label="string: \"Hello, world!\""];
+    node_8 [label="attrs: type=string", shape=note, fontsize=9];
+    node_7 -> node_8 [style=dashed, label="attrs"];
+    node_6 -> node_7 [label="arg_0"];
+    node_9 [label="attrs: type=void\nref=method Main.writeln:()V", shape=note, fontsize=9];
+    node_6 -> node_9 [style=dashed, label="attrs"];
+    node_5 -> node_6 [label="expr"];
+    node_10 [label="attrs: scope=2", shape=note, fontsize=9];
+    node_5 -> node_10 [style=dashed, label="attrs"];
+    node_4 -> node_5 [label="stmt_0"];
+    node_11 [label="attrs: scope=1", shape=note, fontsize=9];
+    node_4 -> node_11 [style=dashed, label="attrs"];
+    node_1 -> node_4 [label="body"];
+    node_0 -> node_1 [label="item_0"];
+}

@@ -1,7 +1,7 @@
 #ifndef JVM_LAYOUT_H
 #define JVM_LAYOUT_H
 
-#include "tree_nodes.h"
+#include "../tree_nodes.h"
 
 typedef struct JvmLayoutContext {
     int reserved;

@@ -4,7 +4,7 @@
 #include "type_inference.h"
 #include "name_resolution.h"
 #include "error_reporting.h"
-#include "ast_builder.h"
+#include "../ast_builder.h"
 
 static int GetNumericRank(const NType *type, int *rank_out);
 static BaseType RankToBaseType(int rank);
