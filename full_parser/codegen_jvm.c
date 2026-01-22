@@ -1434,6 +1434,46 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                     return jvmc_code_array_length(code);
                 }
+                if (strcmp(fname, "__slice") == 0 && expr->value.func_call.arg_count == 3) {
+                    NExpr *arr = expr->value.func_call.args[0];
+                    NExpr *start = expr->value.func_call.args[1];
+                    NExpr *end = expr->value.func_call.args[2];
+                    char *arr_desc = NULL;
+                    jvmc_methodref *mref = NULL;
+                    jvmc_class_ref *cref = NULL;
+                    if (arr == NULL || start == NULL || end == NULL) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, start, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, end, params, body, ctx)) {
+                        return 0;
+                    }
+                    mref = jvmc_class_get_or_create_methodref(cls,
+                                                              "dlang/Runtime",
+                                                              "__slice",
+                                                              "(Ljava/lang/Object;II)Ljava/lang/Object;");
+                    if (mref == NULL) {
+                        return 0;
+                    }
+                    if (!jvmc_code_invokestatic(code, mref)) {
+                        return 0;
+                    }
+                    arr_desc = BuildJvmTypeDescriptor(arr->inferred_type);
+                    if (arr_desc == NULL) {
+                        return 0;
+                    }
+                    cref = jvmc_class_get_or_create_class_ref(cls, arr_desc);
+                    free(arr_desc);
+                    if (cref == NULL) {
+                        return 0;
+                    }
+                    return jvmc_code_checkcast(code, cref);
+                }
                 if (strcmp(fname, "__append") == 0 && expr->value.func_call.arg_count == 2) {
                     NExpr *arr = expr->value.func_call.args[0];
                     NExpr *rhs = expr->value.func_call.args[1];

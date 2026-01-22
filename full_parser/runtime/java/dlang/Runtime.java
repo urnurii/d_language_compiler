@@ -21,6 +21,28 @@ public final class Runtime {
         }
     }
 
+    public static Object __slice(Object arr, int start, int end) {
+        if (arr == null) {
+            return null;
+        }
+        Class<?> cls = arr.getClass();
+        if (!cls.isArray()) {
+            return null;
+        }
+        int len = java.lang.reflect.Array.getLength(arr);
+        int s = start;
+        int e = end;
+        if (s < 0) s = 0;
+        if (e > len) e = len;
+        if (e < s) e = s;
+        int outLen = e - s;
+        Object out = java.lang.reflect.Array.newInstance(cls.getComponentType(), outLen);
+        if (outLen > 0) {
+            System.arraycopy(arr, s, out, 0, outLen);
+        }
+        return out;
+    }
+
     public static int readf(String fmt, Object... args) {
         if (fmt == null || args == null) {
             return 0;

@@ -497,6 +497,13 @@ int jvmc_code_if_not_null(jvmc_code *code, jvmc_label *label) {
     return AddInstruction(code->impl, code->impl->IfNotNull(label->impl));
 }
 
+int jvmc_code_checkcast(jvmc_code *code, jvmc_class_ref *class_ref) {
+    if (code == nullptr || code->impl == nullptr || class_ref == nullptr) {
+        return 0;
+    }
+    return AddInstruction(code->impl, code->impl->CheckCast(class_ref->impl));
+}
+
 int jvmc_code_set_max_stack(jvmc_code *code, uint16_t value) {
     if (code == nullptr || code->impl == nullptr) {
         return 0;
