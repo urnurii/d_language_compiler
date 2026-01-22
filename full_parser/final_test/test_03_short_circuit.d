@@ -1,6 +1,6 @@
 bool hi(bool a, int b)
 {
-    writef("hello, %d", b);
+    writef("hello, %d\n", b);
     return a;
 }
 
