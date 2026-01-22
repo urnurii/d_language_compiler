@@ -534,6 +534,55 @@ static int EmitReadlnCall(jvmc_class *cls, jvmc_code *code) {
     return jvmc_code_invokestatic(code, mref);
 }
 
+static int EmitNumericCast(jvmc_code *code, const NType *from, const NType *to) {
+    if (code == NULL || from == NULL || to == NULL) {
+        return 0;
+    }
+    if (from->kind != TYPE_KIND_BASE || to->kind != TYPE_KIND_BASE) {
+        return 1;
+    }
+    if (from->base_type == to->base_type) {
+        return 1;
+    }
+    switch (to->base_type) {
+        case TYPE_FLOAT:
+            switch (from->base_type) {
+                case TYPE_INT:
+                case TYPE_CHAR:
+                    return jvmc_code_i2f(code);
+                case TYPE_DOUBLE:
+                case TYPE_REAL:
+                    return jvmc_code_d2f(code);
+                default:
+                    return 1;
+            }
+        case TYPE_DOUBLE:
+        case TYPE_REAL:
+            switch (from->base_type) {
+                case TYPE_INT:
+                case TYPE_CHAR:
+                    return jvmc_code_i2d(code);
+                case TYPE_FLOAT:
+                    return jvmc_code_f2d(code);
+                default:
+                    return 1;
+            }
+        case TYPE_INT:
+        case TYPE_CHAR:
+            switch (from->base_type) {
+                case TYPE_FLOAT:
+                    return jvmc_code_f2i(code);
+                case TYPE_DOUBLE:
+                case TYPE_REAL:
+                    return jvmc_code_d2i(code);
+                default:
+                    return 1;
+            }
+        default:
+            return 1;
+    }
+}
+
 static int EmitBoxIfNeeded(jvmc_class *cls, jvmc_code *code, const NType *type) {
     jvmc_methodref *mref = NULL;
     if (code == NULL || cls == NULL || type == NULL) {
@@ -1927,6 +1976,19 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return EmitLoadByType(code, type, slot);
             }
             return EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type);
+        case EXPR_PAREN:
+            return CodegenEmitExpr(cls, code, expr->value.inner_expr, params, body, ctx);
+        case EXPR_CAST:
+            if (expr->value.cast.expr == NULL) {
+                return 0;
+            }
+            if (!CodegenEmitExpr(cls, code, expr->value.cast.expr, params, body, ctx)) {
+                return 0;
+            }
+            return EmitNumericCast(code,
+                                   expr->value.cast.expr->inferred_type,
+                                   expr->value.cast.target_type != NULL ?
+                                       expr->value.cast.target_type : expr->inferred_type);
         case EXPR_ARRAY_ACCESS: {
             NExpr *arr = expr->value.array_access.array;
             NExpr *idx = expr->value.array_access.index;

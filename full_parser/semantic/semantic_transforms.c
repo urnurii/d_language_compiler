@@ -3,6 +3,7 @@
 #include "type_inference.h"
 #include "name_resolution.h"
 #include <stdio.h>
+#include <string.h>
 
 static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls);
 static int NormalizeArrayTypeInParams(NParamList *params);
@@ -29,6 +30,11 @@ static NExpr *CloneExpr(const NExpr *expr);
 static int ExpandDefaultArgsForFuncCall(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForMethodCall(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForSuperMethod(NExpr *expr, SemanticContext *ctx);
+static int GetNumericRankLocal(const NType *type, int *rank_out);
+static BaseType RankToBaseTypeLocal(int rank);
+static int BuildNumericPromotionType(const NType *left, const NType *right, NType *out);
+
+static NType *current_return_type = NULL;
 
 int TransformProgram(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -49,7 +55,9 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
                     NormalizeArrayType(item->value.func->return_type);
                     NormalizeArrayTypeInParams(item->value.func->params);
                     if (item->value.func->body) {
+                        current_return_type = item->value.func->return_type;
                         TransformStatement(item->value.func->body, ctx);
+                        current_return_type = NULL;
                     }
                 }
                 break;
@@ -63,14 +71,18 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
                         NormalizeArrayType(member->value.method->return_type);
                         NormalizeArrayTypeInParams(member->value.method->params);
                         if (member->value.method->body) {
+                            current_return_type = member->value.method->return_type;
                             TransformStatement(member->value.method->body, ctx);
+                            current_return_type = NULL;
                         }
                     } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
                         NormalizeArrayTypeInParams(member->value.ctor->params);
                         if (member->value.ctor->body) {
+                            current_return_type = NULL;
                             TransformStatement(member->value.ctor->body, ctx);
                         }
                     } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor && member->value.dtor->body) {
+                        current_return_type = NULL;
                         TransformStatement(member->value.dtor->body, ctx);
                     }
                     member = member->next;
@@ -103,8 +115,13 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
     }
     switch (stmt->type) {
         case STMT_EXPR:
+            TransformExpression(stmt->value.expr, ctx);
+            break;
         case STMT_RETURN:
             TransformExpression(stmt->value.expr, ctx);
+            if (stmt->value.expr != NULL && current_return_type != NULL) {
+                TryInsertImplicitCast(&stmt->value.expr, current_return_type, ctx);
+            }
             break;
         case STMT_DECL:
             NormalizeStaticArrayDecl(stmt->value.decl.decl_type, stmt->value.decl.init_decls);
@@ -113,6 +130,9 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
                     if (decl && decl->initializer && decl->initializer->expr) {
                         TransformExpression(decl->initializer->expr, ctx);
+                        TryInsertImplicitCast(&decl->initializer->expr,
+                                              stmt->value.decl.decl_type,
+                                              ctx);
                     }
                 }
             }
@@ -187,6 +207,9 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
         case EXPR_PAREN:
             TransformExpression(expr->value.inner_expr, ctx);
             break;
+        case EXPR_CAST:
+            TransformExpression(expr->value.cast.expr, ctx);
+            break;
         case EXPR_NEW:
             for (int i = 0; i < expr->value.new_expr.init_count; i++) {
                 TransformExpression(expr->value.new_expr.init_exprs[i], ctx);
@@ -232,6 +255,30 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
         case EXPR_BINARY_OP:
             TransformExpression(expr->value.binary.left, ctx);
             TransformExpression(expr->value.binary.right, ctx);
+            if (expr->value.binary.op == OP_PLUS ||
+                expr->value.binary.op == OP_MINUS ||
+                expr->value.binary.op == OP_MUL ||
+                expr->value.binary.op == OP_DIV) {
+                if (expr->inferred_type != NULL && IsNumericType(expr->inferred_type)) {
+                    TryInsertImplicitCast(&expr->value.binary.left, expr->inferred_type, ctx);
+                    TryInsertImplicitCast(&expr->value.binary.right, expr->inferred_type, ctx);
+                }
+            } else if (expr->value.binary.op == OP_EQ ||
+                       expr->value.binary.op == OP_NEQ ||
+                       expr->value.binary.op == OP_LT ||
+                       expr->value.binary.op == OP_LE ||
+                       expr->value.binary.op == OP_GT ||
+                       expr->value.binary.op == OP_GE) {
+                NType promoted;
+                if (BuildNumericPromotionType(expr->value.binary.left ?
+                                                  expr->value.binary.left->inferred_type : NULL,
+                                              expr->value.binary.right ?
+                                                  expr->value.binary.right->inferred_type : NULL,
+                                              &promoted)) {
+                    TryInsertImplicitCast(&expr->value.binary.left, &promoted, ctx);
+                    TryInsertImplicitCast(&expr->value.binary.right, &promoted, ctx);
+                }
+            }
             break;
         case EXPR_ASSIGN:
             TransformAssignment(expr, ctx);
@@ -658,7 +705,13 @@ static int TransformAssignment(NExpr *expr, SemanticContext *ctx) {
         }
     }
     PrepareLValueRValue(expr->value.binary.left, expr->value.binary.right, ctx);
-    TryInsertImplicitCast(&expr->value.binary.right, NULL, ctx);
+    lhs_type = expr->value.binary.left ? expr->value.binary.left->inferred_type : NULL;
+    if (lhs_type == NULL) {
+        lhs_type = InferExpressionTypeSilent(expr->value.binary.left, ctx);
+    }
+    if (lhs_type != NULL) {
+        TryInsertImplicitCast(&expr->value.binary.right, lhs_type, ctx);
+    }
     return 0;
 }
 
@@ -670,10 +723,118 @@ static int PrepareLValueRValue(NExpr *lhs, NExpr *rhs, SemanticContext *ctx) {
 }
 
 static int TryInsertImplicitCast(NExpr **expr_ptr, const NType *target_type, SemanticContext *ctx) {
-    (void)expr_ptr;
-    (void)target_type;
-    (void)ctx;
+    NExpr *expr;
+    NType *source_type;
+    int src_rank = 0;
+    int tgt_rank = 0;
+    if (expr_ptr == NULL || *expr_ptr == NULL || target_type == NULL) {
+        return 0;
+    }
+    expr = *expr_ptr;
+    if (expr->type == EXPR_CAST &&
+        expr->value.cast.target_type != NULL &&
+        TypesEqual(expr->value.cast.target_type, (NType *)target_type)) {
+        return 0;
+    }
+    source_type = expr->inferred_type;
+    if (source_type == NULL) {
+        source_type = InferExpressionTypeSilent(expr, ctx);
+        expr->inferred_type = source_type;
+    }
+    if (source_type == NULL) {
+        return 0;
+    }
+    if (TypesEqual((NType *)target_type, source_type)) {
+        return 0;
+    }
+    if (!IsNumericType((NType *)target_type) || !IsNumericType(source_type)) {
+        return 0;
+    }
+    if (!GetNumericRankLocal(target_type, &tgt_rank) ||
+        !GetNumericRankLocal(source_type, &src_rank)) {
+        return 0;
+    }
+    if (tgt_rank < src_rank) {
+        return 0;
+    }
+    {
+        NType *target_copy = CopyType((NType *)target_type, ctx);
+        NExpr *cast_expr;
+        if (target_copy == NULL) {
+            return 1;
+        }
+        cast_expr = CreateCastExpr(target_copy, expr);
+        if (cast_expr == NULL) {
+            return 1;
+        }
+        cast_expr->line = expr->line;
+        cast_expr->column = expr->column;
+        cast_expr->inferred_type = target_copy;
+        *expr_ptr = cast_expr;
+    }
     return 0;
+}
+
+static int GetNumericRankLocal(const NType *type, int *rank_out) {
+    if (type == NULL || rank_out == NULL) {
+        return 0;
+    }
+    if (type->kind != TYPE_KIND_BASE) {
+        return 0;
+    }
+    switch (type->base_type) {
+        case TYPE_INT:
+        case TYPE_CHAR:
+            *rank_out = 1;
+            return 1;
+        case TYPE_FLOAT:
+            *rank_out = 2;
+            return 1;
+        case TYPE_DOUBLE:
+            *rank_out = 3;
+            return 1;
+        case TYPE_REAL:
+            *rank_out = 4;
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+static BaseType RankToBaseTypeLocal(int rank) {
+    switch (rank) {
+        case 4:
+            return TYPE_REAL;
+        case 3:
+            return TYPE_DOUBLE;
+        case 2:
+            return TYPE_FLOAT;
+        case 1:
+        default:
+            return TYPE_INT;
+    }
+}
+
+static int BuildNumericPromotionType(const NType *left, const NType *right, NType *out) {
+    int left_rank;
+    int right_rank;
+    int max_rank;
+    if (left == NULL || right == NULL || out == NULL) {
+        return 0;
+    }
+    if (!IsNumericType((NType *)left) || !IsNumericType((NType *)right)) {
+        return 0;
+    }
+    if (!GetNumericRankLocal(left, &left_rank) || !GetNumericRankLocal(right, &right_rank)) {
+        return 0;
+    }
+    max_rank = (left_rank > right_rank) ? left_rank : right_rank;
+    memset(out, 0, sizeof(NType));
+    out->kind = TYPE_KIND_BASE;
+    out->base_type = RankToBaseTypeLocal(max_rank);
+    out->class_name = NULL;
+    out->array_decl = NULL;
+    return 1;
 }
 
 static int IsArrayType(const NType *type) {
@@ -733,6 +894,15 @@ static NExpr *CloneExpr(const NExpr *expr) {
             return CreateSuperExpr(expr->value.ident_name);
         case EXPR_PAREN:
             return CreateParenExpr(CloneExpr(expr->value.inner_expr));
+        case EXPR_CAST: {
+            NType *target_copy = CopyTypeNoContext(expr->value.cast.target_type);
+            NExpr *inner = CloneExpr(expr->value.cast.expr);
+            NExpr *cast_expr = CreateCastExpr(target_copy, inner);
+            if (cast_expr != NULL && target_copy != NULL) {
+                cast_expr->inferred_type = target_copy;
+            }
+            return cast_expr;
+        }
         case EXPR_UNARY_OP:
             return CreateUnaryOpExpr(expr->value.unary.op, CloneExpr(expr->value.unary.operand));
         case EXPR_BINARY_OP:

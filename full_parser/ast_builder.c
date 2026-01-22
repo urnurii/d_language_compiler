@@ -313,6 +313,23 @@ NExpr* CreateParenExpr(NExpr *expr) {
     return paren;
 }
 
+NExpr* CreateCastExpr(NType *target_type, NExpr *expr) {
+    NExpr *cast_expr = (NExpr *)malloc(sizeof(NExpr));
+    if (cast_expr == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+
+    cast_expr->type = EXPR_CAST;
+    cast_expr->line = yylineno;
+    cast_expr->column = 0;
+    InitExprAttrs(cast_expr);
+    cast_expr->value.cast.target_type = target_type;
+    cast_expr->value.cast.expr = expr;
+
+    return cast_expr;
+}
+
 NExpr* CreateUnaryOpExpr(OpType op, NExpr *operand) {
     NExpr *expr = (NExpr *)malloc(sizeof(NExpr));
     if (expr == NULL) {

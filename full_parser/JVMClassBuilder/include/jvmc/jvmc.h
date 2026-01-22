@@ -119,6 +119,12 @@ int jvmc_code_add_int(jvmc_code *code);
 int jvmc_code_sub_int(jvmc_code *code);
 int jvmc_code_mul_int(jvmc_code *code);
 int jvmc_code_div_int(jvmc_code *code);
+int jvmc_code_i2f(jvmc_code *code);
+int jvmc_code_i2d(jvmc_code *code);
+int jvmc_code_f2i(jvmc_code *code);
+int jvmc_code_f2d(jvmc_code *code);
+int jvmc_code_d2i(jvmc_code *code);
+int jvmc_code_d2f(jvmc_code *code);
 
 int jvmc_code_dup(jvmc_code *code);
 int jvmc_code_pop(jvmc_code *code);

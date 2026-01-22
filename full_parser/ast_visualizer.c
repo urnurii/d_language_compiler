@@ -286,6 +286,7 @@ static const char* ExprTypeToString(ExprType type) {
         case EXPR_NAN:            return "nan";
         case EXPR_THIS:           return "this";
         case EXPR_PAREN:          return "paren";
+        case EXPR_CAST:           return "cast";
         case EXPR_NEW:            return "new";
         case EXPR_ARRAY_ACCESS:   return "array_access";
         case EXPR_MEMBER_ACCESS:  return "member";
@@ -376,6 +377,22 @@ static long VisualizeExpr(NExpr *expr) {
             long inner_id = VisualizeExpr(expr->value.inner_expr);
             if (inner_id >= 0) {
                 DotPrintf("    node_%ld -> node_%ld [label=\"expr\"];\n", node_id, inner_id);
+            }
+            break;
+        }
+        case EXPR_CAST: {
+            DotPrintf("    node_%ld [label=\"cast\"];\n", node_id);
+            if (expr->value.cast.target_type != NULL) {
+                long type_id = VisualizeType(expr->value.cast.target_type);
+                if (type_id >= 0) {
+                    DotPrintf("    node_%ld -> node_%ld [label=\"type\"];\n", node_id, type_id);
+                }
+            }
+            if (expr->value.cast.expr != NULL) {
+                long expr_id = VisualizeExpr(expr->value.cast.expr);
+                if (expr_id >= 0) {
+                    DotPrintf("    node_%ld -> node_%ld [label=\"expr\"];\n", node_id, expr_id);
+                }
             }
             break;
         }

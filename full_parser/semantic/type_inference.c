@@ -106,6 +106,11 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                 return NULL;
             }
             return CopyType(left_type, ctx);
+        case EXPR_CAST:
+            if (expr->value.cast.target_type == NULL) {
+                return NULL;
+            }
+            return CopyType(expr->value.cast.target_type, ctx);
         case EXPR_UNARY_OP:
             operand_type = InferExpressionTypeInternal(expr->value.unary.operand, ctx, report_errors);
             return InferUnaryOperationType(expr->value.unary.op, operand_type);

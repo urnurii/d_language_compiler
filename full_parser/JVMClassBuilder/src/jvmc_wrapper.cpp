@@ -311,6 +311,30 @@ int jvmc_code_div_int(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;
     return AddInstruction(code->impl, code->impl->DivInt());
 }
+int jvmc_code_i2f(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->IntToFloat());
+}
+int jvmc_code_i2d(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->IntToDouble());
+}
+int jvmc_code_f2i(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->FloatToInt());
+}
+int jvmc_code_f2d(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->FloatToDouble());
+}
+int jvmc_code_d2i(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->DoubleToInt());
+}
+int jvmc_code_d2f(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->DoubleToFloat());
+}
 
 int jvmc_code_dup(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) return 0;

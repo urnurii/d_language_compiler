@@ -30,6 +30,7 @@ NExpr* CreateThisExpr(void);
 // ----- Функции для выражений - операции -----
 
 NExpr* CreateParenExpr(NExpr *expr);
+NExpr* CreateCastExpr(NType *target_type, NExpr *expr);
 NExpr* CreateUnaryOpExpr(OpType op, NExpr *operand);
 NExpr* CreateBinaryOpExpr(OpType op, NExpr *left, NExpr *right);
 NExpr* CreateAssignExpr(OpType op, NExpr *left, NExpr *right);

@@ -42,6 +42,7 @@ typedef enum {
     EXPR_NAN,
     EXPR_THIS,
     EXPR_PAREN,          // (expr)
+    EXPR_CAST,           // (type) expr (неявное/явное приведение)
     EXPR_NEW,
     EXPR_ARRAY_ACCESS,   // expr[expr] или expr[expr..expr]
     EXPR_MEMBER_ACCESS,  // expr.IDENT
@@ -137,6 +138,12 @@ typedef struct NExpr {
         char char_value;           // EXPR_CHAR
         char *string_value;        // EXPR_STRING
         struct NExpr *inner_expr;  // EXPR_PAREN
+
+        // EXPR_CAST
+        struct {
+            struct NType *target_type;
+            struct NExpr *expr;
+        } cast;
         
         // EXPR_NEW
         struct {
