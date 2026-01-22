@@ -179,6 +179,8 @@ int jvmc_code_label_place(jvmc_code *code, jvmc_label *label);
 int jvmc_code_goto(jvmc_code *code, jvmc_label *label);
 int jvmc_code_if(jvmc_code *code, jvmc_compare cmp, jvmc_label *label);
 int jvmc_code_if_icmp(jvmc_code *code, jvmc_compare cmp, jvmc_label *label);
+int jvmc_code_if_acmp_eq(jvmc_code *code, jvmc_label *label);
+int jvmc_code_if_acmp_ne(jvmc_code *code, jvmc_label *label);
 int jvmc_code_if_null(jvmc_code *code, jvmc_label *label);
 int jvmc_code_if_not_null(jvmc_code *code, jvmc_label *label);
 
