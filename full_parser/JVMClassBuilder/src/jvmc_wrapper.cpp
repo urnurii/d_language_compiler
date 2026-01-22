@@ -389,6 +389,50 @@ int jvmc_code_new(jvmc_code *code, jvmc_class_ref *class_ref) {
     return AddInstruction(code->impl, code->impl->New(class_ref->impl));
 }
 
+int jvmc_code_newarray_primitive(jvmc_code *code, uint8_t type) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->NewArray(static_cast<jvm::Instruction::Type>(type)));
+}
+
+int jvmc_code_newarray_ref(jvmc_code *code, jvmc_class_ref *class_ref) {
+    if (code == nullptr || code->impl == nullptr || class_ref == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->NewArray(class_ref->impl));
+}
+
+int jvmc_code_array_load_int(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->LoadIntFromArray());
+}
+int jvmc_code_array_load_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->LoadFloatFromArray());
+}
+int jvmc_code_array_load_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->LoadDoubleFromArray());
+}
+int jvmc_code_array_load_ref(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->LoadReferenceFromArray());
+}
+
+int jvmc_code_array_store_int(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->StoreIntToArray());
+}
+int jvmc_code_array_store_float(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->StoreFloatToArray());
+}
+int jvmc_code_array_store_double(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->StoreDoubleToArray());
+}
+int jvmc_code_array_store_ref(jvmc_code *code) {
+    if (code == nullptr || code->impl == nullptr) return 0;
+    return AddInstruction(code->impl, code->impl->StoreReferenceToArray());
+}
+
 jvmc_label *jvmc_code_label_create(jvmc_code *code) {
     if (code == nullptr || code->impl == nullptr) {
         return nullptr;

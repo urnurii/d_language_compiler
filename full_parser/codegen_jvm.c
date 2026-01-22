@@ -763,6 +763,245 @@ static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExp
     return jvmc_code_label_place(code, label_end);
 }
 
+static int FindMaxSlotInStmtList(NStmt *stmts);
+
+static int FindMaxSlotInStmt(NStmt *stmt) {
+    int max = -1;
+    if (stmt == NULL) {
+        return -1;
+    }
+    switch (stmt->type) {
+        case STMT_DECL:
+            if (stmt->value.decl.init_decls) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->jvm_slot_index > max) {
+                        max = decl->jvm_slot_index;
+                    }
+                }
+            }
+            break;
+        case STMT_COMPOUND: {
+            int inner = FindMaxSlotInStmtList(stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL);
+            if (inner > max) {
+                max = inner;
+            }
+            break;
+        }
+        case STMT_IF: {
+            int a = FindMaxSlotInStmt(stmt->value.if_stmt.then_stmt);
+            int b = FindMaxSlotInStmt(stmt->value.if_stmt.else_stmt);
+            if (a > max) max = a;
+            if (b > max) max = b;
+            break;
+        }
+        case STMT_WHILE:
+            max = FindMaxSlotInStmt(stmt->value.while_stmt.body);
+            break;
+        case STMT_DO_WHILE:
+            max = FindMaxSlotInStmt(stmt->value.do_while_stmt.body);
+            break;
+        case STMT_FOR:
+            if (stmt->value.for_stmt.init_decls) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->jvm_slot_index > max) {
+                        max = decl->jvm_slot_index;
+                    }
+                }
+            }
+            {
+                int inner = FindMaxSlotInStmt(stmt->value.for_stmt.body);
+                if (inner > max) {
+                    max = inner;
+                }
+            }
+            break;
+        case STMT_FOREACH:
+            max = FindMaxSlotInStmt(stmt->value.foreach_stmt.body);
+            break;
+        case STMT_SWITCH:
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                int inner = FindMaxSlotInStmtList(item && item->stmts ? item->stmts->first : NULL);
+                if (inner > max) {
+                    max = inner;
+                }
+            }
+            break;
+        case STMT_EXPR:
+        case STMT_RETURN:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+    return max;
+}
+
+static int FindMaxSlotInStmtList(NStmt *stmts) {
+    int max = -1;
+    NStmt *cur = stmts;
+    while (cur != NULL) {
+        int local = FindMaxSlotInStmt(cur);
+        if (local > max) {
+            max = local;
+        }
+        cur = cur->next;
+    }
+    return max;
+}
+
+static int FindMaxSlot(NParamList *params, NStmt *body) {
+    int max = -1;
+    if (params != NULL) {
+        for (int i = 0; i < params->count; i++) {
+            NParam *param = params->params[i];
+            if (param && param->jvm_slot_index > max) {
+                max = param->jvm_slot_index;
+            }
+        }
+    }
+    {
+        int body_max = FindMaxSlotInStmt(body);
+        if (body_max > max) {
+            max = body_max;
+        }
+    }
+    return max;
+}
+
+static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *type) {
+    if (code == NULL || type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_CLASS) {
+        char *internal = BuildJvmInternalName(type->class_name);
+        jvmc_class_ref *cref;
+        if (internal == NULL) {
+            return 0;
+        }
+        cref = jvmc_class_get_or_create_class_ref(cls, internal);
+        free(internal);
+        if (cref == NULL) {
+            return 0;
+        }
+        return jvmc_code_newarray_ref(code, cref);
+    }
+    if (type->kind == TYPE_KIND_BASE) {
+        switch (type->base_type) {
+            case TYPE_BOOL:
+            case TYPE_CHAR:
+            case TYPE_INT:
+                return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_INT);
+            case TYPE_FLOAT:
+                return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_FLOAT);
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+                return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_DOUBLE);
+            case TYPE_STRING: {
+                jvmc_class_ref *cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/String");
+                if (cref == NULL) {
+                    return 0;
+                }
+                return jvmc_code_newarray_ref(code, cref);
+            }
+            default:
+                return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_INT);
+        }
+    }
+    return 0;
+}
+
+static int EmitArrayStoreForType(jvmc_code *code, const NType *type) {
+    if (code == NULL || type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_CLASS || (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING)) {
+        return jvmc_code_array_store_ref(code);
+    }
+    if (type->kind == TYPE_KIND_BASE) {
+        switch (type->base_type) {
+            case TYPE_FLOAT:
+                return jvmc_code_array_store_float(code);
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+                return jvmc_code_array_store_double(code);
+            default:
+                return jvmc_code_array_store_int(code);
+        }
+    }
+    return jvmc_code_array_store_ref(code);
+}
+
+static int EmitArrayLoadForType(jvmc_code *code, const NType *type) {
+    if (code == NULL || type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_CLASS || (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING)) {
+        return jvmc_code_array_load_ref(code);
+    }
+    if (type->kind == TYPE_KIND_BASE) {
+        switch (type->base_type) {
+            case TYPE_FLOAT:
+                return jvmc_code_array_load_float(code);
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+                return jvmc_code_array_load_double(code);
+            default:
+                return jvmc_code_array_load_int(code);
+        }
+    }
+    return jvmc_code_array_load_ref(code);
+}
+
+static int TypeSlotWidth(const NType *type) {
+    if (type == NULL) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_BASE) {
+        if (type->base_type == TYPE_DOUBLE || type->base_type == TYPE_REAL) {
+            return 2;
+        }
+    }
+    return 1;
+}
+
+static int EmitLoadLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, NParamList *params, NStmt *body,
+                          SemanticContext *ctx, NType **type_out) {
+    int slot = -1;
+    NType *type = NULL;
+    if (lhs == NULL || code == NULL) {
+        return 0;
+    }
+    if (lhs->type == EXPR_IDENT) {
+        if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &type)) {
+            if (type_out) *type_out = type;
+            return EmitLoadByType(code, type, slot);
+        }
+        if (EmitGlobalLoad(cls, code, ctx, lhs->value.ident_name, &type)) {
+            if (type_out) *type_out = type;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const NType *type,
+                           NParamList *params, NStmt *body, SemanticContext *ctx) {
+    int slot = -1;
+    NType *resolved = (NType *)type;
+    if (lhs == NULL || code == NULL) {
+        return 0;
+    }
+    if (lhs->type == EXPR_IDENT) {
+        if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &resolved)) {
+            return EmitStoreByType(code, resolved, slot);
+        }
+        return EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved);
+    }
+    return 0;
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx) {
     int slot = -1;
@@ -806,23 +1045,236 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     return EmitReadlnCall(cls, code);
                 }
             }
-            for (int i = 0; i < expr->value.func_call.arg_count; i++) {
-                if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[i], params, body, ctx)) {
+            {
+                FunctionInfo *func = LookupFunctionOverload(ctx,
+                                                            expr->value.func_call.func_name,
+                                                            expr->value.func_call.args,
+                                                            expr->value.func_call.arg_count,
+                                                            NULL);
+                NParamList *call_params = func ? func->params : NULL;
+                int arg_count = expr->value.func_call.arg_count;
+                int *ref_slots = NULL;
+                int temp_base = FindMaxSlot(params, body) + 1;
+                int temp_ret = -1;
+                int ret_width = TypeSlotWidth(expr->inferred_type);
+                if (arg_count > 0) {
+                    ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
+                    if (ref_slots == NULL) {
+                        return 0;
+                    }
+                    for (int i = 0; i < arg_count; i++) {
+                        ref_slots[i] = -1;
+                    }
+                }
+                for (int i = 0; i < arg_count; i++) {
+                    NExpr *arg = expr->value.func_call.args[i];
+                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
+                    if (param && param->is_ref) {
+                        int temp_slot = temp_base++;
+                        if (!jvmc_code_push_int(code, 1)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitNewArrayForType(cls, code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_store_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 0)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitLoadLValue(cls, code, arg, params, body, ctx, NULL)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitArrayStoreForType(code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        ref_slots[i] = temp_slot;
+                    } else {
+                        if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                    }
+                }
+                if (!EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 1)) {
+                    free(ref_slots);
                     return 0;
                 }
+                if (expr->inferred_type != NULL &&
+                    !(expr->inferred_type->kind == TYPE_KIND_BASE && expr->inferred_type->base_type == TYPE_VOID)) {
+                    temp_ret = temp_base;
+                    temp_base += ret_width;
+                    if (!EmitStoreByType(code, expr->inferred_type, temp_ret)) {
+                        free(ref_slots);
+                        return 0;
+                    }
+                }
+                for (int i = 0; i < arg_count; i++) {
+                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
+                    if (param && param->is_ref && ref_slots && ref_slots[i] >= 0) {
+                        if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 0)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitArrayLoadForType(code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitStoreLValue(cls, code, expr->value.func_call.args[i], param->param_type,
+                                             params, body, ctx)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                    }
+                }
+                if (temp_ret >= 0) {
+                    if (!EmitLoadByType(code, expr->inferred_type, temp_ret)) {
+                        free(ref_slots);
+                        return 0;
+                    }
+                }
+                free(ref_slots);
             }
-            return EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 1);
+            return 1;
         }
         case EXPR_METHOD_CALL: {
+            MethodInfo *method_info = NULL;
+            NType *obj_type = expr->value.member_access.object
+                ? expr->value.member_access.object->inferred_type
+                : NULL;
+            if (obj_type && obj_type->kind == TYPE_KIND_CLASS && obj_type->class_name) {
+                ClassInfo *cls_info = LookupClass(ctx, obj_type->class_name);
+                if (cls_info != NULL) {
+                    method_info = LookupClassMethod(cls_info, expr->value.member_access.member_name);
+                }
+            }
             if (!CodegenEmitExpr(cls, code, expr->value.member_access.object, params, body, ctx)) {
                 return 0;
             }
-            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
-                if (!CodegenEmitExpr(cls, code, expr->value.member_access.args[i], params, body, ctx)) {
+            {
+                NParamList *call_params = method_info ? method_info->params : NULL;
+                int arg_count = expr->value.member_access.arg_count;
+                int *ref_slots = NULL;
+                int temp_base = FindMaxSlot(params, body) + 1;
+                int temp_ret = -1;
+                int ret_width = TypeSlotWidth(expr->inferred_type);
+                if (arg_count > 0) {
+                    ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
+                    if (ref_slots == NULL) {
+                        return 0;
+                    }
+                    for (int i = 0; i < arg_count; i++) {
+                        ref_slots[i] = -1;
+                    }
+                }
+                for (int i = 0; i < arg_count; i++) {
+                    NExpr *arg = expr->value.member_access.args[i];
+                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
+                    if (param && param->is_ref) {
+                        int temp_slot = temp_base++;
+                        if (!jvmc_code_push_int(code, 1)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitNewArrayForType(cls, code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_store_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 0)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitLoadLValue(cls, code, arg, params, body, ctx, NULL)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitArrayStoreForType(code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        ref_slots[i] = temp_slot;
+                    } else {
+                        if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                    }
+                }
+                if (!EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 0)) {
+                    free(ref_slots);
                     return 0;
                 }
+                if (expr->inferred_type != NULL &&
+                    !(expr->inferred_type->kind == TYPE_KIND_BASE && expr->inferred_type->base_type == TYPE_VOID)) {
+                    temp_ret = temp_base;
+                    temp_base += ret_width;
+                    if (!EmitStoreByType(code, expr->inferred_type, temp_ret)) {
+                        free(ref_slots);
+                        return 0;
+                    }
+                }
+                for (int i = 0; i < arg_count; i++) {
+                    NParam *param = (call_params && i < call_params->count) ? call_params->params[i] : NULL;
+                    if (param && param->is_ref && ref_slots && ref_slots[i] >= 0) {
+                        if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 0)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitArrayLoadForType(code, param->param_type)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                        if (!EmitStoreLValue(cls, code, expr->value.member_access.args[i], param->param_type,
+                                             params, body, ctx)) {
+                            free(ref_slots);
+                            return 0;
+                        }
+                    }
+                }
+                if (temp_ret >= 0) {
+                    if (!EmitLoadByType(code, expr->inferred_type, temp_ret)) {
+                        free(ref_slots);
+                        return 0;
+                    }
+                }
+                free(ref_slots);
             }
-            return EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 0);
+            return 1;
         }
         case EXPR_UNARY_OP: {
             if (expr->value.unary.operand == NULL) {

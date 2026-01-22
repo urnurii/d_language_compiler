@@ -57,6 +57,17 @@ typedef enum {
 } jvmc_field_access;
 
 typedef enum {
+    JVMC_NEWARRAY_BOOLEAN = 4,
+    JVMC_NEWARRAY_CHAR = 5,
+    JVMC_NEWARRAY_FLOAT = 6,
+    JVMC_NEWARRAY_DOUBLE = 7,
+    JVMC_NEWARRAY_BYTE = 8,
+    JVMC_NEWARRAY_SHORT = 9,
+    JVMC_NEWARRAY_INT = 10,
+    JVMC_NEWARRAY_LONG = 11
+} jvmc_newarray_type;
+
+typedef enum {
     JVMC_CMP_EQ,
     JVMC_CMP_NE,
     JVMC_CMP_LT,
@@ -131,6 +142,16 @@ int jvmc_code_invokestatic(jvmc_code *code, jvmc_methodref *method);
 int jvmc_code_invokeinterface(jvmc_code *code, jvmc_iface_methodref *method);
 
 int jvmc_code_new(jvmc_code *code, jvmc_class_ref *class_ref);
+int jvmc_code_newarray_primitive(jvmc_code *code, uint8_t type);
+int jvmc_code_newarray_ref(jvmc_code *code, jvmc_class_ref *class_ref);
+int jvmc_code_array_load_int(jvmc_code *code);
+int jvmc_code_array_load_float(jvmc_code *code);
+int jvmc_code_array_load_double(jvmc_code *code);
+int jvmc_code_array_load_ref(jvmc_code *code);
+int jvmc_code_array_store_int(jvmc_code *code);
+int jvmc_code_array_store_float(jvmc_code *code);
+int jvmc_code_array_store_double(jvmc_code *code);
+int jvmc_code_array_store_ref(jvmc_code *code);
 
 jvmc_label *jvmc_code_label_create(jvmc_code *code);
 int jvmc_code_label_place(jvmc_code *code, jvmc_label *label);
