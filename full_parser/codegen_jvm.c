@@ -223,6 +223,27 @@ static int CodegenAddMethodStub(jvmc_class *cls, const char *name, const char *d
     return CodegenEmitEmptyReturn(code, descriptor);
 }
 
+static int CodegenAddMethodAbstract(jvmc_class *cls, const char *name, const char *descriptor,
+                                    uint16_t access_flags, int is_static) {
+    jvmc_method *method = NULL;
+    if (cls == NULL || name == NULL || descriptor == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, name, descriptor);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, access_flags)) {
+        return 0;
+    }
+    if (is_static) {
+        if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+            return 0;
+        }
+    }
+    return jvmc_method_add_flag(method, JVMC_METHOD_ACC_ABSTRACT);
+}
+
 static int ResolveVariableSlotInStmt(NStmt *stmt, const char *name, int *slot_out, NType **type_out) {
     if (stmt == NULL || name == NULL) {
         return 0;
@@ -3269,6 +3290,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     int ok = 1;
     int has_ctor = 0;
     int has_enum = 0;
+    int has_abstract = 0;
 
     (void)ctx;
 
@@ -3336,13 +3358,16 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                     jvmc_class_destroy(cls);
                     return 1;
                 }
-            } else if (!CodegenAddMethodStub(cls,
-                                             member->value.method->method_name,
-                                             desc,
-                                             access,
-                                             0)) {
-                jvmc_class_destroy(cls);
-                return 1;
+            } else {
+                has_abstract = 1;
+                if (!CodegenAddMethodAbstract(cls,
+                                              member->value.method->method_name,
+                                              desc,
+                                              access,
+                                              0)) {
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
             }
         } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
             has_ctor = 1;
@@ -3362,6 +3387,12 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
 
     if (!has_ctor) {
         if (!CodegenEmitDefaultCtor(cls, class_def, ctx)) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+    }
+    if (has_abstract) {
+        if (!jvmc_class_add_flag(cls, JVMC_CLASS_ACC_ABSTRACT)) {
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -3489,11 +3520,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                 jvmc_class_destroy(cls);
                                 return 1;
                             }
-                        } else if (!CodegenAddMethodStub(cls,
-                                                         item->value.func->func_name,
-                                                         item->value.func->jvm_descriptor,
-                                                         JVMC_METHOD_ACC_PUBLIC,
-                                                         1)) {
+                        } else {
                             jvmc_class_destroy(cls);
                             return 1;
                         }

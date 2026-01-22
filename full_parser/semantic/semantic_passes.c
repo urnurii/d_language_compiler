@@ -847,6 +847,17 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
     info->line = 0;
     info->column = 0;
 
+    if (func_def->body == NULL) {
+        if (ctx->errors != NULL) {
+            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                  "Function prototype without body is not supported for JVM target",
+                                                  func_def->line,
+                                                  func_def->column);
+            AddError(ctx->errors, &err);
+        }
+        had_error = 1;
+    }
+
     if (AddFunctionToContext(ctx, info) != 0) {
         return 1;
     }
