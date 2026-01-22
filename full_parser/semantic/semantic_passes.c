@@ -851,8 +851,8 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
         if (ctx->errors != NULL) {
             SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
                                                   "Function prototype without body is not supported for JVM target",
-                                                  func_def->line,
-                                                  func_def->column);
+                                                  0,
+                                                  0);
             AddError(ctx->errors, &err);
         }
         had_error = 1;
@@ -2226,6 +2226,26 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             }
             break;
         }
+        case EXPR_CAST:
+            if (expr->value.cast.expr != NULL) {
+                if (CheckExpression(expr->value.cast.expr, ctx) != 0) {
+                    had_error = 1;
+                }
+            }
+            if (expr->value.cast.target_type != NULL &&
+                (expr->value.cast.target_type->kind == TYPE_KIND_CLASS ||
+                 expr->value.cast.target_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                if (LookupClass(ctx, expr->value.cast.target_type->class_name) == NULL) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateUndefinedTypeError(expr->value.cast.target_type->class_name,
+                                                                    expr->line,
+                                                                    expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                }
+            }
+            break;
         case EXPR_FUNC_CALL: {
             int ambiguous = 0;
             FunctionInfo *func = LookupFunctionOverload(ctx,
@@ -3243,6 +3263,9 @@ int AttributeExpressions(NExpr *root, SemanticContext *ctx) {
         case EXPR_PAREN:
             AttributeExpressions(root->value.inner_expr, ctx);
             break;
+        case EXPR_CAST:
+            AttributeExpressions(root->value.cast.expr, ctx);
+            break;
         case EXPR_NEW:
             for (int i = 0; i < root->value.new_expr.init_count; i++) {
                 AttributeExpressions(root->value.new_expr.init_exprs[i], ctx);
@@ -3653,6 +3676,9 @@ static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx) {
         case EXPR_PAREN:
             AttributeJvmRefKeysInExpr(expr->value.inner_expr, ctx);
             break;
+        case EXPR_CAST:
+            AttributeJvmRefKeysInExpr(expr->value.cast.expr, ctx);
+            break;
         case EXPR_IDENT:
         case EXPR_INT:
         case EXPR_FLOAT:
@@ -3662,7 +3688,6 @@ static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx) {
         case EXPR_NULL:
         case EXPR_NAN:
         case EXPR_THIS:
-        case EXPR_SUPER:
             break;
     }
     return 0;

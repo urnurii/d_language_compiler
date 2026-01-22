@@ -3,6 +3,7 @@
 #include "semantic/jvm_layout.h"
 #include "semantic/jvm_codegen_helpers.h"
 #include "semantic/name_resolution.h"
+#include "ast_builder.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -18,6 +19,9 @@ typedef struct {
     int continue_count;
     int continue_capacity;
 } FlowContext;
+
+static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params,
+                               int *return_emitted, SemanticContext *ctx, FlowContext *flow);
 
 static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
                            AccessSpec access, SemanticContext *ctx);
@@ -2163,6 +2167,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                 }
                 for (int i = 0; i < arg_count; i++) {
+                    NExpr *arg = expr->value.func_call.args[i];
                     int is_ref = (expr->resolved_arg_is_ref != NULL &&
                                   i < expr->resolved_arg_count &&
                                   expr->resolved_arg_is_ref[i] != 0);
@@ -2277,6 +2282,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                 }
                 for (int i = 0; i < arg_count; i++) {
+                    NExpr *arg = expr->value.member_access.args[i];
                     int is_ref = (expr->resolved_arg_is_ref != NULL &&
                                   i < expr->resolved_arg_count &&
                                   expr->resolved_arg_is_ref[i] != 0);
