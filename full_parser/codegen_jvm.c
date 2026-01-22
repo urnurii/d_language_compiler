@@ -1645,7 +1645,11 @@ static int MaxTempSlotsInStmt(NStmt *stmt) {
         case STMT_FOREACH: {
             int a = MaxTempSlotsInExpr(stmt->value.foreach_stmt.collection);
             int b = MaxTempSlotsInStmt(stmt->value.foreach_stmt.body);
-            return (a > b) ? a : b;
+            int max_local = (a > b) ? a : b;
+            if (max_local < 3) {
+                max_local = 3;
+            }
+            return max_local;
         }
         case STMT_SWITCH: {
             int a = MaxTempSlotsInExpr(stmt->value.switch_stmt.expr);
@@ -2185,24 +2189,34 @@ static int EmitArrayLiteral(jvmc_class *cls, jvmc_code *code, const NType *decl_
         return 0;
     }
     if (!GetElementTypeFromArray(decl_type, &elem_type)) {
+        CodegenReportFail("EmitArrayLiteral: element type failed");
         return 0;
     }
     if (!jvmc_code_push_int(code, init->array_init.count)) {
+        CodegenReportFail("EmitArrayLiteral: push count failed");
         return 0;
     }
     if (!EmitNewArrayForType(cls, code, &elem_type)) {
+        CodegenReportFail("EmitArrayLiteral: newarray failed");
         return 0;
     }
     if (static_field_name != NULL && static_desc != NULL) {
         jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
         if (fref == NULL) {
+            CodegenReportFail("EmitArrayLiteral: fieldref failed");
             return 0;
         }
         if (!jvmc_code_putstatic(code, fref)) {
+            CodegenReportFail("EmitArrayLiteral: putstatic failed");
             return 0;
         }
     } else {
+        if (store_slot < 0) {
+            CodegenReportFail("EmitArrayLiteral: invalid store slot");
+            return 0;
+        }
         if (!jvmc_code_store_ref(code, (uint16_t)store_slot)) {
+            CodegenReportFail("EmitArrayLiteral: store array failed");
             return 0;
         }
     }
@@ -2210,29 +2224,36 @@ static int EmitArrayLiteral(jvmc_class *cls, jvmc_code *code, const NType *decl_
         if (static_field_name != NULL && static_desc != NULL) {
             jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
             if (fref == NULL) {
+                CodegenReportFail("EmitArrayLiteral: fieldref reload failed");
                 return 0;
             }
             if (!jvmc_code_getstatic(code, fref)) {
+                CodegenReportFail("EmitArrayLiteral: getstatic failed");
                 return 0;
             }
         } else {
             if (!jvmc_code_load_ref(code, (uint16_t)store_slot)) {
+                CodegenReportFail("EmitArrayLiteral: load array failed");
                 return 0;
             }
         }
         if (!jvmc_code_push_int(code, i)) {
+            CodegenReportFail("EmitArrayLiteral: push index failed");
             return 0;
         }
         if (!CodegenEmitExpr(cls, code, init->array_init.elements[i], params, body, ctx)) {
+            fprintf(stderr, "[CODEGEN ERROR] EmitArrayLiteral: element emit failed at index %d\n", i);
             return 0;
         }
         if (!EmitArrayStoreForType(code, &elem_type)) {
+            CodegenReportFail("EmitArrayLiteral: array store failed");
             return 0;
         }
     }
     if (static_field_name != NULL && static_desc != NULL) {
         jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls, "Main", static_field_name, static_desc);
         if (fref == NULL) {
+            CodegenReportFail("EmitArrayLiteral: fieldref final failed");
             return 0;
         }
         return jvmc_code_getstatic(code, fref);
@@ -3912,6 +3933,11 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                                     stmt->line);
                             return 0;
                         }
+                        if (!jvmc_code_pop(code)) {
+                            fprintf(stderr, "[CODEGEN ERROR] STMT_DECL: array pop failed at line %d\n",
+                                    stmt->line);
+                            return 0;
+                        }
                     } else if (decl->initializer->expr) {
                         if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
                             fprintf(stderr, "[CODEGEN ERROR] STMT_DECL: expr initializer failed at line %d\n",
@@ -4158,6 +4184,184 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 return 0;
             }
             PopCodegenScope();
+        } else if (stmt->type == STMT_FOREACH) {
+            NExpr *collection = stmt->value.foreach_stmt.collection;
+            NType *coll_type = NULL;
+            NType elem_type;
+            int temp_base;
+            int arr_slot;
+            int idx_slot;
+            int var_slot;
+            int prev_temp_base = g_temp_base_override;
+            jvmc_label *label_cond = jvmc_code_label_create(code);
+            jvmc_label *label_end = jvmc_code_label_create(code);
+            int local_return = 0;
+
+            if (label_cond == NULL || label_end == NULL) {
+                CodegenReportFail("STMT_FOREACH: label create failed");
+                return 0;
+            }
+            if (collection == NULL) {
+                CodegenReportFail("STMT_FOREACH: collection is NULL");
+                return 0;
+            }
+            coll_type = InferExpressionTypeSilent(collection, ctx);
+            if (coll_type == NULL || !GetElementTypeFromArray(coll_type, &elem_type)) {
+                if (collection->type == EXPR_IDENT) {
+                    NType *resolved = NULL;
+                    if (ResolveVariableSlot(collection->value.ident_name, params, stmts, NULL, &resolved) &&
+                        resolved != NULL && GetElementTypeFromArray(resolved, &elem_type)) {
+                        coll_type = resolved;
+                    }
+                }
+            }
+            if (coll_type == NULL || !GetElementTypeFromArray(coll_type, &elem_type)) {
+                CodegenReportFail("STMT_FOREACH: collection type is not array");
+                return 0;
+            }
+
+            temp_base = GetTempBase(params, stmts);
+            arr_slot = temp_base;
+            idx_slot = temp_base + 1;
+            var_slot = temp_base + 2;
+            g_temp_base_override = temp_base + 3;
+
+            if (!PushCodegenScope()) {
+                g_temp_base_override = prev_temp_base;
+                CodegenReportFail("STMT_FOREACH: scope push failed");
+                return 0;
+            }
+            if (stmt->value.foreach_stmt.var_name) {
+                AddCodegenVar(stmt->value.foreach_stmt.var_name, var_slot,
+                              stmt->value.foreach_stmt.is_typed ? stmt->value.foreach_stmt.var_type : &elem_type);
+            }
+            if (!CodegenEmitExpr(cls, code, collection, params, stmts, ctx)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: collection emit failed");
+                return 0;
+            }
+            if (!jvmc_code_store_ref(code, (uint16_t)arr_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: store array failed");
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: init idx failed");
+                return 0;
+            }
+            if (!jvmc_code_store_int(code, (uint16_t)idx_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: store idx failed");
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_cond)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: place cond label failed");
+                return 0;
+            }
+            if (!jvmc_code_load_int(code, (uint16_t)idx_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load idx failed");
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)arr_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load array failed");
+                return 0;
+            }
+            if (!jvmc_code_array_length(code)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: array length failed");
+                return 0;
+            }
+            if (!jvmc_code_if_icmp(code, JVMC_CMP_GE, label_end)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: compare failed");
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)arr_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load array(2) failed");
+                return 0;
+            }
+            if (!jvmc_code_load_int(code, (uint16_t)idx_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load idx(2) failed");
+                return 0;
+            }
+            if (!EmitArrayLoadForType(code, &elem_type)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load element failed");
+                return 0;
+            }
+            if (!EmitStoreByType(code, &elem_type, var_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: store var failed");
+                return 0;
+            }
+            if (stmt->value.foreach_stmt.body) {
+                if (!CodegenEmitStmtList(cls, code, stmt->value.foreach_stmt.body, params, &local_return, ctx, flow)) {
+                    g_temp_base_override = prev_temp_base;
+                    PopCodegenScope();
+                    CodegenReportFail("STMT_FOREACH: body failed");
+                    return 0;
+                }
+            }
+            if (!jvmc_code_load_int(code, (uint16_t)idx_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load idx(3) failed");
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 1)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: push 1 failed");
+                return 0;
+            }
+            if (!jvmc_code_add_int(code)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: add idx failed");
+                return 0;
+            }
+            if (!jvmc_code_store_int(code, (uint16_t)idx_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: store idx(2) failed");
+                return 0;
+            }
+            if (!jvmc_code_goto(code, label_cond)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: goto cond failed");
+                return 0;
+            }
+            if (!jvmc_code_label_place(code, label_end)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: place end label failed");
+                return 0;
+            }
+            PopCodegenScope();
+            g_temp_base_override = prev_temp_base;
+            if (return_emitted && *return_emitted) {
+                return 1;
+            }
         } else if (stmt->type == STMT_SWITCH) {
             jvmc_label *label_end = jvmc_code_label_create(code);
             jvmc_label **case_labels = NULL;

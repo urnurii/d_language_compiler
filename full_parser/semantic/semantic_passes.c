@@ -3471,6 +3471,14 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
                     if (decl && decl->initializer && decl->initializer->expr) {
                         AttributeExpressions(decl->initializer->expr, ctx);
                     }
+                    if (decl && decl->initializer && decl->initializer->is_array) {
+                        for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                            NExpr *elem = decl->initializer->array_init.elements[j];
+                            if (elem != NULL) {
+                                AttributeExpressions(elem, ctx);
+                            }
+                        }
+                    }
                 }
             }
             break;
