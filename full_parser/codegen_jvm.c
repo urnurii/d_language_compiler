@@ -749,6 +749,131 @@ static int EmitJavaEntryMain(jvmc_class *cls, int call_noarg_main) {
     return jvmc_code_return_void(code);
 }
 
+static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
+    jvmc_class *cls = NULL;
+    NClassMember *member;
+    char *class_internal = NULL;
+    char *base_internal = NULL;
+    char *out_file = NULL;
+    size_t out_len = 0;
+    int ok = 1;
+
+    (void)ctx;
+
+    if (class_def == NULL || class_def->class_name == NULL) {
+        return 1;
+    }
+
+    class_internal = BuildJvmInternalName(class_def->class_name);
+    if (class_internal == NULL) {
+        return 1;
+    }
+    if (class_def->base_class_name != NULL) {
+        base_internal = BuildJvmInternalName(class_def->base_class_name);
+    } else {
+        base_internal = BuildJvmInternalName("java/lang/Object");
+    }
+    if (base_internal == NULL) {
+        free(class_internal);
+        return 1;
+    }
+
+    cls = jvmc_class_create(class_internal, base_internal);
+    free(class_internal);
+    free(base_internal);
+    if (cls == NULL) {
+        return 1;
+    }
+
+    ok = jvmc_class_add_flag(cls, JVMC_CLASS_ACC_PUBLIC);
+    ok = ok && jvmc_class_add_flag(cls, JVMC_CLASS_ACC_SUPER);
+    if (!ok) {
+        jvmc_class_destroy(cls);
+        return 1;
+    }
+
+    member = class_def->members.first;
+    while (member != NULL) {
+        if (member->type == CLASS_MEMBER_FIELD) {
+            uint16_t access = JVMC_FIELD_ACC_PUBLIC;
+            if (member->access == ACCESS_PRIVATE) {
+                access = JVMC_FIELD_ACC_PRIVATE;
+            } else if (member->access == ACCESS_PROTECTED) {
+                access = JVMC_FIELD_ACC_PROTECTED;
+            }
+            if (!CodegenAddFieldDecls(cls, member->value.field.init_decls, access)) {
+                jvmc_class_destroy(cls);
+                return 1;
+            }
+        } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
+            uint16_t access = CodegenAccessFromSpec(member->access);
+            const char *desc = member->value.method->jvm_descriptor;
+            if (desc == NULL) {
+                jvmc_class_destroy(cls);
+                return 1;
+            }
+            if (member->value.method->body != NULL) {
+                if (!CodegenAddMethodWithBody(cls,
+                                              member->value.method->method_name,
+                                              desc,
+                                              access,
+                                              0,
+                                              member->value.method->body,
+                                              member->value.method->params)) {
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
+            } else if (!CodegenAddMethodStub(cls,
+                                             member->value.method->method_name,
+                                             desc,
+                                             access,
+                                             0)) {
+                jvmc_class_destroy(cls);
+                return 1;
+            }
+        } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
+            const char *ctor_desc = CodegenBuildMethodDescriptor(NULL, member->value.ctor->params);
+            if (ctor_desc == NULL) {
+                jvmc_class_destroy(cls);
+                return 1;
+            }
+            if (member->value.ctor->body != NULL) {
+                if (!CodegenAddMethodWithBody(cls, "<init>", ctor_desc,
+                                              CodegenAccessFromSpec(member->access), 0,
+                                              member->value.ctor->body,
+                                              member->value.ctor->params)) {
+                    free((void *)ctor_desc);
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
+            } else if (!CodegenAddMethodStub(cls, "<init>", ctor_desc,
+                                             CodegenAccessFromSpec(member->access), 0)) {
+                free((void *)ctor_desc);
+                jvmc_class_destroy(cls);
+                return 1;
+            }
+            free((void *)ctor_desc);
+        }
+        member = member->next;
+    }
+
+    out_len = strlen(class_def->class_name) + 7;
+    out_file = (char *)malloc(out_len);
+    if (out_file == NULL) {
+        jvmc_class_destroy(cls);
+        return 1;
+    }
+    snprintf(out_file, out_len, "%s.class", class_def->class_name);
+    if (!jvmc_class_write_to_file(cls, out_file)) {
+        free(out_file);
+        jvmc_class_destroy(cls);
+        return 1;
+    }
+    free(out_file);
+    jvmc_class_destroy(cls);
+    return 0;
+}
+
 int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
     const char *class_name = "Main";
     const char *out_file = "Main.class";
@@ -791,76 +916,11 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                     }
                     break;
                 case SOURCE_ITEM_CLASS: {
-                    NClassDef *class_def = item->value.class_def;
-                    NClassMember *member = class_def ? class_def->members.first : NULL;
-                    while (member != NULL) {
-                        if (member->type == CLASS_MEMBER_FIELD) {
-                            uint16_t access = JVMC_FIELD_ACC_PUBLIC;
-                            if (member->access == ACCESS_PRIVATE) {
-                                access = JVMC_FIELD_ACC_PRIVATE;
-                            } else if (member->access == ACCESS_PROTECTED) {
-                                access = JVMC_FIELD_ACC_PROTECTED;
-                            }
-                            if (!CodegenAddFieldDecls(cls, member->value.field.init_decls, access)) {
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                        } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
-                            uint16_t access = CodegenAccessFromSpec(member->access);
-                            const char *desc = member->value.method->jvm_descriptor;
-                            if (desc == NULL) {
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                            if (member->value.method->body != NULL) {
-                                if (!CodegenAddMethodWithBody(cls,
-                                                              member->value.method->method_name,
-                                                              desc,
-                                                              access,
-                                                              0,
-                                                              member->value.method->body,
-                                                              member->value.method->params)) {
-                                    jvmc_class_destroy(cls);
-                                    return 1;
-                                }
-                            } else if (!CodegenAddMethodStub(cls,
-                                                             member->value.method->method_name,
-                                                             desc,
-                                                             access,
-                                                             0)) {
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                        } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
-                            NClassDef *owner_class = class_def;
-                            const char *ctor_desc = NULL;
-                            if (owner_class == NULL || owner_class->class_name == NULL) {
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                            ctor_desc = CodegenBuildMethodDescriptor(NULL, member->value.ctor->params);
-                            if (ctor_desc == NULL) {
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                            if (member->value.ctor->body != NULL) {
-                                if (!CodegenAddMethodWithBody(cls, "<init>", ctor_desc,
-                                                              CodegenAccessFromSpec(member->access), 0,
-                                                              member->value.ctor->body,
-                                                              member->value.ctor->params)) {
-                                    free((void *)ctor_desc);
-                                    jvmc_class_destroy(cls);
-                                    return 1;
-                                }
-                            } else if (!CodegenAddMethodStub(cls, "<init>", ctor_desc,
-                                                             CodegenAccessFromSpec(member->access), 0)) {
-                                free((void *)ctor_desc);
-                                jvmc_class_destroy(cls);
-                                return 1;
-                            }
-                            free((void *)ctor_desc);
+                    if (item->value.class_def != NULL) {
+                        if (CodegenEmitClassFromDef(item->value.class_def, ctx) != 0) {
+                            jvmc_class_destroy(cls);
+                            return 1;
                         }
-                        member = member->next;
                     }
                     break;
                 }
