@@ -1,7 +1,8 @@
+module full_parser.final_test.test_05_private_access_error;
+
 class Test
 {
-private:
-    string prop = "Private";
+private string prop = "Private";
 }
 
 class Another : Test
