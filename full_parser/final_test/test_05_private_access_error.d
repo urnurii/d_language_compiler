@@ -7,7 +7,7 @@ class Another : Test
 {
     void call()
     {
-        string x = prop; // должно быть запрещено
+        string x = prop;
         writeln(x);
     }
 }
