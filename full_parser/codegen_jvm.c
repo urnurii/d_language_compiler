@@ -328,6 +328,90 @@ static int EmitInvokeFromRefKey(jvmc_class *cls, jvmc_code *code, const JvmRefKe
     return jvmc_code_invokevirtual(code, mref);
 }
 
+static const char *PrintDescriptorForType(const NType *type) {
+    if (type == NULL) {
+        return "Ljava/lang/Object;";
+    }
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return "Ljava/lang/Object;";
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_BOOL: return "Z";
+            case TYPE_CHAR: return "C";
+            case TYPE_INT: return "I";
+            case TYPE_FLOAT: return "F";
+            case TYPE_DOUBLE: return "D";
+            case TYPE_REAL: return "D";
+            case TYPE_STRING: return "Ljava/lang/String;";
+            default: return "Ljava/lang/Object;";
+        }
+    }
+    return "Ljava/lang/Object;";
+}
+
+static int EmitPrintCall(jvmc_class *cls, jvmc_code *code, NExpr *arg, int is_last, int is_writeln,
+                         NParamList *params, NStmt *body) {
+    jvmc_fieldref *out_ref = NULL;
+    jvmc_methodref *print_ref = NULL;
+    const char *owner = "java/io/PrintStream";
+    const char *method = "print";
+    const char *desc_part = NULL;
+    char desc_buf[32];
+
+    if (cls == NULL || code == NULL) {
+        return 0;
+    }
+
+    out_ref = jvmc_class_get_or_create_fieldref(cls,
+                                                "java/lang/System",
+                                                "out",
+                                                "Ljava/io/PrintStream;");
+    if (out_ref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_getstatic(code, out_ref)) {
+        return 0;
+    }
+
+    if (arg != NULL) {
+        if (!CodegenEmitExpr(cls, code, arg, params, body)) {
+            return 0;
+        }
+        if (is_writeln && is_last) {
+            method = "println";
+        }
+        desc_part = PrintDescriptorForType(arg->inferred_type);
+        snprintf(desc_buf, sizeof(desc_buf), "(%s)V", desc_part);
+        print_ref = jvmc_class_get_or_create_methodref(cls, owner, method, desc_buf);
+        if (print_ref == NULL) {
+            return 0;
+        }
+        return jvmc_code_invokevirtual(code, print_ref);
+    }
+
+    if (is_writeln) {
+        print_ref = jvmc_class_get_or_create_methodref(cls, owner, "println", "()V");
+        if (print_ref == NULL) {
+            return 0;
+        }
+        return jvmc_code_invokevirtual(code, print_ref);
+    }
+    return 1;
+}
+
+static int EmitReadlnCall(jvmc_class *cls, jvmc_code *code) {
+    jvmc_methodref *mref = NULL;
+    if (cls == NULL || code == NULL) {
+        return 0;
+    }
+    mref = jvmc_class_get_or_create_methodref(cls, "dlang/Runtime", "readln", "()Ljava/lang/String;");
+    if (mref == NULL) {
+        return 0;
+    }
+    return jvmc_code_invokestatic(code, mref);
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body) {
     int slot = -1;
     NType *type = NULL;
@@ -350,6 +434,25 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             }
             return 0;
         case EXPR_FUNC_CALL: {
+            const char *fname = expr->value.func_call.func_name;
+            if (fname != NULL) {
+                if (strcmp(fname, "write") == 0 || strcmp(fname, "writeln") == 0) {
+                    int is_writeln = (strcmp(fname, "writeln") == 0);
+                    if (expr->value.func_call.arg_count == 0) {
+                        return EmitPrintCall(cls, code, NULL, 1, is_writeln, params, body);
+                    }
+                    for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                        int is_last = (i == expr->value.func_call.arg_count - 1);
+                        if (!EmitPrintCall(cls, code, expr->value.func_call.args[i], is_last, is_writeln, params, body)) {
+                            return 0;
+                        }
+                    }
+                    return 1;
+                }
+                if (strcmp(fname, "readln") == 0) {
+                    return EmitReadlnCall(cls, code);
+                }
+            }
             for (int i = 0; i < expr->value.func_call.arg_count; i++) {
                 if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[i], params, body)) {
                     return 0;
