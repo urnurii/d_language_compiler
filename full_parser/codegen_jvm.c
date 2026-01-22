@@ -416,6 +416,10 @@ static int EmitLiteralExpr(jvmc_code *code, NExpr *expr, const NType *type) {
         case EXPR_NULL:
             return jvmc_code_push_null(code);
         case EXPR_NAN:
+            if (type != NULL && (type->kind == TYPE_KIND_BASE) &&
+                (type->base_type == TYPE_DOUBLE || type->base_type == TYPE_REAL)) {
+                return jvmc_code_push_double(code, expr->value.float_value);
+            }
             return jvmc_code_push_float(code, (float)expr->value.float_value);
         default:
             return 0;

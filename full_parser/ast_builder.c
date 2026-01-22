@@ -277,6 +277,7 @@ NExpr* CreateNanExpr(void) {
     expr->line = yylineno;
     expr->column = 0;
     InitExprAttrs(expr);
+    expr->value.float_value = 0.0 / 0.0;
     
     return expr;
 }
