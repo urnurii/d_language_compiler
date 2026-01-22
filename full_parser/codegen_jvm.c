@@ -727,6 +727,42 @@ static int EmitConditionJump(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPar
     return jvmc_code_if(code, JVMC_CMP_EQ, label);
 }
 
+static int EmitCompareResult(jvmc_class *cls, jvmc_code *code, NExpr *left, NExpr *right, NParamList *params,
+                             NStmt *body, SemanticContext *ctx, jvmc_compare cmp) {
+    jvmc_label *label_true;
+    jvmc_label *label_end;
+    if (code == NULL) {
+        return 0;
+    }
+    label_true = jvmc_code_label_create(code);
+    label_end = jvmc_code_label_create(code);
+    if (label_true == NULL || label_end == NULL) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, left, params, body, ctx)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_if_icmp(code, cmp, label_true)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_end)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_true)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 1)) {
+        return 0;
+    }
+    return jvmc_code_label_place(code, label_end);
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx) {
     int slot = -1;
@@ -787,6 +823,143 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
             }
             return EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 0);
+        }
+        case EXPR_UNARY_OP: {
+            if (expr->value.unary.operand == NULL) {
+                return 0;
+            }
+            if (expr->value.unary.op == OP_NOT) {
+                jvmc_label *label_true = jvmc_code_label_create(code);
+                jvmc_label *label_end = jvmc_code_label_create(code);
+                if (label_true == NULL || label_end == NULL) {
+                    return 0;
+                }
+                if (!EmitConditionJump(cls, code, expr->value.unary.operand, params, body, ctx, 1, label_true)) {
+                    return 0;
+                }
+                if (!jvmc_code_push_int(code, 1)) {
+                    return 0;
+                }
+                if (!jvmc_code_goto(code, label_end)) {
+                    return 0;
+                }
+                if (!jvmc_code_label_place(code, label_true)) {
+                    return 0;
+                }
+                if (!jvmc_code_push_int(code, 0)) {
+                    return 0;
+                }
+                return jvmc_code_label_place(code, label_end);
+            }
+            if (!CodegenEmitExpr(cls, code, expr->value.unary.operand, params, body, ctx)) {
+                return 0;
+            }
+            if (expr->value.unary.op == OP_MINUS) {
+                if (!jvmc_code_push_int(code, -1)) {
+                    return 0;
+                }
+                return jvmc_code_mul_int(code);
+            }
+            return 1;
+        }
+        case EXPR_BINARY_OP: {
+            if (expr->value.binary.left == NULL || expr->value.binary.right == NULL) {
+                return 0;
+            }
+            switch (expr->value.binary.op) {
+                case OP_AND: {
+                    jvmc_label *label_false = jvmc_code_label_create(code);
+                    jvmc_label *label_end = jvmc_code_label_create(code);
+                    if (label_false == NULL || label_end == NULL) {
+                        return 0;
+                    }
+                    if (!EmitConditionJump(cls, code, expr->value.binary.left, params, body, ctx, 0, label_false)) {
+                        return 0;
+                    }
+                    if (!EmitConditionJump(cls, code, expr->value.binary.right, params, body, ctx, 0, label_false)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_push_int(code, 1)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_goto(code, label_end)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_label_place(code, label_false)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_push_int(code, 0)) {
+                        return 0;
+                    }
+                    return jvmc_code_label_place(code, label_end);
+                }
+                case OP_OR: {
+                    jvmc_label *label_true = jvmc_code_label_create(code);
+                    jvmc_label *label_end = jvmc_code_label_create(code);
+                    if (label_true == NULL || label_end == NULL) {
+                        return 0;
+                    }
+                    if (!EmitConditionJump(cls, code, expr->value.binary.left, params, body, ctx, 1, label_true)) {
+                        return 0;
+                    }
+                    if (!EmitConditionJump(cls, code, expr->value.binary.right, params, body, ctx, 1, label_true)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_push_int(code, 0)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_goto(code, label_end)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_label_place(code, label_true)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_push_int(code, 1)) {
+                        return 0;
+                    }
+                    return jvmc_code_label_place(code, label_end);
+                }
+                case OP_EQ:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_EQ);
+                case OP_NEQ:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_NE);
+                case OP_LT:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_LT);
+                case OP_LE:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_LE);
+                case OP_GT:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_GT);
+                case OP_GE:
+                    return EmitCompareResult(cls, code, expr->value.binary.left, expr->value.binary.right,
+                                             params, body, ctx, JVMC_CMP_GE);
+                case OP_PLUS:
+                case OP_MINUS:
+                case OP_MUL:
+                case OP_DIV:
+                    if (!CodegenEmitExpr(cls, code, expr->value.binary.left, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, expr->value.binary.right, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (expr->value.binary.op == OP_PLUS) {
+                        return jvmc_code_add_int(code);
+                    }
+                    if (expr->value.binary.op == OP_MINUS) {
+                        return jvmc_code_sub_int(code);
+                    }
+                    if (expr->value.binary.op == OP_MUL) {
+                        return jvmc_code_mul_int(code);
+                    }
+                    return jvmc_code_div_int(code);
+                default:
+                    return 0;
+            }
         }
         case EXPR_ASSIGN:
             if (expr->value.binary.left != NULL &&
