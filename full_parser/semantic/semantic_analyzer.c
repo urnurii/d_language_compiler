@@ -595,6 +595,9 @@ static int RegisterBuiltinFunctions(SemanticContext *ctx) {
     if (AddBuiltinFunction(ctx, "writef", NULL, CreateSingleStringParam("fmt"), 1) != 0) {
         return 1;
     }
+    if (AddBuiltinFunction(ctx, "format", CreateBaseType(TYPE_STRING), CreateSingleStringParam("fmt"), 1) != 0) {
+        return 1;
+    }
     return 0;
 }
 

@@ -137,4 +137,26 @@ public final class Runtime {
         }
         return assigned;
     }
+
+    public static void writef(String fmt, Object... args) {
+        if (fmt == null) {
+            return;
+        }
+        try {
+            System.out.printf(fmt, args);
+        } catch (Exception ex) {
+            System.out.print(fmt);
+        }
+    }
+
+    public static String format(String fmt, Object... args) {
+        if (fmt == null) {
+            return "";
+        }
+        try {
+            return String.format(fmt, args);
+        } catch (Exception ex) {
+            return fmt;
+        }
+    }
 }

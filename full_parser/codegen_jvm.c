@@ -534,6 +534,93 @@ static int EmitReadlnCall(jvmc_class *cls, jvmc_code *code) {
     return jvmc_code_invokestatic(code, mref);
 }
 
+static int EmitBoxIfNeeded(jvmc_class *cls, jvmc_code *code, const NType *type) {
+    jvmc_methodref *mref = NULL;
+    if (code == NULL || cls == NULL || type == NULL) {
+        return 1;
+    }
+    if (type->kind != TYPE_KIND_BASE) {
+        return 1;
+    }
+    switch (type->base_type) {
+        case TYPE_BOOL:
+            mref = jvmc_class_get_or_create_methodref(cls,
+                                                      "java/lang/Boolean",
+                                                      "valueOf",
+                                                      "(Z)Ljava/lang/Boolean;");
+            break;
+        case TYPE_CHAR:
+        case TYPE_INT:
+            mref = jvmc_class_get_or_create_methodref(cls,
+                                                      "java/lang/Integer",
+                                                      "valueOf",
+                                                      "(I)Ljava/lang/Integer;");
+            break;
+        case TYPE_FLOAT:
+            mref = jvmc_class_get_or_create_methodref(cls,
+                                                      "java/lang/Float",
+                                                      "valueOf",
+                                                      "(F)Ljava/lang/Float;");
+            break;
+        case TYPE_DOUBLE:
+        case TYPE_REAL:
+            mref = jvmc_class_get_or_create_methodref(cls,
+                                                      "java/lang/Double",
+                                                      "valueOf",
+                                                      "(D)Ljava/lang/Double;");
+            break;
+        case TYPE_STRING:
+        case TYPE_VOID:
+        case TYPE_CLASS:
+        default:
+            return 1;
+    }
+    if (mref == NULL) {
+        return 0;
+    }
+    return jvmc_code_invokestatic(code, mref);
+}
+
+static int EmitBuildObjectArray(jvmc_class *cls, jvmc_code *code, NExpr **args, int count,
+                                NParamList *params, NStmt *body, SemanticContext *ctx) {
+    jvmc_class_ref *cref = NULL;
+    if (cls == NULL || code == NULL) {
+        return 0;
+    }
+    if (count < 0) {
+        count = 0;
+    }
+    if (!jvmc_code_push_int(code, count)) {
+        return 0;
+    }
+    cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/Object");
+    if (cref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_newarray_ref(code, cref)) {
+        return 0;
+    }
+    for (int i = 0; i < count; i++) {
+        NExpr *arg = args ? args[i] : NULL;
+        if (!jvmc_code_dup(code)) {
+            return 0;
+        }
+        if (!jvmc_code_push_int(code, i)) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+            return 0;
+        }
+        if (arg != NULL && !EmitBoxIfNeeded(cls, code, arg->inferred_type)) {
+            return 0;
+        }
+        if (!jvmc_code_array_store_ref(code)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int EmitGlobalLoad(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx, const char *name, NType **type_out) {
     Symbol *sym;
     char *desc;
@@ -1919,6 +2006,135 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                         return EmitAppendArrayConcat(cls, code, arr, rhs, params, body, ctx);
                     }
                     return EmitAppendArrayElement(cls, code, arr, rhs, params, body, ctx);
+                }
+                if (strcmp(fname, "readf") == 0) {
+                    int arg_count = expr->value.func_call.arg_count;
+                    int extra_count = arg_count - 1;
+                    int temp_base = FindMaxSlot(params, body) + 1;
+                    int temp_obj = temp_base;
+                    int temp_ret = temp_base + 1;
+                    jvmc_class_ref *cref = NULL;
+                    jvmc_methodref *mref = NULL;
+                    if (arg_count < 1) {
+                        return 0;
+                    }
+                    if (!jvmc_code_push_int(code, extra_count)) {
+                        return 0;
+                    }
+                    cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/Object");
+                    if (cref == NULL) {
+                        return 0;
+                    }
+                    if (!jvmc_code_newarray_ref(code, cref)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_store_ref(code, (uint16_t)temp_obj)) {
+                        return 0;
+                    }
+                    for (int i = 0; i < extra_count; i++) {
+                        NExpr *arg = expr->value.func_call.args[i + 1];
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, i)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 1)) {
+                            return 0;
+                        }
+                        if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_array_store_ref(code)) {
+                            return 0;
+                        }
+                    }
+                    if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
+                        return 0;
+                    }
+                    mref = jvmc_class_get_or_create_methodref(cls,
+                                                              "dlang/Runtime",
+                                                              "readf",
+                                                              "(Ljava/lang/String;[Ljava/lang/Object;)I");
+                    if (mref == NULL) {
+                        return 0;
+                    }
+                    if (!jvmc_code_invokestatic(code, mref)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_store_int(code, (uint16_t)temp_ret)) {
+                        return 0;
+                    }
+                    for (int i = 0; i < extra_count; i++) {
+                        NExpr *arg = expr->value.func_call.args[i + 1];
+                        if (!jvmc_code_load_ref(code, (uint16_t)temp_obj)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, i)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_array_load_ref(code)) {
+                            return 0;
+                        }
+                        if (!jvmc_code_push_int(code, 0)) {
+                            return 0;
+                        }
+                        if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
+                            return 0;
+                        }
+                        if (!EmitStoreLValue(cls, code, arg, arg ? arg->inferred_type : NULL,
+                                             params, body, ctx)) {
+                            return 0;
+                        }
+                    }
+                    return jvmc_code_load_int(code, (uint16_t)temp_ret);
+                }
+                if (strcmp(fname, "writef") == 0) {
+                    jvmc_methodref *mref = NULL;
+                    int arg_count = expr->value.func_call.arg_count;
+                    if (arg_count < 1) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!EmitBuildObjectArray(cls, code, &expr->value.func_call.args[1], arg_count - 1,
+                                              params, body, ctx)) {
+                        return 0;
+                    }
+                    mref = jvmc_class_get_or_create_methodref(cls,
+                                                              "dlang/Runtime",
+                                                              "writef",
+                                                              "(Ljava/lang/String;[Ljava/lang/Object;)V");
+                    if (mref == NULL) {
+                        return 0;
+                    }
+                    return jvmc_code_invokestatic(code, mref);
+                }
+                if (strcmp(fname, "format") == 0) {
+                    jvmc_methodref *mref = NULL;
+                    int arg_count = expr->value.func_call.arg_count;
+                    if (arg_count < 1) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
+                        return 0;
+                    }
+                    if (!EmitBuildObjectArray(cls, code, &expr->value.func_call.args[1], arg_count - 1,
+                                              params, body, ctx)) {
+                        return 0;
+                    }
+                    mref = jvmc_class_get_or_create_methodref(cls,
+                                                              "dlang/Runtime",
+                                                              "format",
+                                                              "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;");
+                    if (mref == NULL) {
+                        return 0;
+                    }
+                    return jvmc_code_invokestatic(code, mref);
                 }
                 if (strcmp(fname, "write") == 0 || strcmp(fname, "writeln") == 0) {
                     int is_writeln = (strcmp(fname, "writeln") == 0);
