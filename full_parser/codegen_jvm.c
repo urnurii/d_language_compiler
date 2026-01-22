@@ -19,6 +19,7 @@ typedef struct {
     const char *name;
     int slot;
     NType *type;
+    int is_ref;
 } CodegenVar;
 static CodegenVar *g_var_stack = NULL;
 static int g_var_count = 0;
@@ -181,17 +182,23 @@ static int MaxTempSlotsInStmtList(NStmt *stmts);
 static int FindMaxSlot(NParamList *params, NStmt *body);
 static int GetTempBase(NParamList *params, NStmt *body);
 static int EmitPopForType(jvmc_code *code, const NType *type);
+static int EmitLoadRefParamValue(jvmc_code *code, const NType *type, int slot);
+static int EmitStoreRefParamValue(jvmc_code *code, const NType *type, int slot,
+                                  NParamList *params, NStmt *body);
+static int EmitArrayStoreForType(jvmc_code *code, const NType *type);
+static int EmitArrayLoadForType(jvmc_code *code, const NType *type);
 static void ResetCodegenScope(void);
 static int PushCodegenScope(void);
 static void PopCodegenScope(void);
-static int AddCodegenVar(const char *name, int slot, NType *type);
-static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out);
+static int AddCodegenVar(const char *name, int slot, NType *type, int is_ref);
+static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out, int *is_ref_out);
 static void AddParamsToScope(NParamList *params);
 
 static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
     int max_locals = include_this ? 1 : 0;
     int max_temp = 0;
     int base_slot = 0;
+    int ref_temp = 0;
     if (params != NULL) {
         for (int i = 0; i < params->count; i++) {
             NParam *param = params->params[i];
@@ -201,6 +208,12 @@ static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
             }
             if (param->is_ref) {
                 width = 1;
+                {
+                    int ref_width = GetJvmSlotWidthForType(param->param_type);
+                    if (ref_width > ref_temp) {
+                        ref_temp = ref_width;
+                    }
+                }
             } else {
                 width = GetJvmSlotWidthForType(param->param_type);
             }
@@ -212,6 +225,9 @@ static int ComputeMaxLocals(NParamList *params, NStmt *body, int include_this) {
     if (body != NULL) {
         UpdateMaxLocalsFromStmt(body, &max_locals);
         max_temp = MaxTempSlotsInStmt(body);
+    }
+    if (ref_temp > max_temp) {
+        max_temp = ref_temp;
     }
     base_slot = FindMaxSlot(params, body) + 1;
     if (include_this && base_slot < 1) {
@@ -426,7 +442,7 @@ static int ResolveVariableSlot(const char *name, NParamList *params, NStmt *body
     if (name == NULL) {
         return 0;
     }
-    if (LookupCodegenVar(name, slot_out, type_out)) {
+    if (LookupCodegenVar(name, slot_out, type_out, NULL)) {
         return 1;
     }
     if (params != NULL) {
@@ -1831,6 +1847,41 @@ static int EmitPopForType(jvmc_code *code, const NType *type) {
     return jvmc_code_pop(code);
 }
 
+static int EmitLoadRefParamValue(jvmc_code *code, const NType *type, int slot) {
+    if (code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    return EmitArrayLoadForType(code, type);
+}
+
+static int EmitStoreRefParamValue(jvmc_code *code, const NType *type, int slot,
+                                  NParamList *params, NStmt *body) {
+    int temp_slot;
+    if (code == NULL) {
+        return 0;
+    }
+    temp_slot = GetTempBase(params, body);
+    if (!EmitStoreByType(code, type, temp_slot)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!EmitLoadByType(code, type, temp_slot)) {
+        return 0;
+    }
+    return EmitArrayStoreForType(code, type);
+}
+
 static int EmitImplicitThisFieldLoad(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx,
                                      const char *name, NType **type_out) {
     FieldInfo *field;
@@ -1936,7 +1987,7 @@ static void PopCodegenScope(void) {
     g_var_count = g_scope_stack[g_scope_count];
 }
 
-static int AddCodegenVar(const char *name, int slot, NType *type) {
+static int AddCodegenVar(const char *name, int slot, NType *type, int is_ref) {
     if (name == NULL) {
         return 0;
     }
@@ -1952,11 +2003,12 @@ static int AddCodegenVar(const char *name, int slot, NType *type) {
     g_var_stack[g_var_count].name = name;
     g_var_stack[g_var_count].slot = slot;
     g_var_stack[g_var_count].type = type;
+    g_var_stack[g_var_count].is_ref = is_ref ? 1 : 0;
     g_var_count++;
     return 1;
 }
 
-static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out) {
+static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out, int *is_ref_out) {
     if (name == NULL) {
         return 0;
     }
@@ -1964,6 +2016,7 @@ static int LookupCodegenVar(const char *name, int *slot_out, NType **type_out) {
         if (g_var_stack[i].name && strcmp(g_var_stack[i].name, name) == 0) {
             if (slot_out) *slot_out = g_var_stack[i].slot;
             if (type_out) *type_out = g_var_stack[i].type;
+            if (is_ref_out) *is_ref_out = g_var_stack[i].is_ref;
             return 1;
         }
     }
@@ -1977,7 +2030,8 @@ static void AddParamsToScope(NParamList *params) {
     for (int i = 0; i < params->count; i++) {
         NParam *param = params->params[i];
         if (param && param->param_name) {
-            AddCodegenVar(param->param_name, param->jvm_slot_index, param->param_type);
+            AddCodegenVar(param->param_name, param->jvm_slot_index, param->param_type,
+                          param->is_ref ? 1 : 0);
         }
     }
 }
@@ -2114,6 +2168,13 @@ static int EmitLoadLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, NParamLi
     if (lhs->type == EXPR_IDENT) {
         if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &type)) {
             if (type_out) *type_out = type;
+            {
+                int is_ref = 0;
+                LookupCodegenVar(lhs->value.ident_name, NULL, NULL, &is_ref);
+                if (is_ref) {
+                    return EmitLoadRefParamValue(code, type, slot);
+                }
+            }
             return EmitLoadByType(code, type, slot);
         }
         if (EmitGlobalLoad(cls, code, ctx, lhs->value.ident_name, &type)) {
@@ -2173,6 +2234,11 @@ static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const N
     }
     if (lhs->type == EXPR_IDENT) {
         if (ResolveVariableSlot(lhs->value.ident_name, params, body, &slot, &resolved)) {
+            int is_ref = 0;
+            LookupCodegenVar(lhs->value.ident_name, NULL, NULL, &is_ref);
+            if (is_ref) {
+                return EmitStoreRefParamValue(code, resolved, slot, params, body);
+            }
             return EmitStoreByType(code, resolved, slot);
         }
         if (EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved)) {
@@ -3152,12 +3218,21 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             return EmitLiteralExpr(code, expr, type);
         case EXPR_IDENT:
             if (ResolveVariableSlot(expr->value.ident_name, params, body, &slot, &type)) {
+                int is_ref = 0;
                 if (type == NULL) {
                     type = expr->inferred_type;
                 }
-                if (!EmitLoadByType(code, type, slot)) {
-                    CodegenReportExprFail("EXPR_IDENT: local load failed", expr);
-                    return 0;
+                LookupCodegenVar(expr->value.ident_name, NULL, NULL, &is_ref);
+                if (is_ref) {
+                    if (!EmitLoadRefParamValue(code, type, slot)) {
+                        CodegenReportExprFail("EXPR_IDENT: ref load failed", expr);
+                        return 0;
+                    }
+                } else {
+                    if (!EmitLoadByType(code, type, slot)) {
+                        CodegenReportExprFail("EXPR_IDENT: local load failed", expr);
+                        return 0;
+                    }
                 }
                 return 1;
             }
@@ -3868,6 +3943,11 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     return 0;
                 }
                 if (ResolveVariableSlot(name, params, body, &slot, &type)) {
+                    int is_ref = 0;
+                    LookupCodegenVar(name, NULL, NULL, &is_ref);
+                    if (is_ref) {
+                        return EmitStoreRefParamValue(code, type, slot, params, body);
+                    }
                     return EmitStoreByType(code, type, slot);
                 }
                 return EmitGlobalStore(cls, code, ctx, name, &type);
@@ -4040,7 +4120,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                     }
                 }
                     if (decl && decl->name) {
-                        AddCodegenVar(decl->name, decl->jvm_slot_index, stmt->value.decl.decl_type);
+                        AddCodegenVar(decl->name, decl->jvm_slot_index,
+                                      stmt->value.decl.decl_type, 0);
                     }
                 }
             }
@@ -4221,7 +4302,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                         }
                     }
                     if (decl && decl->name) {
-                        AddCodegenVar(decl->name, decl->jvm_slot_index, stmt->value.for_stmt.init_decl_type);
+                        AddCodegenVar(decl->name, decl->jvm_slot_index,
+                                      stmt->value.for_stmt.init_decl_type, 0);
                     }
                 }
             }
@@ -4321,7 +4403,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             }
             if (stmt->value.foreach_stmt.var_name) {
                 AddCodegenVar(stmt->value.foreach_stmt.var_name, var_slot,
-                              stmt->value.foreach_stmt.is_typed ? stmt->value.foreach_stmt.var_type : &elem_type);
+                              stmt->value.foreach_stmt.is_typed ? stmt->value.foreach_stmt.var_type : &elem_type,
+                              0);
             }
             if (!CodegenEmitExpr(cls, code, collection, params, stmts, ctx)) {
                 g_temp_base_override = prev_temp_base;
