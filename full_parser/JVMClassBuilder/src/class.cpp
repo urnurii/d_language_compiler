@@ -3,13 +3,15 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <jni.h>
 #include <ostream>
 #include <sstream>
 #include <utility>
 #include <fstream>
-#include <filesystem>
 #include <iostream>
+#if JVMC_ENABLE_JAVA_FIX
+#include <filesystem>
+#include <jni.h>
+#endif
 
 #include "jvm/constant.h"
 #include "jvm/constant-class.h"
@@ -28,9 +30,13 @@
 #include "jvm/field.h"
 #include "jvm/method.h"
 #include "jvm/internal/utils.h"
+#if JVMC_ENABLE_JAVA_FIX
 #include "java-internal-paths.h"
+#endif
 
+#if JVMC_ENABLE_JAVA_FIX
 namespace fs = std::filesystem;
+#endif
 using namespace jvm;
 
 MajorVersion Class::majorVersion = MAJOR_VERSION_16;
@@ -774,6 +780,7 @@ void Class::validateFlags(uint16_t flags)
 
 void Class::fixClassBinary(std::ostream& os, const std::span<const unsigned char>& data)
 {
+#if JVMC_ENABLE_JAVA_FIX
 #ifdef _WIN32
     fs::path jarPath = JAVA_INTERNAL_JAR;
     auto pathToTempFile = std::filesystem::temp_directory_path() / "jvm_class_builder_temp_class.class";
@@ -898,5 +905,8 @@ void Class::fixClassBinary(std::ostream& os, const std::span<const unsigned char
 
     // destroy jvm
     jvm->DestroyJavaVM();
+#endif
+#else
+    os.write(reinterpret_cast<const char*>(data.data()), static_cast<std::streamsize>(data.size()));
 #endif
 }

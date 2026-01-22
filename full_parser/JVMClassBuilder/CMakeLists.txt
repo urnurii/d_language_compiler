@@ -8,79 +8,78 @@ project(jvm-class-builder
 
 option(BUILD_SHARED_LIBS "Build libraries as shared" OFF)
 option(BUILD_EXAMPLES "Build examples" OFF)
+option(JVMC_ENABLE_JAVA_FIX "Enable Java post-processing for class files" OFF)
 
-find_program(MAVEN_EXECUTABLE mvn REQUIRED)
+if (JVMC_ENABLE_JAVA_FIX)
+    find_program(MAVEN_EXECUTABLE mvn REQUIRED)
 
-set(JAVA_INTERNAL_PROJECT_DIR
-        ${CMAKE_CURRENT_SOURCE_DIR}/java-internal
-)
-set(JAVA_INTERNAL_BUILD_DIR
-        ${CMAKE_BINARY_DIR}/java
-)
-set(JAVA_INTERNAL_JAR
-        ${JAVA_INTERNAL_BUILD_DIR}/fix_code_attribute.jar
-)
-add_custom_command(
-        OUTPUT ${JAVA_INTERNAL_JAR}
-        COMMAND ${MAVEN_EXECUTABLE}
-        -q
-        -DskipTests
-        clean package
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-        ${JAVA_INTERNAL_BUILD_DIR}
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${JAVA_INTERNAL_PROJECT_DIR}/target/fix_code_attribute.jar
-        ${JAVA_INTERNAL_JAR}
-        WORKING_DIRECTORY ${JAVA_INTERNAL_PROJECT_DIR}
-        COMMENT "Building internal Java helper (Maven)"
-)
+    set(JAVA_INTERNAL_PROJECT_DIR
+            ${CMAKE_CURRENT_SOURCE_DIR}/java-internal
+    )
+    set(JAVA_INTERNAL_BUILD_DIR
+            ${CMAKE_BINARY_DIR}/java
+    )
+    set(JAVA_INTERNAL_JAR
+            ${JAVA_INTERNAL_BUILD_DIR}/fix_code_attribute.jar
+    )
+    add_custom_command(
+            OUTPUT ${JAVA_INTERNAL_JAR}
+            COMMAND ${MAVEN_EXECUTABLE}
+            -q
+            -DskipTests
+            clean package
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+            ${JAVA_INTERNAL_BUILD_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy
+            ${JAVA_INTERNAL_PROJECT_DIR}/target/fix_code_attribute.jar
+            ${JAVA_INTERNAL_JAR}
+            WORKING_DIRECTORY ${JAVA_INTERNAL_PROJECT_DIR}
+            COMMENT "Building internal Java helper (Maven)"
+    )
 
-# new target for build java
-add_custom_target(java-internal ALL
-        DEPENDS ${JAVA_INTERNAL_JAR}
-)
+    add_custom_target(java-internal ALL
+            DEPENDS ${JAVA_INTERNAL_JAR}
+    )
 
+    set(JAVA_HOME $ENV{JAVA_HOME})
+    if (NOT JAVA_HOME)
+        message(FATAL_ERROR "Can't find JAVA_HOME env variable. Please set it.")
+    endif ()
+    message(STATUS "Using JAVA_HOME: ${JAVA_HOME}")
 
-set(JAVA_HOME $ENV{JAVA_HOME})
+    # Set paths for include and libraries based on JAVA_HOME
+    set(JAVA_INCLUDE_PATH ${JAVA_HOME}/include)
+    if(WIN32)
+        set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/win32")
 
-if (NOT JAVA_HOME)
-    message(FATAL_ERROR "Can't find JAVA_HOME env variable. Please set it.")
-endif ()
-
-message(STATUS "Using JAVA_HOME: ${JAVA_HOME}")
-
-# Set paths for include and libraries based on JAVA_HOME
-set(JAVA_INCLUDE_PATH ${JAVA_HOME}/include)
-if(WIN32)
-    set(JAVA_INCLUDE_PATH2 "${JAVA_HOME}/include/win32")
-
-    if(EXISTS "${JAVA_HOME}/lib/server/jvm.lib")
-        set(JAVA_LIBRARIES "${JAVA_HOME}/lib/server/jvm.lib")
-    elseif(EXISTS "${JAVA_HOME}/lib/jvm.lib")
-        set(JAVA_LIBRARIES "${JAVA_HOME}/lib/jvm.lib")
-    elseif(EXISTS "${JAVA_HOME}/lib/server/jvm.dll")
-        set(JAVA_LIBRARIES "${JAVA_HOME}/lib/server/jvm.dll")
-    else()
-        message(FATAL_ERROR "Could not find JVM library under JAVA_HOME='${JAVA_HOME}'. Tried: lib/server/jvm.lib, lib/jvm.lib, lib/server/jvm.dll")
+        if(EXISTS "${JAVA_HOME}/lib/server/jvm.lib")
+            set(JAVA_LIBRARIES "${JAVA_HOME}/lib/server/jvm.lib")
+        elseif(EXISTS "${JAVA_HOME}/lib/jvm.lib")
+            set(JAVA_LIBRARIES "${JAVA_HOME}/lib/jvm.lib")
+        elseif(EXISTS "${JAVA_HOME}/lib/server/jvm.dll")
+            set(JAVA_LIBRARIES "${JAVA_HOME}/lib/server/jvm.dll")
+        else()
+            message(FATAL_ERROR "Could not find JVM library under JAVA_HOME='${JAVA_HOME}'. Tried: lib/server/jvm.lib, lib/jvm.lib, lib/server/jvm.dll")
+        endif()
+    elseif(APPLE)
+        set(JAVA_INCLUDE_PATH2 ${JAVA_HOME}/include/darwin)
+        set(JAVA_LIBRARIES ${JAVA_HOME}/lib/server/libjvm.dylib)
+    elseif(UNIX)
+        set(JAVA_INCLUDE_PATH2 ${JAVA_HOME}/include/linux)
+        set(JAVA_LIBRARIES ${JAVA_HOME}/lib/server/libjvm.so)
     endif()
-elseif(APPLE)
-    set(JAVA_INCLUDE_PATH2 ${JAVA_HOME}/include/darwin)
-    set(JAVA_LIBRARIES ${JAVA_HOME}/lib/server/libjvm.dylib)
-elseif(UNIX)
-    set(JAVA_INCLUDE_PATH2 ${JAVA_HOME}/include/linux)
-    set(JAVA_LIBRARIES ${JAVA_HOME}/lib/server/libjvm.so)
-endif()
 
-# Check if libjvm.so exists and is accessible
-if (NOT EXISTS ${JAVA_LIBRARIES})
-    message(FATAL_ERROR "Can't find libjvm.so in ${JAVA_LIBRARIES}. Please ensure the JDK is correctly installed.")
+    # Check if libjvm.so exists and is accessible
+    if (NOT EXISTS ${JAVA_LIBRARIES})
+        message(FATAL_ERROR "Can't find libjvm.so in ${JAVA_LIBRARIES}. Please ensure the JDK is correctly installed.")
+    endif ()
+
+    # generate paths for internal java project
+    configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/java-internal-paths.h.in.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/generated/java-internal-paths.h
+    )
 endif ()
-
-# generate paths for internal java project
-configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/java-internal-paths.h.in.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/generated/java-internal-paths.h
-)
 
 add_library(jvm-class-builder
         include/jvm/serializable.h
@@ -127,20 +126,28 @@ target_include_directories(jvm-class-builder
         $<INSTALL_INTERFACE:include>
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/internal
-        ${CMAKE_CURRENT_SOURCE_DIR}/generated
-        ${JAVA_INCLUDE_PATH}
-        ${JAVA_INCLUDE_PATH2}
 )
 
 add_library(jvm::ClassBuilder ALIAS jvm-class-builder)
 
 # add dependence to main project
-add_dependencies(jvm-class-builder java-internal)
+if (JVMC_ENABLE_JAVA_FIX)
+    add_dependencies(jvm-class-builder java-internal)
+    target_include_directories(jvm-class-builder
+            PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/generated
+            ${JAVA_INCLUDE_PATH}
+            ${JAVA_INCLUDE_PATH2}
+    )
+    target_link_libraries(jvm-class-builder
+            PRIVATE
+            ${JAVA_LIBRARIES}
+    )
+    target_compile_definitions(jvm-class-builder PRIVATE JVMC_ENABLE_JAVA_FIX=1)
+else ()
+    target_compile_definitions(jvm-class-builder PRIVATE JVMC_ENABLE_JAVA_FIX=0)
+endif ()
 
-target_link_libraries(jvm-class-builder
-        PRIVATE
-        ${JAVA_LIBRARIES}
-)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

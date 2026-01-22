@@ -1,11 +1,19 @@
-# Компиляторы и инструменты
+﻿# Компиляторы и инструменты
 CC = C:/msys64/mingw64/bin/gcc.exe
+CXX = C:/msys64/mingw64/bin/g++.exe
+LD = $(CXX)
 BISON = bison
 FLEX = flex
 
 # Флаги компилятора
 CFLAGS = -Wall -Wextra -std=c99 -g
-LDFLAGS = -lm -static -static-libgcc
+LDFLAGS = -lm -static -static-libgcc -static-libstdc++
+
+# JVM Class Builder (C++ static library)
+JVMCB_DIR ?= JVMClassBuilder
+JVMCB_BUILD_DIR ?= $(JVMCB_DIR)/out/build/x64-Debug
+JVMCB_LIB ?= $(JVMCB_BUILD_DIR)/libjvm-class-builder.a
+JVMCB_INCLUDES ?= -I$(JVMCB_DIR)/include
 
 # Целевой исполняемый файл
 TARGET = compiler.exe
@@ -40,7 +48,7 @@ $(TARGET): $(OBJECTS)
 	@echo "========================================"
 	@echo "Linking..."
 	@echo "========================================"
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(LD) $(CFLAGS) -o $@ $^ $(JVMCB_LIB) $(LDFLAGS)
 	@echo ""
 	@echo "OK Compilation successful!"
 	@echo "Executable: $(TARGET)"
@@ -74,7 +82,7 @@ lex.yy.c: d_lexer_par.l d_parser.tab.h
 # Правило для компиляции всех .c файлов в .o
 %.o: %.c $(HEADERS)
 	@echo "Compiling: $<"
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(JVMCB_INCLUDES) -c $< -o $@
 
 # ----- Утилиты -----
 
