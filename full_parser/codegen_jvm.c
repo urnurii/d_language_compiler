@@ -23,6 +23,7 @@ typedef struct {
 
 static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params,
                                int *return_emitted, SemanticContext *ctx, FlowContext *flow);
+static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticContext *ctx);
 
 static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
                            AccessSpec access, SemanticContext *ctx);
@@ -808,6 +809,18 @@ static void FlowPopSwitch(FlowContext *flow) {
     FlowPopLabel(&flow->break_count);
 }
 
+static int HasClassDestructor(SemanticContext *ctx, const char *class_name) {
+    ClassInfo *info;
+    if (ctx == NULL || class_name == NULL) {
+        return 0;
+    }
+    info = LookupClass(ctx, class_name);
+    if (info == NULL) {
+        return 0;
+    }
+    return info->destructor != NULL;
+}
+
 static jvmc_label *FlowTopBreak(const FlowContext *flow) {
     if (flow == NULL || flow->break_count <= 0) {
         return NULL;
@@ -843,6 +856,164 @@ static int IsStringType(const NType *type) {
         return 0;
     }
     return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING;
+}
+
+typedef struct {
+    const NType *type;
+    int slot;
+} DtorVar;
+
+static int CollectDtorVarsFromStmt(NStmt *stmt, DtorVar **vars, int *count, int *cap, SemanticContext *ctx) {
+    if (stmt == NULL || vars == NULL || count == NULL || cap == NULL) {
+        return 0;
+    }
+    switch (stmt->type) {
+        case STMT_DECL:
+            if (stmt->value.decl.decl_type &&
+                stmt->value.decl.decl_type->kind == TYPE_KIND_CLASS &&
+                stmt->value.decl.decl_type->class_name &&
+                HasClassDestructor(ctx, stmt->value.decl.decl_type->class_name) &&
+                stmt->value.decl.init_decls) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl == NULL || decl->jvm_slot_index < 0) {
+                        continue;
+                    }
+                    if (*count >= *cap) {
+                        int new_cap = (*cap == 0) ? 4 : (*cap * 2);
+                        DtorVar *grown = (DtorVar *)realloc(*vars, sizeof(DtorVar) * (size_t)new_cap);
+                        if (grown == NULL) {
+                            return 0;
+                        }
+                        *vars = grown;
+                        *cap = new_cap;
+                    }
+                    (*vars)[*count].type = stmt->value.decl.decl_type;
+                    (*vars)[*count].slot = decl->jvm_slot_index;
+                    *count += 1;
+                }
+            }
+            break;
+        case STMT_COMPOUND: {
+            NStmt *cur = stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL;
+            while (cur != NULL) {
+                if (!CollectDtorVarsFromStmt(cur, vars, count, cap, ctx)) {
+                    return 0;
+                }
+                cur = cur->next;
+            }
+            break;
+        }
+        case STMT_IF:
+            if (!CollectDtorVarsFromStmt(stmt->value.if_stmt.then_stmt, vars, count, cap, ctx)) {
+                return 0;
+            }
+            if (!CollectDtorVarsFromStmt(stmt->value.if_stmt.else_stmt, vars, count, cap, ctx)) {
+                return 0;
+            }
+            break;
+        case STMT_WHILE:
+            if (!CollectDtorVarsFromStmt(stmt->value.while_stmt.body, vars, count, cap, ctx)) {
+                return 0;
+            }
+            break;
+        case STMT_DO_WHILE:
+            if (!CollectDtorVarsFromStmt(stmt->value.do_while_stmt.body, vars, count, cap, ctx)) {
+                return 0;
+            }
+            break;
+        case STMT_FOR:
+            if (stmt->value.for_stmt.body &&
+                !CollectDtorVarsFromStmt(stmt->value.for_stmt.body, vars, count, cap, ctx)) {
+                return 0;
+            }
+            break;
+        case STMT_FOREACH:
+            if (!CollectDtorVarsFromStmt(stmt->value.foreach_stmt.body, vars, count, cap, ctx)) {
+                return 0;
+            }
+            break;
+        case STMT_SWITCH:
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && item->stmts) {
+                    if (!CollectDtorVarsFromStmt(item->stmts->first, vars, count, cap, ctx)) {
+                        return 0;
+                    }
+                }
+            }
+            break;
+        case STMT_EXPR:
+        case STMT_RETURN:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            break;
+    }
+    return 1;
+}
+
+static int EmitMainDtorCleanup(jvmc_class *cls, jvmc_code *code, NStmt *body,
+                               SemanticContext *ctx) {
+    DtorVar *vars = NULL;
+    int count = 0;
+    int cap = 0;
+    if (cls == NULL || code == NULL) {
+        return 0;
+    }
+    if (body == NULL) {
+        return 1;
+    }
+    if (!CollectDtorVarsFromStmt(body, &vars, &count, &cap, ctx)) {
+        free(vars);
+        return 0;
+    }
+    for (int i = count - 1; i >= 0; i--) {
+        const NType *type = vars[i].type;
+        jvmc_methodref *mref;
+        jvmc_label *skip;
+        char *owner_internal;
+        if (type == NULL || type->class_name == NULL) {
+            continue;
+        }
+        owner_internal = BuildJvmInternalName(type->class_name);
+        if (owner_internal == NULL) {
+            free(vars);
+            return 0;
+        }
+        mref = jvmc_class_get_or_create_methodref(cls, owner_internal, "__dtor", "()V");
+        free(owner_internal);
+        if (mref == NULL) {
+            free(vars);
+            return 0;
+        }
+        skip = jvmc_code_label_create(code);
+        if (skip == NULL) {
+            free(vars);
+            return 0;
+        }
+        if (!jvmc_code_load_ref(code, (uint16_t)vars[i].slot)) {
+            free(vars);
+            return 0;
+        }
+        if (!jvmc_code_if_null(code, skip)) {
+            free(vars);
+            return 0;
+        }
+        if (!jvmc_code_load_ref(code, (uint16_t)vars[i].slot)) {
+            free(vars);
+            return 0;
+        }
+        if (!jvmc_code_invokevirtual(code, mref)) {
+            free(vars);
+            return 0;
+        }
+        if (!jvmc_code_label_place(code, skip)) {
+            free(vars);
+            return 0;
+        }
+    }
+    free(vars);
+    return 1;
 }
 
 static jvmc_compare InvertCompare(jvmc_compare cmp) {
@@ -3682,6 +3853,50 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     return 1;
 }
 
+static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticContext *ctx) {
+    jvmc_method *method = NULL;
+    jvmc_code *code = NULL;
+    int returned = 0;
+    FlowContext flow;
+    memset(&flow, 0, sizeof(flow));
+
+    if (cls == NULL || func == NULL || func->jvm_descriptor == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, func->func_name, func->jvm_descriptor);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_PUBLIC) ||
+        !jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+        return 0;
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_stack(code, 32)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(func->params, func->body, 0))) {
+        return 0;
+    }
+    if (!CodegenEmitStmtList(cls, code, func->body, func->params, &returned, ctx, &flow)) {
+        free(flow.break_labels);
+        free(flow.continue_labels);
+        return 0;
+    }
+    free(flow.break_labels);
+    free(flow.continue_labels);
+    if (!returned) {
+        if (!EmitMainDtorCleanup(cls, code, func->body, ctx)) {
+            return 0;
+        }
+        return CodegenEmitEmptyReturn(code, func->jvm_descriptor);
+    }
+    return 1;
+}
+
 static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *ctx) {
     NSourceItem *item;
     jvmc_method *method;
@@ -3877,60 +4092,75 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
 
     member = class_def->members.first;
     while (member != NULL) {
-        if (member->type == CLASS_MEMBER_FIELD) {
-            uint16_t access = JVMC_FIELD_ACC_PUBLIC;
-            if (member->access == ACCESS_PRIVATE) {
-                access = JVMC_FIELD_ACC_PRIVATE;
-            } else if (member->access == ACCESS_PROTECTED) {
-                access = JVMC_FIELD_ACC_PROTECTED;
-            }
-            if (!CodegenAddFieldDecls(cls, member->value.field.init_decls, access)) {
-                jvmc_class_destroy(cls);
-                return 1;
-            }
-        } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
-            uint16_t access = CodegenAccessFromSpec(member->access);
-            const char *desc = member->value.method->jvm_descriptor;
-            if (desc == NULL) {
-                jvmc_class_destroy(cls);
-                return 1;
-            }
-            if (member->value.method->body != NULL) {
-                if (!CodegenAddMethodWithBody(cls,
-                                              member->value.method->method_name,
-                                              desc,
-                                              access,
-                                              0,
-                                              member->value.method->body,
-                                              member->value.method->params,
-                                              ctx)) {
+            if (member->type == CLASS_MEMBER_FIELD) {
+                uint16_t access = JVMC_FIELD_ACC_PUBLIC;
+                if (member->access == ACCESS_PRIVATE) {
+                    access = JVMC_FIELD_ACC_PRIVATE;
+                } else if (member->access == ACCESS_PROTECTED) {
+                    access = JVMC_FIELD_ACC_PROTECTED;
+                }
+                if (!CodegenAddFieldDecls(cls, member->value.field.init_decls, access)) {
                     jvmc_class_destroy(cls);
                     return 1;
                 }
-            } else {
-                has_abstract = 1;
-                if (!CodegenAddMethodAbstract(cls,
-                                              member->value.method->method_name,
-                                              desc,
-                                              access,
-                                              0)) {
+            } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
+                uint16_t access = CodegenAccessFromSpec(member->access);
+                const char *desc = member->value.method->jvm_descriptor;
+                if (desc == NULL) {
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
+                if (member->value.method->body != NULL) {
+                    if (!CodegenAddMethodWithBody(cls,
+                                                  member->value.method->method_name,
+                                                  desc,
+                                                  access,
+                                                  0,
+                                                  member->value.method->body,
+                                                  member->value.method->params,
+                                                  ctx)) {
+                        jvmc_class_destroy(cls);
+                        return 1;
+                    }
+                } else {
+                    has_abstract = 1;
+                    if (!CodegenAddMethodAbstract(cls,
+                                                  member->value.method->method_name,
+                                                  desc,
+                                                  access,
+                                                  0)) {
+                        jvmc_class_destroy(cls);
+                        return 1;
+                    }
+                }
+            } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
+                has_ctor = 1;
+                if (!CodegenEmitCtor(cls, class_def, member->value.ctor, member->access, ctx)) {
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
+            } else if (member->type == CLASS_MEMBER_DTOR && member->value.dtor) {
+                uint16_t access = CodegenAccessFromSpec(member->access);
+                if (member->value.dtor->body != NULL) {
+                    if (!CodegenAddMethodWithBody(cls,
+                                                  "__dtor",
+                                                  "()V",
+                                                  access,
+                                                  0,
+                                                  member->value.dtor->body,
+                                                  NULL,
+                                                  ctx)) {
+                        jvmc_class_destroy(cls);
+                        return 1;
+                    }
+                }
+            } else if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
+                has_enum = 1;
+                if (!CodegenAddEnumFields(cls, member->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
                     jvmc_class_destroy(cls);
                     return 1;
                 }
             }
-        } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
-            has_ctor = 1;
-            if (!CodegenEmitCtor(cls, class_def, member->value.ctor, member->access, ctx)) {
-                jvmc_class_destroy(cls);
-                return 1;
-            }
-        } else if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
-            has_enum = 1;
-            if (!CodegenAddEnumFields(cls, member->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
-                jvmc_class_destroy(cls);
-                return 1;
-            }
-        }
         member = member->next;
     }
 
@@ -4058,16 +4288,24 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                 case SOURCE_ITEM_FUNC:
                     if (item->value.func && item->value.func->jvm_descriptor) {
                         if (item->value.func->body != NULL) {
-                            if (!CodegenAddMethodWithBody(cls,
-                                                          item->value.func->func_name,
-                                                          item->value.func->jvm_descriptor,
-                                                          JVMC_METHOD_ACC_PUBLIC,
-                                                          1,
-                                                          item->value.func->body,
-                                                          item->value.func->params,
-                                                          ctx)) {
-                                jvmc_class_destroy(cls);
-                                return 1;
+                            if (item->value.func->func_name != NULL &&
+                                strcmp(item->value.func->func_name, "main") == 0) {
+                                if (!CodegenAddMainWithCleanup(cls, item->value.func, ctx)) {
+                                    jvmc_class_destroy(cls);
+                                    return 1;
+                                }
+                            } else {
+                                if (!CodegenAddMethodWithBody(cls,
+                                                              item->value.func->func_name,
+                                                              item->value.func->jvm_descriptor,
+                                                              JVMC_METHOD_ACC_PUBLIC,
+                                                              1,
+                                                              item->value.func->body,
+                                                              item->value.func->params,
+                                                              ctx)) {
+                                    jvmc_class_destroy(cls);
+                                    return 1;
+                                }
                             }
                         } else if (!CodegenAddMethodNative(cls,
                                                            item->value.func->func_name,
