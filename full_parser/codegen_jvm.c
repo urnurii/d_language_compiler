@@ -223,6 +223,33 @@ static int EmitLoadByType(jvmc_code *code, const NType *type, int slot) {
     return 0;
 }
 
+static int EmitStoreByType(jvmc_code *code, const NType *type, int slot) {
+    if (type == NULL) {
+        return 0;
+    }
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return jvmc_code_store_ref(code, (uint16_t)slot);
+    }
+    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_DOUBLE:
+            case TYPE_REAL:
+                return jvmc_code_store_double(code, (uint16_t)slot);
+            case TYPE_FLOAT:
+                return jvmc_code_store_float(code, (uint16_t)slot);
+            case TYPE_BOOL:
+            case TYPE_CHAR:
+            case TYPE_INT:
+                return jvmc_code_store_int(code, (uint16_t)slot);
+            case TYPE_STRING:
+                return jvmc_code_store_ref(code, (uint16_t)slot);
+            default:
+                return jvmc_code_store_ref(code, (uint16_t)slot);
+        }
+    }
+    return 0;
+}
+
 static int EmitReturnByType(jvmc_code *code, const NType *type) {
     if (type == NULL) {
         return jvmc_code_return_void(code);
@@ -301,6 +328,22 @@ static int CodegenEmitExpr(jvmc_code *code, NExpr *expr, NParamList *params, NSt
                 return EmitLoadByType(code, type, slot);
             }
             return 0;
+        case EXPR_ASSIGN:
+            if (expr->value.binary.left != NULL &&
+                expr->value.binary.left->type == EXPR_IDENT) {
+                const char *name = expr->value.binary.left->value.ident_name;
+                NExpr *right = expr->value.binary.right;
+                if (right == NULL) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(code, right, params, body)) {
+                    return 0;
+                }
+                if (ResolveVariableSlot(name, params, body, &slot, &type)) {
+                    return EmitStoreByType(code, type, slot);
+                }
+            }
+            return 0;
         default:
             return 0;
     }
@@ -326,6 +369,26 @@ static int CodegenEmitStmtList(jvmc_code *code, NStmt *stmts, NParamList *params
             }
             if (return_emitted) *return_emitted = 1;
             return 1;
+        } else if (stmt->type == STMT_DECL) {
+            if (stmt->value.decl.init_decls && stmt->value.decl.decl_type) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->initializer && decl->initializer->expr) {
+                        if (!CodegenEmitExpr(code, decl->initializer->expr, params, stmts)) {
+                            return 0;
+                        }
+                        if (!EmitStoreByType(code, stmt->value.decl.decl_type, decl->jvm_slot_index)) {
+                            return 0;
+                        }
+                    }
+                }
+            }
+        } else if (stmt->type == STMT_EXPR) {
+            if (stmt->value.expr != NULL) {
+                if (!CodegenEmitExpr(code, stmt->value.expr, params, stmts)) {
+                    return 0;
+                }
+            }
         } else if (stmt->type == STMT_COMPOUND) {
             if (!CodegenEmitStmtList(code,
                                      stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL,
