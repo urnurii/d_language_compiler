@@ -722,6 +722,7 @@ static int FillRefKeyForMemberAccess(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForMethodCall(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx);
 static int FillRefKeyForFuncCall(NExpr *expr, SemanticContext *ctx);
+static int FillRefKeyForSuperField(NExpr *expr, SemanticContext *ctx);
 static int SetResolvedCallInfo(NExpr *expr, const char *owner_internal, const char *descriptor,
                                const NParamList *params);
 static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
@@ -3588,6 +3589,9 @@ static int AttributeJvmRefKeysInExpr(NExpr *expr, SemanticContext *ctx) {
                 AttributeJvmRefKeysInExpr(expr->value.member_access.args[i], ctx);
             }
             break;
+        case EXPR_SUPER:
+            FillRefKeyForSuperField(expr, ctx);
+            break;
         case EXPR_FUNC_CALL:
             FillRefKeyForFuncCall(expr, ctx);
             for (int i = 0; i < expr->value.func_call.arg_count; i++) {
@@ -3800,6 +3804,52 @@ static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx) {
                       method->name,
                       desc,
                       JVM_REF_METHOD)) {
+        free(owner_internal);
+        free(desc);
+        return 0;
+    }
+    free(owner_internal);
+    free(desc);
+    return 1;
+}
+
+static int FillRefKeyForSuperField(NExpr *expr, SemanticContext *ctx) {
+    ClassInfo *base_info;
+    FieldInfo *field;
+    char *owner_internal;
+    char *desc;
+
+    if (expr == NULL || ctx == NULL || ctx->current_class == NULL) {
+        return 0;
+    }
+    if (expr->jvm_ref_key.has_key) {
+        return 1;
+    }
+    if (ctx->current_class->base_class == NULL) {
+        return 0;
+    }
+    base_info = LookupClass(ctx, ctx->current_class->base_class);
+    if (base_info == NULL) {
+        return 0;
+    }
+    field = LookupClassFieldInHierarchy(ctx, base_info, expr->value.ident_name);
+    if (field == NULL) {
+        return 0;
+    }
+    desc = BuildJvmTypeDescriptor(field->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    owner_internal = BuildJvmInternalName(base_info->name);
+    if (owner_internal == NULL) {
+        free(desc);
+        return 0;
+    }
+    if (!SetJvmRefKey(&expr->jvm_ref_key,
+                      owner_internal,
+                      field->name,
+                      desc,
+                      JVM_REF_FIELD)) {
         free(owner_internal);
         free(desc);
         return 0;

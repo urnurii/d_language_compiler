@@ -1004,6 +1004,40 @@ static int EmitLoadLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, NParamLi
             return 1;
         }
     }
+    if (lhs->type == EXPR_MEMBER_ACCESS && lhs->jvm_ref_key.has_key &&
+        lhs->jvm_ref_key.kind == JVM_REF_FIELD) {
+        jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                lhs->jvm_ref_key.owner_internal_name,
+                                                                lhs->jvm_ref_key.member_name,
+                                                                lhs->jvm_ref_key.member_descriptor);
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!CodegenEmitExpr(cls, code, lhs->value.member_access.object, params, body, ctx)) {
+            return 0;
+        }
+        if (type_out != NULL) {
+            *type_out = lhs->inferred_type;
+        }
+        return jvmc_code_getfield(code, fref);
+    }
+    if (lhs->type == EXPR_SUPER && lhs->jvm_ref_key.has_key &&
+        lhs->jvm_ref_key.kind == JVM_REF_FIELD) {
+        jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                lhs->jvm_ref_key.owner_internal_name,
+                                                                lhs->jvm_ref_key.member_name,
+                                                                lhs->jvm_ref_key.member_descriptor);
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!jvmc_code_load_ref(code, 0)) {
+            return 0;
+        }
+        if (type_out != NULL) {
+            *type_out = lhs->inferred_type;
+        }
+        return jvmc_code_getfield(code, fref);
+    }
     return 0;
 }
 
@@ -1020,6 +1054,7 @@ static int EmitStoreLValue(jvmc_class *cls, jvmc_code *code, NExpr *lhs, const N
         }
         return EmitGlobalStore(cls, code, ctx, lhs->value.ident_name, &resolved);
     }
+    (void)resolved;
     return 0;
 }
 
@@ -1741,6 +1776,19 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 return jvmc_code_array_length(code);
             }
+            if (expr->jvm_ref_key.has_key && expr->jvm_ref_key.kind == JVM_REF_FIELD) {
+                jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                        expr->jvm_ref_key.owner_internal_name,
+                                                                        expr->jvm_ref_key.member_name,
+                                                                        expr->jvm_ref_key.member_descriptor);
+                if (fref == NULL) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
+                    return 0;
+                }
+                return jvmc_code_getfield(code, fref);
+            }
             return 0;
         }
         case EXPR_NEW: {
@@ -1915,6 +1963,54 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return EmitGlobalStore(cls, code, ctx, name, &type);
             }
             if (expr->value.binary.left != NULL &&
+                expr->value.binary.left->type == EXPR_MEMBER_ACCESS) {
+                NExpr *lhs = expr->value.binary.left;
+                NExpr *rhs = expr->value.binary.right;
+                jvmc_fieldref *fref;
+                if (rhs == NULL || !lhs->jvm_ref_key.has_key ||
+                    lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                    return 0;
+                }
+                fref = jvmc_class_get_or_create_fieldref(cls,
+                                                         lhs->jvm_ref_key.owner_internal_name,
+                                                         lhs->jvm_ref_key.member_name,
+                                                         lhs->jvm_ref_key.member_descriptor);
+                if (fref == NULL) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, lhs->value.member_access.object, params, body, ctx)) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, rhs, params, body, ctx)) {
+                    return 0;
+                }
+                return jvmc_code_putfield(code, fref);
+            }
+            if (expr->value.binary.left != NULL &&
+                expr->value.binary.left->type == EXPR_SUPER) {
+                NExpr *lhs = expr->value.binary.left;
+                NExpr *rhs = expr->value.binary.right;
+                jvmc_fieldref *fref;
+                if (rhs == NULL || !lhs->jvm_ref_key.has_key ||
+                    lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                    return 0;
+                }
+                fref = jvmc_class_get_or_create_fieldref(cls,
+                                                         lhs->jvm_ref_key.owner_internal_name,
+                                                         lhs->jvm_ref_key.member_name,
+                                                         lhs->jvm_ref_key.member_descriptor);
+                if (fref == NULL) {
+                    return 0;
+                }
+                if (!jvmc_code_load_ref(code, 0)) {
+                    return 0;
+                }
+                if (!CodegenEmitExpr(cls, code, rhs, params, body, ctx)) {
+                    return 0;
+                }
+                return jvmc_code_putfield(code, fref);
+            }
+            if (expr->value.binary.left != NULL &&
                 expr->value.binary.left->type == EXPR_ARRAY_ACCESS) {
                 NExpr *lhs = expr->value.binary.left;
                 NExpr *rhs = expr->value.binary.right;
@@ -1939,6 +2035,44 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return EmitArrayStoreForType(code, &elem_type);
             }
             return 0;
+        case EXPR_SUPER: {
+            if (expr->jvm_ref_key.has_key && expr->jvm_ref_key.kind == JVM_REF_FIELD) {
+                jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                        expr->jvm_ref_key.owner_internal_name,
+                                                                        expr->jvm_ref_key.member_name,
+                                                                        expr->jvm_ref_key.member_descriptor);
+                if (fref == NULL) {
+                    return 0;
+                }
+                if (!jvmc_code_load_ref(code, 0)) {
+                    return 0;
+                }
+                return jvmc_code_getfield(code, fref);
+            }
+            return jvmc_code_load_ref(code, 0);
+        }
+        case EXPR_THIS:
+            return jvmc_code_load_ref(code, 0);
+        case EXPR_SUPER_METHOD: {
+            if (!jvmc_code_load_ref(code, 0)) {
+                return 0;
+            }
+            for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                if (!CodegenEmitExpr(cls, code, expr->value.member_access.args[i], params, body, ctx)) {
+                    return 0;
+                }
+            }
+            {
+                jvmc_methodref *mref = jvmc_class_get_or_create_methodref(cls,
+                                                                          expr->jvm_ref_key.owner_internal_name,
+                                                                          expr->jvm_ref_key.member_name,
+                                                                          expr->jvm_ref_key.member_descriptor);
+                if (mref == NULL) {
+                    return 0;
+                }
+                return jvmc_code_invokespecial(code, mref);
+            }
+        }
         default:
             return 0;
     }
