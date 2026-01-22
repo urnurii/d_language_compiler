@@ -22,6 +22,8 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx);
 static int TransformAssignment(NExpr *expr, SemanticContext *ctx);
 static int PrepareLValueRValue(NExpr *lhs, NExpr *rhs, SemanticContext *ctx);
 static int TryInsertImplicitCast(NExpr **expr_ptr, const NType *target_type, SemanticContext *ctx);
+static NExpr *CloneLValueExpr(const NExpr *expr);
+static int IsArrayType(const NType *type);
 
 int TransformProgram(NProgram *root, SemanticContext *ctx) {
     if (ctx == NULL) {
@@ -611,11 +613,42 @@ static int TransformSwitchToIfChain(NStmt *stmt, SemanticContext *ctx) {
 }
 
 static int TransformAssignment(NExpr *expr, SemanticContext *ctx) {
+    NExpr *lhs_copy;
+    NExpr *new_right;
+    NExprList *args;
+    NType *lhs_type;
+    int is_array;
     if (expr == NULL || expr->type != EXPR_ASSIGN) {
         return 0;
     }
     TransformExpression(expr->value.binary.left, ctx);
     TransformExpression(expr->value.binary.right, ctx);
+    if (expr->value.binary.op != OP_ASSIGN) {
+        if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
+            lhs_type = InferExpressionTypeSilent(expr->value.binary.left, ctx);
+            is_array = IsArrayType(lhs_type);
+            args = CreateExprList();
+            AddExprToList(args, CloneLValueExpr(expr->value.binary.left));
+            AddExprToList(args, expr->value.binary.right);
+            new_right = CreateFuncCallExpr("__append", args->elements, args->count);
+            expr->value.binary.op = OP_ASSIGN;
+            expr->value.binary.right = new_right;
+            (void)is_array;
+        } else {
+            OpType base_op = OP_PLUS;
+            switch (expr->value.binary.op) {
+                case OP_PLUS_ASSIGN: base_op = OP_PLUS; break;
+                case OP_MINUS_ASSIGN: base_op = OP_MINUS; break;
+                case OP_MUL_ASSIGN: base_op = OP_MUL; break;
+                case OP_DIV_ASSIGN: base_op = OP_DIV; break;
+                default: base_op = OP_PLUS; break;
+            }
+            lhs_copy = CloneLValueExpr(expr->value.binary.left);
+            new_right = CreateBinaryOpExpr(base_op, lhs_copy, expr->value.binary.right);
+            expr->value.binary.op = OP_ASSIGN;
+            expr->value.binary.right = new_right;
+        }
+    }
     PrepareLValueRValue(expr->value.binary.left, expr->value.binary.right, ctx);
     TryInsertImplicitCast(&expr->value.binary.right, NULL, ctx);
     return 0;
@@ -633,4 +666,34 @@ static int TryInsertImplicitCast(NExpr **expr_ptr, const NType *target_type, Sem
     (void)target_type;
     (void)ctx;
     return 0;
+}
+
+static int IsArrayType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY;
+}
+
+static NExpr *CloneLValueExpr(const NExpr *expr) {
+    if (expr == NULL) {
+        return NULL;
+    }
+    switch (expr->type) {
+        case EXPR_IDENT:
+            return CreateIdentExpr(expr->value.ident_name);
+        case EXPR_MEMBER_ACCESS:
+            return CreateMemberAccessExpr(CloneLValueExpr(expr->value.member_access.object),
+                                          expr->value.member_access.member_name);
+        case EXPR_ARRAY_ACCESS:
+            return CreateArrayAccessExpr(CloneLValueExpr(expr->value.array_access.array),
+                                         CloneLValueExpr(expr->value.array_access.index),
+                                         CloneLValueExpr(expr->value.array_access.index_end));
+        case EXPR_PAREN:
+            return CreateParenExpr(CloneLValueExpr(expr->value.inner_expr));
+        case EXPR_THIS:
+            return CreateThisExpr();
+        default:
+            return CreateIdentExpr("__invalid_lvalue");
+    }
 }
