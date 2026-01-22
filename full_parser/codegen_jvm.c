@@ -1,11 +1,13 @@
 #include "codegen_jvm.h"
 #include "jvmc/jvmc.h"
 #include "semantic/jvm_layout.h"
+#include "semantic/name_resolution.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body);
+static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
+                           SemanticContext *ctx);
 
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
@@ -455,7 +457,7 @@ static const char *PrintDescriptorForType(const NType *type) {
 }
 
 static int EmitPrintCall(jvmc_class *cls, jvmc_code *code, NExpr *arg, int is_last, int is_writeln,
-                         NParamList *params, NStmt *body) {
+                         NParamList *params, NStmt *body, SemanticContext *ctx) {
     jvmc_fieldref *out_ref = NULL;
     jvmc_methodref *print_ref = NULL;
     const char *owner = "java/io/PrintStream";
@@ -479,7 +481,7 @@ static int EmitPrintCall(jvmc_class *cls, jvmc_code *code, NExpr *arg, int is_la
     }
 
     if (arg != NULL) {
-        if (!CodegenEmitExpr(cls, code, arg, params, body)) {
+        if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
             return 0;
         }
         if (is_writeln && is_last) {
@@ -516,7 +518,60 @@ static int EmitReadlnCall(jvmc_class *cls, jvmc_code *code) {
     return jvmc_code_invokestatic(code, mref);
 }
 
-static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body) {
+static int EmitGlobalLoad(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx, const char *name, NType **type_out) {
+    Symbol *sym;
+    char *desc;
+    jvmc_fieldref *fref;
+    if (cls == NULL || code == NULL || ctx == NULL || name == NULL) {
+        return 0;
+    }
+    sym = LookupGlobalSymbol(ctx, name);
+    if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
+        return 0;
+    }
+    if (type_out != NULL) {
+        *type_out = sym->info.var_info->type;
+    }
+    desc = BuildJvmTypeDescriptor(sym->info.var_info->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    fref = jvmc_class_get_or_create_fieldref(cls, "Main", name, desc);
+    free(desc);
+    if (fref == NULL) {
+        return 0;
+    }
+    return jvmc_code_getstatic(code, fref);
+}
+
+static int EmitGlobalStore(jvmc_class *cls, jvmc_code *code, SemanticContext *ctx, const char *name, NType **type_out) {
+    Symbol *sym;
+    char *desc;
+    jvmc_fieldref *fref;
+    if (cls == NULL || code == NULL || ctx == NULL || name == NULL) {
+        return 0;
+    }
+    sym = LookupGlobalSymbol(ctx, name);
+    if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
+        return 0;
+    }
+    if (type_out != NULL) {
+        *type_out = sym->info.var_info->type;
+    }
+    desc = BuildJvmTypeDescriptor(sym->info.var_info->type);
+    if (desc == NULL) {
+        return 0;
+    }
+    fref = jvmc_class_get_or_create_fieldref(cls, "Main", name, desc);
+    free(desc);
+    if (fref == NULL) {
+        return 0;
+    }
+    return jvmc_code_putstatic(code, fref);
+}
+
+static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
+                           SemanticContext *ctx) {
     int slot = -1;
     NType *type = NULL;
     if (expr == NULL || code == NULL) {
@@ -536,18 +591,19 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             if (ResolveVariableSlot(expr->value.ident_name, params, body, &slot, &type)) {
                 return EmitLoadByType(code, type, slot);
             }
-            return 0;
+            return EmitGlobalLoad(cls, code, ctx, expr->value.ident_name, &type);
         case EXPR_FUNC_CALL: {
             const char *fname = expr->value.func_call.func_name;
             if (fname != NULL) {
                 if (strcmp(fname, "write") == 0 || strcmp(fname, "writeln") == 0) {
                     int is_writeln = (strcmp(fname, "writeln") == 0);
                     if (expr->value.func_call.arg_count == 0) {
-                        return EmitPrintCall(cls, code, NULL, 1, is_writeln, params, body);
+                        return EmitPrintCall(cls, code, NULL, 1, is_writeln, params, body, ctx);
                     }
                     for (int i = 0; i < expr->value.func_call.arg_count; i++) {
                         int is_last = (i == expr->value.func_call.arg_count - 1);
-                        if (!EmitPrintCall(cls, code, expr->value.func_call.args[i], is_last, is_writeln, params, body)) {
+                        if (!EmitPrintCall(cls, code, expr->value.func_call.args[i], is_last, is_writeln,
+                                           params, body, ctx)) {
                             return 0;
                         }
                     }
@@ -558,18 +614,18 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
             }
             for (int i = 0; i < expr->value.func_call.arg_count; i++) {
-                if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[i], params, body)) {
+                if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[i], params, body, ctx)) {
                     return 0;
                 }
             }
             return EmitInvokeFromRefKey(cls, code, &expr->jvm_ref_key, 1);
         }
         case EXPR_METHOD_CALL: {
-            if (!CodegenEmitExpr(cls, code, expr->value.member_access.object, params, body)) {
+            if (!CodegenEmitExpr(cls, code, expr->value.member_access.object, params, body, ctx)) {
                 return 0;
             }
             for (int i = 0; i < expr->value.member_access.arg_count; i++) {
-                if (!CodegenEmitExpr(cls, code, expr->value.member_access.args[i], params, body)) {
+                if (!CodegenEmitExpr(cls, code, expr->value.member_access.args[i], params, body, ctx)) {
                     return 0;
                 }
             }
@@ -583,12 +639,13 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 if (right == NULL) {
                     return 0;
                 }
-                if (!CodegenEmitExpr(cls, code, right, params, body)) {
+                if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
                     return 0;
                 }
                 if (ResolveVariableSlot(name, params, body, &slot, &type)) {
                     return EmitStoreByType(code, type, slot);
                 }
+                return EmitGlobalStore(cls, code, ctx, name, &type);
             }
             return 0;
         default:
@@ -596,7 +653,8 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
     }
 }
 
-static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params, int *return_emitted) {
+static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, NParamList *params,
+                               int *return_emitted, SemanticContext *ctx) {
     NStmt *stmt = stmts;
     while (stmt != NULL) {
         if (stmt->type == STMT_RETURN) {
@@ -608,7 +666,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 if (return_emitted) *return_emitted = 1;
                 return 1;
             }
-            if (!CodegenEmitExpr(cls, code, ret_expr, params, stmts)) {
+            if (!CodegenEmitExpr(cls, code, ret_expr, params, stmts, ctx)) {
                 return 0;
             }
             if (!EmitReturnByType(code, ret_expr->inferred_type)) {
@@ -621,7 +679,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
                     if (decl && decl->initializer && decl->initializer->expr) {
-                        if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts)) {
+                        if (!CodegenEmitExpr(cls, code, decl->initializer->expr, params, stmts, ctx)) {
                             return 0;
                         }
                         if (!EmitStoreByType(code, stmt->value.decl.decl_type, decl->jvm_slot_index)) {
@@ -632,7 +690,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             }
         } else if (stmt->type == STMT_EXPR) {
             if (stmt->value.expr != NULL) {
-                if (!CodegenEmitExpr(cls, code, stmt->value.expr, params, stmts)) {
+                if (!CodegenEmitExpr(cls, code, stmt->value.expr, params, stmts, ctx)) {
                     return 0;
                 }
             }
@@ -640,7 +698,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             if (!CodegenEmitStmtList(cls, code,
                                      stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL,
                                      params,
-                                     return_emitted)) {
+                                     return_emitted,
+                                     ctx)) {
                 return 0;
             }
             if (return_emitted && *return_emitted) {
@@ -654,7 +713,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
 
 static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const char *descriptor,
                                     uint16_t access_flags, int is_static,
-                                    NStmt *body, NParamList *params) {
+                                    NStmt *body, NParamList *params, SemanticContext *ctx) {
     jvmc_method *method = NULL;
     jvmc_code *code = NULL;
     int returned = 0;
@@ -684,13 +743,88 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(params, body, is_static ? 0 : 1))) {
         return 0;
     }
-    if (!CodegenEmitStmtList(cls, code, body, params, &returned)) {
+    if (!CodegenEmitStmtList(cls, code, body, params, &returned, ctx)) {
         return 0;
     }
     if (!returned) {
         return CodegenEmitEmptyReturn(code, descriptor);
     }
     return 1;
+}
+
+static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *ctx) {
+    NSourceItem *item;
+    jvmc_method *method;
+    jvmc_code *code;
+    int has_init = 0;
+
+    if (cls == NULL || root == NULL) {
+        return 0;
+    }
+
+    item = root->first_item;
+    while (item != NULL) {
+        if (item->type == SOURCE_ITEM_DECL && item->value.decl.init_decls) {
+            for (int i = 0; i < item->value.decl.init_decls->count; i++) {
+                NInitDecl *decl = item->value.decl.init_decls->decls[i];
+                if (decl && decl->initializer && decl->initializer->expr) {
+                    has_init = 1;
+                    break;
+                }
+            }
+        }
+        if (has_init) {
+            break;
+        }
+        item = item->next;
+    }
+    if (!has_init) {
+        return 1;
+    }
+
+    method = jvmc_class_get_or_create_method(cls, "<clinit>", "()V");
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+        return 0;
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+
+    item = root->first_item;
+    while (item != NULL) {
+        if (item->type == SOURCE_ITEM_DECL && item->value.decl.init_decls) {
+            for (int i = 0; i < item->value.decl.init_decls->count; i++) {
+                NInitDecl *decl = item->value.decl.init_decls->decls[i];
+                if (decl == NULL || decl->name == NULL ||
+                    decl->jvm_descriptor == NULL ||
+                    decl->initializer == NULL ||
+                    decl->initializer->expr == NULL) {
+                    continue;
+                }
+                if (!CodegenEmitExpr(cls, code, decl->initializer->expr, NULL, NULL, ctx)) {
+                    return 0;
+                }
+                {
+                    jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
+                                                                            "Main",
+                                                                            decl->name,
+                                                                            decl->jvm_descriptor);
+                    if (fref == NULL) {
+                        return 0;
+                    }
+                    if (!jvmc_code_putstatic(code, fref)) {
+                        return 0;
+                    }
+                }
+            }
+        }
+        item = item->next;
+    }
+    return jvmc_code_return_void(code);
 }
 
 static NFuncDef *FindGlobalFunction(NProgram *root, const char *name) {
@@ -819,7 +953,8 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                                               access,
                                               0,
                                               member->value.method->body,
-                                              member->value.method->params)) {
+                                              member->value.method->params,
+                                              ctx)) {
                     jvmc_class_destroy(cls);
                     return 1;
                 }
@@ -841,7 +976,8 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                 if (!CodegenAddMethodWithBody(cls, "<init>", ctor_desc,
                                               CodegenAccessFromSpec(member->access), 0,
                                               member->value.ctor->body,
-                                              member->value.ctor->params)) {
+                                              member->value.ctor->params,
+                                              ctx)) {
                     free((void *)ctor_desc);
                     jvmc_class_destroy(cls);
                     return 1;
@@ -910,7 +1046,8 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
         while (item != NULL) {
             switch (item->type) {
                 case SOURCE_ITEM_DECL:
-                    if (!CodegenAddFieldDecls(cls, item->value.decl.init_decls, JVMC_FIELD_ACC_PUBLIC)) {
+                    if (!CodegenAddFieldDecls(cls, item->value.decl.init_decls,
+                                              (uint16_t)(JVMC_FIELD_ACC_PUBLIC | JVMC_FIELD_ACC_STATIC))) {
                         jvmc_class_destroy(cls);
                         return 1;
                     }
@@ -933,7 +1070,8 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                                           JVMC_METHOD_ACC_PUBLIC,
                                                           1,
                                                           item->value.func->body,
-                                                          item->value.func->params)) {
+                                                          item->value.func->params,
+                                                          ctx)) {
                                 jvmc_class_destroy(cls);
                                 return 1;
                             }
@@ -963,6 +1101,10 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
             jvmc_class_destroy(cls);
             return 1;
         }
+    }
+    if (!CodegenEmitClinit(cls, root, ctx)) {
+        jvmc_class_destroy(cls);
+        return 1;
     }
 
     if (!jvmc_class_write_to_file(cls, out_file)) {
