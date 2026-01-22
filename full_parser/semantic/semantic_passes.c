@@ -2460,6 +2460,21 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                                                 expr->column) != 0) {
                         had_error = 1;
                     }
+                    if (strcmp(func->name, "readf") == 0) {
+                        for (int i = 1; i < expr->value.func_call.arg_count; i++) {
+                            NExpr *arg = expr->value.func_call.args[i];
+                            if (arg != NULL && !IsValidLValueExpr(arg)) {
+                                if (ctx->errors != NULL) {
+                                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                          "readf requires lvalue arguments",
+                                                                          arg->line,
+                                                                          arg->column);
+                                    AddError(ctx->errors, &err);
+                                }
+                                had_error = 1;
+                            }
+                        }
+                    }
                 }
                 if (func->params != NULL) {
                     int count = expected < actual ? expected : actual;
