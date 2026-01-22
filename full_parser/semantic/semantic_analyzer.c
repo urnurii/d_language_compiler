@@ -14,6 +14,7 @@ static int FirstPassCollectDeclarations(NProgram *root, SemanticContext *ctx);
 static int SecondPassCheckSemantics(NProgram *root, SemanticContext *ctx);
 static int ThirdPassAttributeAST(NProgram *root, SemanticContext *ctx);
 static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx);
+static int FifthPassReattributeAST(NProgram *root, SemanticContext *ctx);
 static int RegisterBuiltinClasses(SemanticContext *ctx);
 static int RegisterBuiltinFunctions(SemanticContext *ctx);
 static int ApplyJvmAttribution(NProgram *root, SemanticContext *ctx);
@@ -202,6 +203,10 @@ int AnalyzeProgram(NProgram *root, SemanticContext **ctx) {
     }
 
     if (FourthPassTransformAST(root, local_ctx) != 0) {
+        *ctx = local_ctx;
+        return 1;
+    }
+    if (FifthPassReattributeAST(root, local_ctx) != 0) {
         *ctx = local_ctx;
         return 1;
     }
@@ -528,6 +533,19 @@ static int FourthPassTransformAST(NProgram *root, SemanticContext *ctx) {
         return 1;
     }
     if (TransformProgram(root, ctx) != 0) {
+        return 1;
+    }
+    return HasErrors(ctx->errors) ? 1 : 0;
+}
+
+static int FifthPassReattributeAST(NProgram *root, SemanticContext *ctx) {
+    if (ctx == NULL) {
+        return 1;
+    }
+    if (root == NULL) {
+        return 0;
+    }
+    if (ThirdPassAttributeAST(root, ctx) != 0) {
         return 1;
     }
     return HasErrors(ctx->errors) ? 1 : 0;
