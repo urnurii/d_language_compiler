@@ -21,6 +21,9 @@ typedef struct {
 static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor,
                            AccessSpec access, SemanticContext *ctx);
 static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx);
+static int CodegenAddEnumFields(jvmc_class *cls, NEnumDef *enum_def, uint16_t access_flags);
+static int CodegenEmitEnumValues(jvmc_class *cls, jvmc_code *code,
+                                 const char *owner_internal, NEnumDef *enum_def);
 
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
@@ -1584,6 +1587,66 @@ static int EmitNewClassExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPara
     return 1;
 }
 
+static int CodegenAddEnumFields(jvmc_class *cls, NEnumDef *enum_def, uint16_t access_flags) {
+    if (cls == NULL || enum_def == NULL || enum_def->items.items == NULL) {
+        return 1;
+    }
+    for (int i = 0; i < enum_def->items.count; i++) {
+        NEnumItem *item = enum_def->items.items[i];
+        jvmc_field *field;
+        if (item == NULL || item->name == NULL) {
+            continue;
+        }
+        field = jvmc_class_get_or_create_field(cls, item->name, "I");
+        if (field == NULL) {
+            return 0;
+        }
+        if (!jvmc_field_add_flag(field, access_flags) ||
+            !jvmc_field_add_flag(field, JVMC_FIELD_ACC_STATIC) ||
+            !jvmc_field_add_flag(field, JVMC_FIELD_ACC_FINAL)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int CodegenEmitEnumValues(jvmc_class *cls, jvmc_code *code,
+                                 const char *owner_internal, NEnumDef *enum_def) {
+    int next_value = 0;
+    if (cls == NULL || code == NULL || owner_internal == NULL || enum_def == NULL) {
+        return 0;
+    }
+    if (enum_def->items.items == NULL) {
+        return 1;
+    }
+    for (int i = 0; i < enum_def->items.count; i++) {
+        NEnumItem *item = enum_def->items.items[i];
+        int value;
+        jvmc_fieldref *fref;
+        if (item == NULL || item->name == NULL) {
+            continue;
+        }
+        if (item->has_value) {
+            value = item->value;
+            next_value = value + 1;
+        } else {
+            value = next_value;
+            next_value += 1;
+        }
+        fref = jvmc_class_get_or_create_fieldref(cls, owner_internal, item->name, "I");
+        if (fref == NULL) {
+            return 0;
+        }
+        if (!jvmc_code_push_int(code, value)) {
+            return 0;
+        }
+        if (!jvmc_code_putstatic(code, fref)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int EmitInstanceFieldInitializers(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx,
                                          jvmc_code *code, NParamList *params, NStmt *body) {
     NClassMember *member;
@@ -2101,6 +2164,9 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
         }
         case EXPR_MEMBER_ACCESS: {
             NExpr *obj = expr->value.member_access.object;
+            if (expr->enum_value_is_set) {
+                return jvmc_code_push_int(code, expr->enum_value);
+            }
             if (obj != NULL && obj->inferred_type != NULL &&
                 (obj->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
                  obj->inferred_type->kind == TYPE_KIND_CLASS_ARRAY) &&
@@ -2768,6 +2834,7 @@ static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *c
     jvmc_method *method;
     jvmc_code *code;
     int has_init = 0;
+    int has_enum = 0;
 
     if (cls == NULL || root == NULL) {
         return 0;
@@ -2787,9 +2854,14 @@ static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *c
         if (has_init) {
             break;
         }
+        if (item->type == SOURCE_ITEM_ENUM && item->value.enum_def &&
+            item->value.enum_def->items.items != NULL) {
+            has_enum = 1;
+            break;
+        }
         item = item->next;
     }
-    if (!has_init) {
+    if (!has_init && !has_enum) {
         return 1;
     }
 
@@ -2837,6 +2909,10 @@ static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *c
                         }
                     }
                 }
+            }
+        } else if (item->type == SOURCE_ITEM_ENUM && item->value.enum_def) {
+            if (!CodegenEmitEnumValues(cls, code, "Main", item->value.enum_def)) {
+                return 0;
             }
         }
         item = item->next;
@@ -2909,6 +2985,7 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     size_t out_len = 0;
     int ok = 1;
     int has_ctor = 0;
+    int has_enum = 0;
 
     (void)ctx;
 
@@ -2990,12 +3067,58 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
                 jvmc_class_destroy(cls);
                 return 1;
             }
+        } else if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
+            has_enum = 1;
+            if (!CodegenAddEnumFields(cls, member->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
+                jvmc_class_destroy(cls);
+                return 1;
+            }
         }
         member = member->next;
     }
 
     if (!has_ctor) {
         if (!CodegenEmitDefaultCtor(cls, class_def, ctx)) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+    }
+
+    if (has_enum) {
+        jvmc_method *method = jvmc_class_get_or_create_method(cls, "<clinit>", "()V");
+        jvmc_code *code = NULL;
+        char *owner_internal = NULL;
+        if (method == NULL) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        code = jvmc_method_get_code(method);
+        if (code == NULL) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        owner_internal = BuildJvmInternalName(class_def->class_name);
+        if (owner_internal == NULL) {
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        member = class_def->members.first;
+        while (member != NULL) {
+            if (member->type == CLASS_MEMBER_ENUM && member->value.enum_def) {
+                if (!CodegenEmitEnumValues(cls, code, owner_internal, member->value.enum_def)) {
+                    free(owner_internal);
+                    jvmc_class_destroy(cls);
+                    return 1;
+                }
+            }
+            member = member->next;
+        }
+        free(owner_internal);
+        if (!jvmc_code_return_void(code)) {
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -3094,6 +3217,10 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                     }
                     break;
                 case SOURCE_ITEM_ENUM:
+                    if (!CodegenAddEnumFields(cls, item->value.enum_def, JVMC_FIELD_ACC_PUBLIC)) {
+                        jvmc_class_destroy(cls);
+                        return 1;
+                    }
                     break;
             }
             item = item->next;

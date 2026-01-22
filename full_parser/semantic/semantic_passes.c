@@ -2629,12 +2629,15 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         if (item == NULL) {
                             if (ctx->errors != NULL) {
                                 SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                                      "Enum item not found",
-                                                                      expr->line,
-                                                                      expr->column);
+                                                                    "Enum item not found",
+                                                                    expr->line,
+                                                                    expr->column);
                                 AddError(ctx->errors, &err);
                             }
                             had_error = 1;
+                        } else {
+                            expr->enum_value = item->value;
+                            expr->enum_value_is_set = 1;
                         }
                         break;
                     }

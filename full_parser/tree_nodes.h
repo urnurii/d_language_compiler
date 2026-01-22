@@ -127,6 +127,8 @@ typedef struct NExpr {
     char *resolved_member_descriptor;
     unsigned char *resolved_arg_is_ref;
     int resolved_arg_count;
+    int enum_value;
+    int enum_value_is_set;
     
     union {
         char *ident_name;          // EXPR_IDENT, EXPR_SUPER
