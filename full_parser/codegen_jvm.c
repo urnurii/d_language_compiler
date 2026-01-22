@@ -583,11 +583,64 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     return 1;
 }
 
+static NFuncDef *FindGlobalFunction(NProgram *root, const char *name) {
+    NSourceItem *item;
+    if (root == NULL || name == NULL) {
+        return NULL;
+    }
+    item = root->first_item;
+    while (item != NULL) {
+        if (item->type == SOURCE_ITEM_FUNC) {
+            if (item->value.func && item->value.func->func_name &&
+                strcmp(item->value.func->func_name, name) == 0) {
+                return item->value.func;
+            }
+        }
+        item = item->next;
+    }
+    return NULL;
+}
+
+static int EmitJavaEntryMain(jvmc_class *cls, int call_noarg_main) {
+    jvmc_method *method = NULL;
+    jvmc_code *code = NULL;
+    jvmc_methodref *mref = NULL;
+    const char *desc = "([Ljava/lang/String;)V";
+    if (cls == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, "main", desc);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_PUBLIC) ||
+        !jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+        return 0;
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+    if (call_noarg_main) {
+        mref = jvmc_class_get_or_create_methodref(cls, "Main", "main", "()V");
+        if (mref == NULL) {
+            return 0;
+        }
+        if (!jvmc_code_invokestatic(code, mref)) {
+            return 0;
+        }
+    }
+    return jvmc_code_return_void(code);
+}
+
 int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
     const char *class_name = "Main";
     const char *out_file = "Main.class";
     jvmc_class *cls = NULL;
     int ok = 1;
+    NFuncDef *main_func = NULL;
+    const char *main_desc = NULL;
+    int need_java_entry = 1;
 
     (void)root;
     (void)ctx;
@@ -603,12 +656,12 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
         return 1;
     }
 
-    {
-        const char *main_desc = "([Ljava/lang/String;)V";
-        if (!CodegenAddMethodStub(cls, "main", main_desc, JVMC_METHOD_ACC_PUBLIC, 1)) {
-            jvmc_class_destroy(cls);
-            return 1;
-        }
+    main_func = FindGlobalFunction(root, "main");
+    if (main_func != NULL) {
+        main_desc = main_func->jvm_descriptor;
+    }
+    if (main_desc != NULL && strcmp(main_desc, "([Ljava/lang/String;)V") == 0) {
+        need_java_entry = 0;
     }
 
     if (root != NULL) {
@@ -722,6 +775,17 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                     break;
             }
             item = item->next;
+        }
+    }
+
+    if (need_java_entry) {
+        int call_noarg_main = 0;
+        if (main_desc != NULL && strcmp(main_desc, "()V") == 0) {
+            call_noarg_main = 1;
+        }
+        if (!EmitJavaEntryMain(cls, call_noarg_main)) {
+            jvmc_class_destroy(cls);
+            return 1;
         }
     }
 
