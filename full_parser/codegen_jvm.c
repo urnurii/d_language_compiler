@@ -1,6 +1,8 @@
 #include "codegen_jvm.h"
 #include "jvmc/jvmc.h"
 #include "semantic/jvm_layout.h"
+#include <string.h>
+#include <stdlib.h>
 
 static char *CodegenBuildTypeDescriptor(const NType *type) {
     return BuildJvmTypeDescriptor(type);
@@ -31,6 +33,74 @@ static int CodegenAddFieldDecls(jvmc_class *cls, NInitDeclList *decls, uint16_t 
     return 1;
 }
 
+static int CodegenEmitEmptyReturn(jvmc_code *code, const char *descriptor) {
+    const char *ret = NULL;
+    if (code == NULL || descriptor == NULL) {
+        return 0;
+    }
+    ret = strchr(descriptor, ')');
+    if (ret == NULL || ret[1] == '\0') {
+        return jvmc_code_return_void(code);
+    }
+    ret = ret + 1;
+    switch (*ret) {
+        case 'V':
+            return jvmc_code_return_void(code);
+        case 'J':
+            return jvmc_code_return_long(code);
+        case 'D':
+            return jvmc_code_return_double(code);
+        case 'F':
+            return jvmc_code_return_float(code);
+        case 'Z':
+        case 'B':
+        case 'C':
+        case 'S':
+        case 'I':
+            return jvmc_code_return_int(code);
+        default:
+            return jvmc_code_return_ref(code);
+    }
+}
+
+static uint16_t CodegenAccessFromSpec(AccessSpec access) {
+    switch (access) {
+        case ACCESS_PRIVATE:
+            return JVMC_METHOD_ACC_PRIVATE;
+        case ACCESS_PROTECTED:
+            return JVMC_METHOD_ACC_PROTECTED;
+        case ACCESS_PUBLIC:
+        default:
+            return JVMC_METHOD_ACC_PUBLIC;
+    }
+}
+
+static int CodegenAddMethodStub(jvmc_class *cls, const char *name, const char *descriptor,
+                                uint16_t access_flags, int is_static) {
+    jvmc_method *method = NULL;
+    jvmc_code *code = NULL;
+    if (cls == NULL || name == NULL || descriptor == NULL) {
+        return 0;
+    }
+    method = jvmc_class_get_or_create_method(cls, name, descriptor);
+    if (method == NULL) {
+        return 0;
+    }
+    if (!jvmc_method_add_flag(method, access_flags)) {
+        return 0;
+    }
+    if (is_static) {
+        if (!jvmc_method_add_flag(method, JVMC_METHOD_ACC_STATIC)) {
+            return 0;
+        }
+    }
+    code = jvmc_method_get_code(method);
+    if (code == NULL) {
+        return 0;
+    }
+    return CodegenEmitEmptyReturn(code, descriptor);
+}
+
 int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
     const char *class_name = "Main";
     const char *out_file = "Main.class";
@@ -53,24 +123,7 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
 
     {
         const char *main_desc = "([Ljava/lang/String;)V";
-        jvmc_method *main_method = jvmc_class_get_or_create_method(cls, "main", main_desc);
-        jvmc_code *code = NULL;
-        if (main_method == NULL) {
-            jvmc_class_destroy(cls);
-            return 1;
-        }
-        ok = jvmc_method_add_flag(main_method, JVMC_METHOD_ACC_PUBLIC);
-        ok = ok && jvmc_method_add_flag(main_method, JVMC_METHOD_ACC_STATIC);
-        if (!ok) {
-            jvmc_class_destroy(cls);
-            return 1;
-        }
-        code = jvmc_method_get_code(main_method);
-        if (code == NULL) {
-            jvmc_class_destroy(cls);
-            return 1;
-        }
-        if (!jvmc_code_return_void(code)) {
+        if (!CodegenAddMethodStub(cls, "main", main_desc, JVMC_METHOD_ACC_PUBLIC, 1)) {
             jvmc_class_destroy(cls);
             return 1;
         }
@@ -101,12 +154,56 @@ int GenerateClassFiles(NProgram *root, SemanticContext *ctx) {
                                 jvmc_class_destroy(cls);
                                 return 1;
                             }
+                        } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
+                            uint16_t access = CodegenAccessFromSpec(member->access);
+                            const char *desc = member->value.method->jvm_descriptor;
+                            if (desc == NULL) {
+                                jvmc_class_destroy(cls);
+                                return 1;
+                            }
+                            if (!CodegenAddMethodStub(cls,
+                                                      member->value.method->method_name,
+                                                      desc,
+                                                      access,
+                                                      0)) {
+                                jvmc_class_destroy(cls);
+                                return 1;
+                            }
+                        } else if (member->type == CLASS_MEMBER_CTOR && member->value.ctor) {
+                            NClassDef *owner_class = class_def;
+                            const char *ctor_desc = NULL;
+                            if (owner_class == NULL || owner_class->class_name == NULL) {
+                                jvmc_class_destroy(cls);
+                                return 1;
+                            }
+                            ctor_desc = CodegenBuildMethodDescriptor(NULL, member->value.ctor->params);
+                            if (ctor_desc == NULL) {
+                                jvmc_class_destroy(cls);
+                                return 1;
+                            }
+                            if (!CodegenAddMethodStub(cls, "<init>", ctor_desc, CodegenAccessFromSpec(member->access), 0)) {
+                                free((void *)ctor_desc);
+                                jvmc_class_destroy(cls);
+                                return 1;
+                            }
+                            free((void *)ctor_desc);
                         }
                         member = member->next;
                     }
                     break;
                 }
                 case SOURCE_ITEM_FUNC:
+                    if (item->value.func && item->value.func->jvm_descriptor) {
+                        if (!CodegenAddMethodStub(cls,
+                                                  item->value.func->func_name,
+                                                  item->value.func->jvm_descriptor,
+                                                  JVMC_METHOD_ACC_PUBLIC,
+                                                  1)) {
+                            jvmc_class_destroy(cls);
+                            return 1;
+                        }
+                    }
+                    break;
                 case SOURCE_ITEM_ENUM:
                     break;
             }
