@@ -1,6 +1,7 @@
 void main()
 {
     int n;
+    write("Enter array length: ");
     readf("%d", n);
 
     int[] a = new int[n];
