@@ -9,6 +9,22 @@
 #include <string.h>
 #include <stdlib.h>
 
+static char *DuplicateStringLocal(const char *str) {
+    size_t len;
+    char *copy;
+
+    if (str == NULL) {
+        return NULL;
+    }
+    len = strlen(str);
+    copy = (char *)malloc(len + 1);
+    if (copy == NULL) {
+        return NULL;
+    }
+    memcpy(copy, str, len + 1);
+    return copy;
+}
+
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
                            SemanticContext *ctx);
 static int CodegenReportExprFail(const char *where, const NExpr *expr);
