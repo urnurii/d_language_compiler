@@ -123,6 +123,27 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
         case EXPR_FUNC_CALL: {
             int ambiguous = 0;
+            if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "destroy") == 0) {
+                if (expr->value.func_call.arg_count == 1 &&
+                    expr->value.func_call.args != NULL) {
+                    NExpr *arg = expr->value.func_call.args[0];
+                    NType *arg_type = InferExpressionTypeInternal(arg, ctx, report_errors);
+                    if (arg_type != NULL &&
+                        arg_type->kind == TYPE_KIND_CLASS &&
+                        arg_type->class_name != NULL) {
+                        return CreateBaseType(TYPE_VOID);
+                    }
+                }
+                if (report_errors && ctx != NULL && ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "destroy expects a class instance",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                }
+                return NULL;
+            }
             FunctionInfo *func = LookupFunctionOverload(ctx,
                                                         expr->value.func_call.func_name,
                                                         expr->value.func_call.args,
