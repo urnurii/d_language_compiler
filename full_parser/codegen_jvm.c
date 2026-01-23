@@ -3885,6 +3885,42 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 return jvmc_code_getfield(code, fref);
             }
+            if (obj != NULL && expr->value.member_access.member_name != NULL && ctx != NULL) {
+                NType *obj_type = obj->inferred_type;
+                if (obj_type == NULL) {
+                    obj_type = InferExpressionTypeSilent(obj, ctx);
+                }
+                if (obj_type != NULL && obj_type->kind == TYPE_KIND_CLASS &&
+                    obj_type->class_name != NULL) {
+                    ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+                    FieldInfo *field = NULL;
+                    if (class_info != NULL) {
+                        field = LookupClassFieldInHierarchy(ctx, class_info,
+                                                            expr->value.member_access.member_name);
+                    }
+                    if (field != NULL) {
+                        char *desc = BuildJvmTypeDescriptor(field->type);
+                        char *owner_internal = BuildJvmInternalName(obj_type->class_name);
+                        jvmc_fieldref *fref = NULL;
+                        if (desc == NULL || owner_internal == NULL) {
+                            free(desc);
+                            free(owner_internal);
+                            return 0;
+                        }
+                        fref = jvmc_class_get_or_create_fieldref(cls, owner_internal,
+                                                                 field->name, desc);
+                        free(desc);
+                        free(owner_internal);
+                        if (fref == NULL) {
+                            return 0;
+                        }
+                        if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
+                            return 0;
+                        }
+                        return jvmc_code_getfield(code, fref);
+                    }
+                }
+            }
             return 0;
         }
         case EXPR_NEW: {
@@ -4059,8 +4095,48 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 NExpr *lhs = expr->value.binary.left;
                 NExpr *rhs = expr->value.binary.right;
                 jvmc_fieldref *fref;
-                if (rhs == NULL || !lhs->jvm_ref_key.has_key ||
-                    lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                if (rhs == NULL) {
+                    return 0;
+                }
+                if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                    NExpr *obj = lhs->value.member_access.object;
+                    if (obj != NULL && lhs->value.member_access.member_name != NULL && ctx != NULL) {
+                        NType *obj_type = obj->inferred_type;
+                        if (obj_type == NULL) {
+                            obj_type = InferExpressionTypeSilent(obj, ctx);
+                        }
+                        if (obj_type != NULL && obj_type->kind == TYPE_KIND_CLASS &&
+                            obj_type->class_name != NULL) {
+                            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+                            FieldInfo *field = NULL;
+                            if (class_info != NULL) {
+                                field = LookupClassFieldInHierarchy(ctx, class_info,
+                                                                    lhs->value.member_access.member_name);
+                            }
+                            if (field != NULL) {
+                                char *desc = BuildJvmTypeDescriptor(field->type);
+                                char *owner_internal = BuildJvmInternalName(obj_type->class_name);
+                                if (desc == NULL || owner_internal == NULL) {
+                                    free(desc);
+                                    free(owner_internal);
+                                    return 0;
+                                }
+                                if (!SetJvmRefKey(&lhs->jvm_ref_key,
+                                                  owner_internal,
+                                                  field->name,
+                                                  desc,
+                                                  JVM_REF_FIELD)) {
+                                    free(owner_internal);
+                                    free(desc);
+                                    return 0;
+                                }
+                                free(owner_internal);
+                                free(desc);
+                            }
+                        }
+                    }
+                }
+                if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
                     return 0;
                 }
                 fref = jvmc_class_get_or_create_fieldref(cls,
