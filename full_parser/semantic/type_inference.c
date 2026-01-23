@@ -10,6 +10,8 @@ static int GetNumericRank(const NType *type, int *rank_out);
 static BaseType RankToBaseType(int rank);
 static const char *OpToString(OpType op);
 static int IsNullClassType(const NType *type);
+static int IsEnumType(const NType *type);
+static int IsEnumScalarType(const NType *type);
 static int IsArrayType(const NType *type);
 static int IsDynamicArrayType(const NType *type);
 static void BuildElementType(const NType *array_type, NType *out);
@@ -59,7 +61,11 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             Symbol *sym = LookupSymbol(ctx, expr->value.ident_name);
             if (sym == NULL || sym->kind != SYMBOL_VARIABLE || sym->info.var_info == NULL) {
                 if (sym != NULL && sym->kind == SYMBOL_ENUM_ITEM) {
-                    return CreateBaseType(TYPE_INT);
+                    if (sym->info.enum_item_info != NULL &&
+                        sym->info.enum_item_info->owner != NULL) {
+                        return CreateEnumType(sym->info.enum_item_info->owner->name);
+                    }
+                    return CreateEnumType(NULL);
                 }
                 if (ctx != NULL && ctx->current_class != NULL) {
                     ClassInfo *owner = NULL;
@@ -273,7 +279,10 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                         }
                         return NULL;
                     }
-                    return CreateBaseType(TYPE_INT);
+                    if (en != NULL) {
+                        return CreateEnumType(en->name);
+                    }
+                    return CreateEnumType(NULL);
                 }
             }
             {
@@ -281,7 +290,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                 if (obj_type == NULL) {
                     return NULL;
                 }
-                if ((obj_type->kind == TYPE_KIND_BASE_ARRAY || obj_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+                if ((obj_type->kind == TYPE_KIND_BASE_ARRAY ||
+                     obj_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                     obj_type->kind == TYPE_KIND_ENUM_ARRAY) &&
                     expr->value.member_access.member_name != NULL &&
                     strcmp(expr->value.member_access.member_name, "length") == 0) {
                     return CreateBaseType(TYPE_INT);
@@ -331,6 +342,9 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             }
             if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
                 return CreateClassType(array_type->class_name);
+            }
+            if (array_type->kind == TYPE_KIND_ENUM_ARRAY) {
+                return CreateEnumType(array_type->enum_name);
             }
             return NULL;
         }
@@ -401,6 +415,9 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
         case OP_MINUS:
         case OP_MUL:
         case OP_DIV:
+            if (IsEnumScalarType(left_type) || IsEnumScalarType(right_type)) {
+                return NULL;
+            }
             if (IsNumericType(left_type) && IsNumericType(right_type)) {
                 int left_rank = 0;
                 int right_rank = 0;
@@ -417,6 +434,12 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
             return NULL;
         case OP_EQ:
         case OP_NEQ:
+            if (IsEnumScalarType(left_type) || IsEnumScalarType(right_type)) {
+                if (TypesEqual(left_type, right_type)) {
+                    return CreateBaseType(TYPE_BOOL);
+                }
+                return NULL;
+            }
             if (!AreTypesCompatible(left_type, right_type, 0) &&
                 !(IsNullClassType(left_type) &&
                   (right_type->kind == TYPE_KIND_CLASS || right_type->kind == TYPE_KIND_CLASS_ARRAY)) &&
@@ -429,12 +452,21 @@ NType* InferBinaryOperationType(OpType op, NType *left_type, NType *right_type,
         case OP_GT:
         case OP_LE:
         case OP_GE:
+            if (IsEnumScalarType(left_type) || IsEnumScalarType(right_type)) {
+                if (TypesEqual(left_type, right_type)) {
+                    return CreateBaseType(TYPE_BOOL);
+                }
+                return NULL;
+            }
             if (!IsNumericType(left_type) || !IsNumericType(right_type)) {
                 return NULL;
             }
             return CreateBaseType(TYPE_BOOL);
         case OP_AND:
         case OP_OR:
+            if (IsEnumScalarType(left_type) || IsEnumScalarType(right_type)) {
+                return NULL;
+            }
             if (!((IsBooleanType(left_type) && IsBooleanType(right_type)) ||
                   (IsIntegralType(left_type) && IsIntegralType(right_type)))) {
                 return NULL;
@@ -463,6 +495,9 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
     switch (op) {
         case OP_MINUS:
         case OP_PLUS:
+            if (IsEnumScalarType(operand_type)) {
+                return NULL;
+            }
             if (IsIntegralType(operand_type)) {
                 return CreateBaseType(TYPE_INT);
             }
@@ -472,6 +507,9 @@ NType* InferUnaryOperationType(OpType op, NType *operand_type) {
             }
             return NULL;
         case OP_NOT:
+            if (IsEnumScalarType(operand_type)) {
+                return NULL;
+            }
             if (IsBooleanType(operand_type) || IsIntegralType(operand_type)) {
                 return CreateBaseType(TYPE_BOOL);
             }
@@ -493,8 +531,14 @@ int AreTypesCompatible(NType *type1, NType *type2, int strict) {
         return TypesEqual(type1, type2);
     }
 
-    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY) ||
-        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY)) {
+    if (IsEnumType(type1) || IsEnumType(type2)) {
+        return TypesEqual(type1, type2);
+    }
+
+    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY ||
+         type1->kind == TYPE_KIND_ENUM_ARRAY) ||
+        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY ||
+         type2->kind == TYPE_KIND_ENUM_ARRAY)) {
         if (type1->kind != type2->kind) {
             return 0;
         }
@@ -530,6 +574,17 @@ int AreTypesCompatible(NType *type1, NType *type2, int strict) {
             elem1.class_name = type1->class_name;
             elem2.kind = TYPE_KIND_CLASS;
             elem2.class_name = type2->class_name;
+            return AreTypesCompatible(&elem1, &elem2, 0);
+        }
+        if (type1->kind == TYPE_KIND_ENUM_ARRAY) {
+            NType elem1;
+            NType elem2;
+            memset(&elem1, 0, sizeof(NType));
+            memset(&elem2, 0, sizeof(NType));
+            elem1.kind = TYPE_KIND_ENUM;
+            elem1.enum_name = type1->enum_name;
+            elem2.kind = TYPE_KIND_ENUM;
+            elem2.enum_name = type2->enum_name;
             return AreTypesCompatible(&elem1, &elem2, 0);
         }
     }
@@ -569,6 +624,10 @@ int CanAssign(NType *target_type, NType *source_type) {
         return 1;
     }
 
+    if (IsEnumType(target_type) || IsEnumType(source_type)) {
+        return 0;
+    }
+
     if (target_type->kind == TYPE_KIND_BASE && source_type->kind == TYPE_KIND_BASE &&
         IsNumericType(target_type) && IsNumericType(source_type)) {
         int target_rank = 0;
@@ -578,8 +637,10 @@ int CanAssign(NType *target_type, NType *source_type) {
         }
     }
 
-    if ((target_type->kind == TYPE_KIND_BASE_ARRAY || target_type->kind == TYPE_KIND_CLASS_ARRAY) ||
-        (source_type->kind == TYPE_KIND_BASE_ARRAY || source_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+    if ((target_type->kind == TYPE_KIND_BASE_ARRAY || target_type->kind == TYPE_KIND_CLASS_ARRAY ||
+         target_type->kind == TYPE_KIND_ENUM_ARRAY) ||
+        (source_type->kind == TYPE_KIND_BASE_ARRAY || source_type->kind == TYPE_KIND_CLASS_ARRAY ||
+         source_type->kind == TYPE_KIND_ENUM_ARRAY)) {
         if (target_type->kind != source_type->kind) {
             return 0;
         }
@@ -615,6 +676,17 @@ int CanAssign(NType *target_type, NType *source_type) {
             elem_t.class_name = target_type->class_name;
             elem_s.kind = TYPE_KIND_CLASS;
             elem_s.class_name = source_type->class_name;
+            return CanAssign(&elem_t, &elem_s);
+        }
+        if (target_type->kind == TYPE_KIND_ENUM_ARRAY) {
+            NType elem_t;
+            NType elem_s;
+            memset(&elem_t, 0, sizeof(NType));
+            memset(&elem_s, 0, sizeof(NType));
+            elem_t.kind = TYPE_KIND_ENUM;
+            elem_t.enum_name = target_type->enum_name;
+            elem_s.kind = TYPE_KIND_ENUM;
+            elem_s.enum_name = source_type->enum_name;
             return CanAssign(&elem_t, &elem_s);
         }
     }
@@ -735,11 +807,27 @@ static int IsNullClassType(const NType *type) {
     return type->kind == TYPE_KIND_CLASS && type->class_name == NULL;
 }
 
+static int IsEnumType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY;
+}
+
+static int IsEnumScalarType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_ENUM;
+}
+
 static int IsArrayType(const NType *type) {
     if (type == NULL) {
         return 0;
     }
-    return type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY;
+    return type->kind == TYPE_KIND_BASE_ARRAY ||
+           type->kind == TYPE_KIND_CLASS_ARRAY ||
+           type->kind == TYPE_KIND_ENUM_ARRAY;
 }
 
 static int IsDynamicArrayType(const NType *type) {
@@ -766,6 +854,10 @@ static void BuildElementType(const NType *array_type, NType *out) {
     } else if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
         out->kind = TYPE_KIND_CLASS;
         out->class_name = array_type->class_name;
+    } else if (array_type->kind == TYPE_KIND_ENUM_ARRAY) {
+        out->kind = TYPE_KIND_ENUM;
+        out->base_type = TYPE_INT;
+        out->enum_name = array_type->enum_name;
     }
 }
 
@@ -852,6 +944,9 @@ int IsNumericType(NType *type) {
     if (type == NULL) {
         return 0;
     }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return 1;
+    }
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         switch (type->base_type) {
             case TYPE_INT:
@@ -871,6 +966,9 @@ int IsIntegralType(NType *type) {
 
     if (type == NULL) {
         return 0;
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return 1;
     }
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         switch (type->base_type) {
@@ -965,6 +1063,19 @@ NType* CopyType(NType *type, SemanticContext *ctx) {
         }
         strcpy(copy->class_name, type->class_name);
     }
+    if (type->enum_name != NULL) {
+        copy->enum_name = (char*)malloc(strlen(type->enum_name) + 1);
+        if (copy->enum_name == NULL) {
+            if (ctx != NULL && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER, "Out of memory", 0, 0);
+                AddError(ctx->errors, &err);
+            }
+            free(copy->class_name);
+            free(copy);
+            return NULL;
+        }
+        strcpy(copy->enum_name, type->enum_name);
+    }
 
     if (type->array_decl != NULL) {
         array_copy = (NArrayDecl*)malloc(sizeof(NArrayDecl));
@@ -1017,8 +1128,22 @@ int TypesEqual(NType *type1, NType *type2) {
         }
     }
 
-    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY) ||
-        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY)) {
+    if (type1->kind == TYPE_KIND_ENUM || type1->kind == TYPE_KIND_ENUM_ARRAY) {
+        if (type1->enum_name == NULL && type2->enum_name == NULL) {
+            return 1;
+        }
+        if (type1->enum_name == NULL || type2->enum_name == NULL) {
+            return 0;
+        }
+        if (strcmp(type1->enum_name, type2->enum_name) != 0) {
+            return 0;
+        }
+    }
+
+    if ((type1->kind == TYPE_KIND_BASE_ARRAY || type1->kind == TYPE_KIND_CLASS_ARRAY ||
+         type1->kind == TYPE_KIND_ENUM_ARRAY) ||
+        (type2->kind == TYPE_KIND_BASE_ARRAY || type2->kind == TYPE_KIND_CLASS_ARRAY ||
+         type2->kind == TYPE_KIND_ENUM_ARRAY)) {
         if (type1->array_decl == NULL && type2->array_decl == NULL) {
             return 1;
         }
@@ -1048,6 +1173,8 @@ const char* TypeToString(NType *type) {
 
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
         base = (type->class_name != NULL) ? type->class_name : "class";
+    } else if (type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY) {
+        base = (type->enum_name != NULL) ? type->enum_name : "enum";
     } else if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         switch (type->base_type) {
             case TYPE_INT: base = "int"; break;
@@ -1062,7 +1189,9 @@ const char* TypeToString(NType *type) {
         }
     }
 
-    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE_ARRAY ||
+        type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_ENUM_ARRAY) {
         snprintf(buffer, sizeof(buffer), "%s[]", base);
         return buffer;
     }

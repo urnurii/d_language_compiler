@@ -112,6 +112,19 @@ static void TypeToStringForAttr(NType *type, char *buf, size_t size) {
         }
         return;
     }
+    if (type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY) {
+        const char *name = type->enum_name ? type->enum_name : "enum";
+        if (type->kind == TYPE_KIND_ENUM_ARRAY) {
+            if (type->array_decl && type->array_decl->has_size) {
+                snprintf(buf, size, "%s[%d]", name, type->array_decl->size);
+            } else {
+                snprintf(buf, size, "%s[]", name);
+            }
+        } else {
+            snprintf(buf, size, "%s", name);
+        }
+        return;
+    }
     snprintf(buf, size, "unknown");
 }
 
@@ -568,6 +581,20 @@ static long VisualizeType(NType *type) {
         } else {
             DotPrintf("    node_%ld [label=\"type: %s\"];\n", node_id, 
                      EscapeString(type->class_name));
+        }
+    } else if (type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY) {
+        const char *name = type->enum_name ? type->enum_name : "enum";
+        if (type->kind == TYPE_KIND_ENUM_ARRAY) {
+            if (type->array_decl && type->array_decl->has_size) {
+                DotPrintf("    node_%ld [label=\"type: %s[%d]\"];\n", node_id,
+                         EscapeString(name), type->array_decl->size);
+            } else {
+                DotPrintf("    node_%ld [label=\"type: %s[]\"];\n", node_id,
+                         EscapeString(name));
+            }
+        } else {
+            DotPrintf("    node_%ld [label=\"type: %s\"];\n", node_id,
+                     EscapeString(name));
         }
     }
     

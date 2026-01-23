@@ -83,7 +83,9 @@ static int IsValidLValueExpr(NExpr *expr) {
     }
     switch (expr->type) {
         case EXPR_IDENT:
+            return expr->enum_value_is_set ? 0 : 1;
         case EXPR_MEMBER_ACCESS:
+            return expr->enum_value_is_set ? 0 : 1;
         case EXPR_ARRAY_ACCESS:
             return 1;
         case EXPR_PAREN:
@@ -110,6 +112,34 @@ static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, co
         cls = LookupClass(ctx, cls->base_class);
     }
     return 0;
+}
+
+static int EnsureTypeDefined(const NType *type, SemanticContext *ctx, int line, int column) {
+    if (type == NULL || ctx == NULL) {
+        return 1;
+    }
+    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        if (type->class_name == NULL || LookupClass(ctx, type->class_name) == NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateUndefinedTypeError(type->class_name ? type->class_name : "class",
+                                                            line,
+                                                            column);
+                AddError(ctx->errors, &err);
+            }
+            return 0;
+        }
+    } else if (type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY) {
+        if (type->enum_name == NULL || LookupEnum(ctx, type->enum_name) == NULL) {
+            if (ctx->errors != NULL) {
+                SemanticError err = CreateUndefinedTypeError(type->enum_name ? type->enum_name : "enum",
+                                                            line,
+                                                            column);
+                AddError(ctx->errors, &err);
+            }
+            return 0;
+        }
+    }
+    return 1;
 }
 
 static int CheckStaticArrayInitSize(const NType *decl_type, const NInitializer *init,
@@ -383,6 +413,9 @@ static NType *GetForeachElementType(NType *collection_type) {
     if (collection_type->kind == TYPE_KIND_CLASS_ARRAY) {
         return CreateClassType(collection_type->class_name);
     }
+    if (collection_type->kind == TYPE_KIND_ENUM_ARRAY) {
+        return CreateEnumType(collection_type->enum_name);
+    }
     return NULL;
 }
 
@@ -431,8 +464,8 @@ static int IsCharType(const NType *type) {
 
 static int IsIntType(const NType *type) {
     return type != NULL &&
-        type->kind == TYPE_KIND_BASE &&
-        type->base_type == TYPE_INT;
+        ((type->kind == TYPE_KIND_BASE && type->base_type == TYPE_INT) ||
+         type->kind == TYPE_KIND_ENUM);
 }
 
 static int ValidateFormatArguments(const char *func_name, NExpr **args, int arg_count,
@@ -629,6 +662,12 @@ static int IsDuplicateCaseExpr(const NExpr *left, const NExpr *right) {
                 return 0;
             }
             return strcmp(left->value.string_value, right->value.string_value) == 0;
+        case EXPR_IDENT:
+        case EXPR_MEMBER_ACCESS:
+            if (left->enum_value_is_set && right->enum_value_is_set) {
+                return left->enum_value == right->enum_value;
+            }
+            return 0;
         default:
             return 0;
     }
@@ -885,22 +924,20 @@ int ProcessFunctionDefinition(NFuncDef *func_def, SemanticContext *ctx) {
             }
         }
     }
+    if (func_def->params != NULL) {
+        for (int i = 0; i < func_def->params->count; i++) {
+            NParam *param = func_def->params->params[i];
+            if (param != NULL && !EnsureTypeDefined(param->param_type, ctx, 0, 0)) {
+                had_error = 1;
+            }
+        }
+    }
     if (CheckParamDefaultValues(func_def->params, ctx) != 0) {
         had_error = 1;
     }
 
-    if (func_def->return_type != NULL &&
-        (func_def->return_type->kind == TYPE_KIND_CLASS ||
-         func_def->return_type->kind == TYPE_KIND_CLASS_ARRAY)) {
-        if (LookupClass(ctx, func_def->return_type->class_name) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateUndefinedTypeError(func_def->return_type->class_name,
-                                                            0,
-                                                            0);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
+    if (!EnsureTypeDefined(func_def->return_type, ctx, 0, 0)) {
+        return 1;
     }
 
     info = (FunctionInfo*)malloc(sizeof(FunctionInfo));
@@ -1043,14 +1080,8 @@ int ProcessFieldDeclaration(NInitDeclList *init_decls, NType *field_type,
     if (!ValidateArraySizeType(field_type, ctx, 0, 0)) {
         return 1;
     }
-    if (field_type->kind == TYPE_KIND_CLASS || field_type->kind == TYPE_KIND_CLASS_ARRAY) {
-        if (LookupClass(ctx, field_type->class_name) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateUndefinedTypeError(field_type->class_name, 0, 0);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
+    if (!EnsureTypeDefined(field_type, ctx, 0, 0)) {
+        return 1;
     }
 
     if (init_decls == NULL) {
@@ -1128,22 +1159,20 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
             }
         }
     }
+    if (method_def->params != NULL) {
+        for (int i = 0; i < method_def->params->count; i++) {
+            NParam *param = method_def->params->params[i];
+            if (param != NULL && !EnsureTypeDefined(param->param_type, ctx, 0, 0)) {
+                had_error = 1;
+            }
+        }
+    }
     if (CheckParamDefaultValues(method_def->params, ctx) != 0) {
         had_error = 1;
     }
 
-    if (method_def->return_type != NULL &&
-        (method_def->return_type->kind == TYPE_KIND_CLASS ||
-         method_def->return_type->kind == TYPE_KIND_CLASS_ARRAY)) {
-        if (LookupClass(ctx, method_def->return_type->class_name) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateUndefinedTypeError(method_def->return_type->class_name,
-                                                            0,
-                                                            0);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
+    if (!EnsureTypeDefined(method_def->return_type, ctx, 0, 0)) {
+        return 1;
     }
 
     if (method_def->is_override) {
@@ -1306,6 +1335,7 @@ int ProcessEnumDefinition(NEnumDef *enum_def, SemanticContext *ctx) {
             memset(item, 0, sizeof(EnumItemInfo));
             item->name = src->name;
             item->has_explicit_value = src->has_value;
+            item->owner = info;
             if (src->has_value) {
                 item->value = src->value;
                 next_value = src->value + 1;
@@ -1343,14 +1373,8 @@ int ProcessGlobalVariables(NType *type, NInitDeclList *init_decls, SemanticConte
     if (!ValidateArraySizeType(type, ctx, 0, 0)) {
         return 1;
     }
-    if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
-        if (LookupClass(ctx, type->class_name) == NULL) {
-            if (ctx->errors != NULL) {
-                SemanticError err = CreateUndefinedTypeError(type->class_name, 0, 0);
-                AddError(ctx->errors, &err);
-            }
-            return 1;
-        }
+    if (!EnsureTypeDefined(type, ctx, 0, 0)) {
+        return 1;
     }
 
     if (init_decls == NULL) {
@@ -1684,17 +1708,8 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             if (!ValidateArraySizeType(decl_type, ctx, stmt->line, stmt->column)) {
                 had_error = 1;
             }
-            if (decl_type != NULL &&
-                (decl_type->kind == TYPE_KIND_CLASS || decl_type->kind == TYPE_KIND_CLASS_ARRAY)) {
-                if (LookupClass(ctx, decl_type->class_name) == NULL) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateUndefinedTypeError(decl_type->class_name,
-                                                                    stmt->line,
-                                                                    stmt->column);
-                        AddError(ctx->errors, &err);
-                    }
-                    had_error = 1;
-                }
+            if (!EnsureTypeDefined(decl_type, ctx, stmt->line, stmt->column)) {
+                had_error = 1;
             }
             if (init_decls != NULL) {
                 for (int i = 0; i < init_decls->count; i++) {
@@ -1884,16 +1899,8 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                 if (!ValidateArraySizeType(decl_type, ctx, stmt->line, stmt->column)) {
                     had_error = 1;
                 }
-                if (decl_type->kind == TYPE_KIND_CLASS || decl_type->kind == TYPE_KIND_CLASS_ARRAY) {
-                    if (LookupClass(ctx, decl_type->class_name) == NULL) {
-                        if (ctx->errors != NULL) {
-                            SemanticError err = CreateUndefinedTypeError(decl_type->class_name,
-                                                                        stmt->line,
-                                                                        stmt->column);
-                            AddError(ctx->errors, &err);
-                        }
-                        had_error = 1;
-                    }
+                if (!EnsureTypeDefined(decl_type, ctx, stmt->line, stmt->column)) {
+                    had_error = 1;
                 }
                 if (init_decls != NULL) {
                     for (int i = 0; i < init_decls->count; i++) {
@@ -2016,6 +2023,9 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
             }
             if (stmt->value.foreach_stmt.is_typed && stmt->value.foreach_stmt.var_type != NULL &&
                 stmt->value.foreach_stmt.var_name != NULL) {
+                if (!EnsureTypeDefined(stmt->value.foreach_stmt.var_type, ctx, stmt->line, stmt->column)) {
+                    had_error = 1;
+                }
                 VariableInfo *var = (VariableInfo*)malloc(sizeof(VariableInfo));
                 if (var == NULL) {
                     had_error = ReportOutOfMemory(ctx);
@@ -2334,6 +2344,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     AddError(ctx->errors, &err);
                 }
                 had_error = 1;
+            } else if (sym->kind == SYMBOL_ENUM_ITEM && sym->info.enum_item_info != NULL) {
+                expr->enum_value = sym->info.enum_item_info->value;
+                expr->enum_value_is_set = 1;
             } else if (!IsSymbolAccessible(sym, ctx)) {
                 if (ctx->errors != NULL) {
                     SemanticError err = CreateOutOfScopeError(expr->value.ident_name,
@@ -2351,18 +2364,8 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                     had_error = 1;
                 }
             }
-            if (expr->value.cast.target_type != NULL &&
-                (expr->value.cast.target_type->kind == TYPE_KIND_CLASS ||
-                 expr->value.cast.target_type->kind == TYPE_KIND_CLASS_ARRAY)) {
-                if (LookupClass(ctx, expr->value.cast.target_type->class_name) == NULL) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateUndefinedTypeError(expr->value.cast.target_type->class_name,
-                                                                    expr->line,
-                                                                    expr->column);
-                        AddError(ctx->errors, &err);
-                    }
-                    had_error = 1;
-                }
+            if (!EnsureTypeDefined(expr->value.cast.target_type, ctx, expr->line, expr->column)) {
+                had_error = 1;
             }
             break;
         case EXPR_FUNC_CALL: {
@@ -2806,9 +2809,6 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
         }
         case EXPR_MEMBER_ACCESS: {
             NExpr *obj = expr->value.member_access.object;
-            if (CheckExpression(obj, ctx) != 0) {
-                had_error = 1;
-            }
             if (obj != NULL) {
                 if (obj->type == EXPR_IDENT) {
                     Symbol *sym = LookupSymbol(ctx, obj->value.ident_name);
@@ -2831,9 +2831,14 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                         break;
                     }
                 }
+                if (CheckExpression(obj, ctx) != 0) {
+                    had_error = 1;
+                }
                 NType *obj_type = InferExpressionTypeSilent(obj, ctx);
                 if (obj_type != NULL &&
-                    (obj_type->kind == TYPE_KIND_BASE_ARRAY || obj_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+                    (obj_type->kind == TYPE_KIND_BASE_ARRAY ||
+                     obj_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                     obj_type->kind == TYPE_KIND_ENUM_ARRAY) &&
                     expr->value.member_access.member_name != NULL &&
                     strcmp(expr->value.member_access.member_name, "length") == 0) {
                     break;
@@ -2919,7 +2924,8 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 NType *array_type = InferExpressionTypeSilent(array_expr, ctx);
                 if (array_type != NULL &&
                     array_type->kind != TYPE_KIND_BASE_ARRAY &&
-                    array_type->kind != TYPE_KIND_CLASS_ARRAY) {
+                    array_type->kind != TYPE_KIND_CLASS_ARRAY &&
+                    array_type->kind != TYPE_KIND_ENUM_ARRAY) {
                     if (ctx->errors != NULL) {
                         SemanticError err = CreateInvalidOperandsError("[]",
                                                                       TypeToString(array_type),
@@ -3055,6 +3061,9 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             break;
         }
         case EXPR_NEW: {
+            if (!EnsureTypeDefined(expr->value.new_expr.type, ctx, expr->line, expr->column)) {
+                had_error = 1;
+            }
             if (expr->value.new_expr.type != NULL &&
                 (expr->value.new_expr.type->kind == TYPE_KIND_CLASS ||
                  expr->value.new_expr.type->kind == TYPE_KIND_CLASS_ARRAY)) {

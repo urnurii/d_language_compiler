@@ -94,28 +94,29 @@ extern int yydebug;
     STR = 295,                     /* STR  */
     IDENT = 296,                   /* IDENT  */
     CLASSNAME = 297,               /* CLASSNAME  */
-    CHARVAL = 298,                 /* CHARVAL  */
-    PLUSEQ = 299,                  /* PLUSEQ  */
-    MINUSEQ = 300,                 /* MINUSEQ  */
-    STAREQ = 301,                  /* STAREQ  */
-    SLASHEQ = 302,                 /* SLASHEQ  */
-    TILDEQ = 303,                  /* TILDEQ  */
-    LOR = 304,                     /* LOR  */
-    LAND = 305,                    /* LAND  */
-    EQ = 306,                      /* EQ  */
-    NEQ = 307,                     /* NEQ  */
-    LT = 308,                      /* LT  */
-    GT = 309,                      /* GT  */
-    LE = 310,                      /* LE  */
-    GE = 311,                      /* GE  */
-    PLUS = 312,                    /* PLUS  */
-    MINUS = 313,                   /* MINUS  */
-    STAR = 314,                    /* STAR  */
-    SLASH = 315,                   /* SLASH  */
-    UNOT = 316,                    /* UNOT  */
-    UMINUS = 317,                  /* UMINUS  */
-    UPLUS = 318,                   /* UPLUS  */
-    LOWER_THAN_ELSE = 319          /* LOWER_THAN_ELSE  */
+    ENUMNAME = 298,                /* ENUMNAME  */
+    CHARVAL = 299,                 /* CHARVAL  */
+    PLUSEQ = 300,                  /* PLUSEQ  */
+    MINUSEQ = 301,                 /* MINUSEQ  */
+    STAREQ = 302,                  /* STAREQ  */
+    SLASHEQ = 303,                 /* SLASHEQ  */
+    TILDEQ = 304,                  /* TILDEQ  */
+    LOR = 305,                     /* LOR  */
+    LAND = 306,                    /* LAND  */
+    EQ = 307,                      /* EQ  */
+    NEQ = 308,                     /* NEQ  */
+    LT = 309,                      /* LT  */
+    GT = 310,                      /* GT  */
+    LE = 311,                      /* LE  */
+    GE = 312,                      /* GE  */
+    PLUS = 313,                    /* PLUS  */
+    MINUS = 314,                   /* MINUS  */
+    STAR = 315,                    /* STAR  */
+    SLASH = 316,                   /* SLASH  */
+    UNOT = 317,                    /* UNOT  */
+    UMINUS = 318,                  /* UMINUS  */
+    UPLUS = 319,                   /* UPLUS  */
+    LOWER_THAN_ELSE = 320          /* LOWER_THAN_ELSE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -179,7 +180,7 @@ union YYSTYPE
     double float_val;
     char char_val;
 
-#line 183 "d_parser.tab.h"
+#line 184 "d_parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

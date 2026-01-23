@@ -84,7 +84,9 @@ typedef enum {
     TYPE_KIND_BASE,
     TYPE_KIND_BASE_ARRAY,
     TYPE_KIND_CLASS,
-    TYPE_KIND_CLASS_ARRAY
+    TYPE_KIND_CLASS_ARRAY,
+    TYPE_KIND_ENUM,
+    TYPE_KIND_ENUM_ARRAY
 } TypeKind;
 
 // Структуры для типов и объявлений
@@ -100,6 +102,7 @@ typedef struct NType {
     TypeKind kind;
     BaseType base_type; // если kind == TYPE_KIND_BASE или TYPE_KIND_BASE_ARRAY
     char *class_name;   // если kind == TYPE_KIND_CLASS или TYPE_KIND_CLASS_ARRAY
+    char *enum_name;
     NArrayDecl *array_decl;  // указатель на объявление массива если оно есть
 } NType;
 

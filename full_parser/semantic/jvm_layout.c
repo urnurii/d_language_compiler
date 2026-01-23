@@ -168,6 +168,9 @@ static char *BuildTypeDescriptorNoArray(const NType *type) {
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
         return BuildClassDescriptorFromName(type->class_name);
     }
+    if (type->kind == TYPE_KIND_ENUM || type->kind == TYPE_KIND_ENUM_ARRAY) {
+        return DuplicateStringLocal("I");
+    }
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
         return DuplicateStringLocal(GetBaseDescriptor(type->base_type));
     }
@@ -183,7 +186,9 @@ char *BuildJvmTypeDescriptor(const NType *type) {
         return NULL;
     }
 
-    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE_ARRAY ||
+        type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_ENUM_ARRAY) {
         if (type->kind == TYPE_KIND_BASE_ARRAY && type->base_type == TYPE_CHAR) {
             return DuplicateStringLocal("[I");
         }

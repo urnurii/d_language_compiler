@@ -17,6 +17,9 @@ void add_class_name(const char* name);
 int is_class_name(const char* name);
 void reset_class_table();
 void print_class_table();
+void add_enum_name(const char* name);
+int is_enum_name(const char* name);
+void reset_enum_table();
 void handle_hex_escape(char* buffer, char* yytext);
 void handle_octal_escape(char* buffer, char* yytext);
 void finish_char(char* buffer, int line);
@@ -53,6 +56,15 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
     if (!end) end = strchr(class_name, ':');
     if (end) *end = '\0';
     add_class_name(class_name);
+}
+
+<FIRST_PASS>"enum"[ \t]+{IDENTIFIER}[ \t\n]*(\{|:) {
+    char enum_name[256];
+    sscanf(yytext, "enum %s", enum_name);
+    char* end = strchr(enum_name, '{');
+    if (!end) end = strchr(enum_name, ':');
+    if (end) *end = '\0';
+    add_enum_name(enum_name);
 }
 
 <FIRST_PASS>"//"               { BEGIN(FP_COMMENT); }
@@ -277,6 +289,14 @@ IDENTIFIER [A-Za-z_][A-Za-z0-9_]*
         }
         strcpy(yylval.string_val, yytext);
         return CLASSNAME;
+    } else if (is_enum_name(yytext)) {
+        yylval.string_val = (char*)malloc(strlen(yytext) + 1);
+        if (yylval.string_val == NULL) {
+            fprintf(stderr, "Error: Memory allocation failed\n");
+            exit(1);
+        }
+        strcpy(yylval.string_val, yytext);
+        return ENUMNAME;
     } else {
         yylval.string_val = (char*)malloc(strlen(yytext) + 1);
         if (yylval.string_val == NULL) {
@@ -301,6 +321,13 @@ typedef struct {
 } ClassTable;
 
 ClassTable classTable = { .count = 0 };
+
+typedef struct {
+    char names[MAX_CLASSES][MAX_CLASS_NAME];
+    int count;
+} EnumTable;
+
+EnumTable enumTable = { .count = 0 };
 
 void add_class_name(const char* name) {
     if (classTable.count < MAX_CLASSES) {
@@ -329,6 +356,27 @@ void print_class_table() {
         printf("  %d. %s\n", i + 1, classTable.names[i]);
     }
     printf("-----------------------------------\n\n");
+}
+
+void add_enum_name(const char* name) {
+    if (enumTable.count < MAX_CLASSES) {
+        strncpy(enumTable.names[enumTable.count], name, MAX_CLASS_NAME - 1);
+        enumTable.names[enumTable.count][MAX_CLASS_NAME - 1] = '\0';
+        enumTable.count++;
+    }
+}
+
+int is_enum_name(const char* name) {
+    for (int i = 0; i < enumTable.count; i++) {
+        if (strcmp(enumTable.names[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void reset_enum_table() {
+    enumTable.count = 0;
 }
 
 void set_lexer_first_pass(void) {

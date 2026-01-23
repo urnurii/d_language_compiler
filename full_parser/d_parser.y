@@ -81,7 +81,7 @@ NProgram *root = NULL;
 
 %token <int_val> INTEGER
 %token <float_val> FLOAT_VAL
-%token <string_val> STR IDENT CLASSNAME
+%token <string_val> STR IDENT CLASSNAME ENUMNAME
 %token <char_val> CHARVAL
 
 %type <type> type base_type
@@ -108,6 +108,7 @@ NProgram *root = NULL;
 %type <class_member> class_member class_members
 %type <access_spec> access_spec
 %type <enum_def> enum_def
+%type <string_val> enum_item_name
 %type <enum_item_list> enum_body
 %type <source_item> source_item translation_unit
 %type <program> program
@@ -167,6 +168,8 @@ type
     | base_type array_decl { $$ = AddArrayToType($1, $2); }
     | CLASSNAME { $$ = CreateClassType($1); }
     | CLASSNAME array_decl { $$ = AddArrayToType(CreateClassType($1), $2); }
+    | ENUMNAME { $$ = CreateEnumType($1); }
+    | ENUMNAME array_decl { $$ = AddArrayToType(CreateEnumType($1), $2); }
     ;
 
 array_init
@@ -199,9 +202,11 @@ expr
     | NEW CLASSNAME '[' expr ']' { $$ = CreateNewArrayExpr(CreateClassType($2), $4); }
     | NEW CLASSNAME '(' ')' { $$ = CreateNewExpr(CreateClassType($2), NULL, 0); }
     | NEW CLASSNAME '(' arg_list ')' { $$ = CreateNewExpr(CreateClassType($2), $4->elements, $4->count); }
+    | NEW ENUMNAME '[' expr ']' { $$ = CreateNewArrayExpr(CreateEnumType($2), $4); }
     | NEW base_type '[' expr ']' { $$ = CreateNewArrayExpr($2, $4); }
     | expr '[' expr ']' { $$ = CreateArrayAccessExpr($1, $3, NULL); }
     | expr '[' expr DOTDOT expr ']' { $$ = CreateArrayAccessExpr($1, $3, $5); }
+    | ENUMNAME '.' IDENT { $$ = CreateMemberAccessExpr(CreateIdentExpr($1), $3); }
     | expr '.' IDENT { $$ = CreateMemberAccessExpr($1, $3); }
     | expr '.' IDENT '(' ')' { $$ = CreateMethodCallExpr($1, $3, NULL, 0); }
     | expr '.' IDENT '(' arg_list ')' { $$ = CreateMethodCallExpr($1, $3, $5->elements, $5->count); }
@@ -397,14 +402,21 @@ dtor_def
 
 enum_def
     : ENUM IDENT '{' enum_body '}' { $$ = CreateEnumDef($2, $4->items, $4->count); }
+    | ENUM ENUMNAME '{' enum_body '}' { $$ = CreateEnumDef($2, $4->items, $4->count); }
     | ENUM '{' enum_body '}' { $$ = CreateEnumDef(NULL, $3->items, $3->count); }
     ;
 
+enum_item_name
+    : IDENT { $$ = $1; }
+    | CLASSNAME { $$ = $1; }
+    | ENUMNAME { $$ = $1; }
+    ;
+
 enum_body
-    : IDENT { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 0, 0)); }
-    | IDENT '=' INTEGER { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 1, $3)); }
-    | enum_body ',' IDENT { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 0, 0)); }
-    | enum_body ',' IDENT '=' INTEGER { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 1, $5)); }
+    : enum_item_name { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 0, 0)); }
+    | enum_item_name '=' INTEGER { $$ = CreateEnumItemList(); AddEnumItemToList($$, CreateEnumItem($1, 1, $3)); }
+    | enum_body ',' enum_item_name { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 0, 0)); }
+    | enum_body ',' enum_item_name '=' INTEGER { $$ = $1; AddEnumItemToList($$, CreateEnumItem($3, 1, $5)); }
     ;
 
 %%

@@ -301,7 +301,9 @@ static void NormalizeArrayType(NType *type) {
     if (type == NULL) {
         return;
     }
-    if ((type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) &&
+    if ((type->kind == TYPE_KIND_BASE_ARRAY ||
+         type->kind == TYPE_KIND_CLASS_ARRAY ||
+         type->kind == TYPE_KIND_ENUM_ARRAY) &&
         type->array_decl != NULL && type->array_decl->has_size) {
         type->array_decl->has_size = 0;
     }
@@ -330,6 +332,9 @@ static NType *CreateElementTypeFromArrayType(const NType *array_type) {
     if (array_type->kind == TYPE_KIND_CLASS_ARRAY) {
         return CreateClassType(array_type->class_name);
     }
+    if (array_type->kind == TYPE_KIND_ENUM_ARRAY) {
+        return CreateEnumType(array_type->enum_name);
+    }
     return NULL;
 }
 
@@ -337,7 +342,9 @@ static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls)
     if (decl_type == NULL) {
         return 0;
     }
-    if ((decl_type->kind != TYPE_KIND_BASE_ARRAY && decl_type->kind != TYPE_KIND_CLASS_ARRAY) ||
+    if ((decl_type->kind != TYPE_KIND_BASE_ARRAY &&
+         decl_type->kind != TYPE_KIND_CLASS_ARRAY &&
+         decl_type->kind != TYPE_KIND_ENUM_ARRAY) ||
         decl_type->array_decl == NULL || !decl_type->array_decl->has_size) {
         NormalizeArrayType(decl_type);
         return 0;
@@ -443,7 +450,8 @@ static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
         return 0;
     }
     if (collection_type->kind != TYPE_KIND_BASE_ARRAY &&
-        collection_type->kind != TYPE_KIND_CLASS_ARRAY) {
+        collection_type->kind != TYPE_KIND_CLASS_ARRAY &&
+        collection_type->kind != TYPE_KIND_ENUM_ARRAY) {
         return 0;
     }
 
@@ -841,7 +849,9 @@ static int IsArrayType(const NType *type) {
     if (type == NULL) {
         return 0;
     }
-    return type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY;
+    return type->kind == TYPE_KIND_BASE_ARRAY ||
+           type->kind == TYPE_KIND_CLASS_ARRAY ||
+           type->kind == TYPE_KIND_ENUM_ARRAY;
 }
 
 static NExpr *CloneLValueExpr(const NExpr *expr) {
