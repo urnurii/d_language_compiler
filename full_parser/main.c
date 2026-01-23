@@ -12,6 +12,7 @@ extern int yyparse(void);
 extern void yyerror(const char *s);
 extern void reset_class_table(void);
 extern void print_class_table(void);
+extern void reset_enum_table(void);
 extern void set_lexer_first_pass(void);
 extern void set_lexer_initial(void);
 extern FILE *yyin;
@@ -52,6 +53,7 @@ int first_pass(const char *filename) {
     }
     
     reset_class_table();
+    reset_enum_table();
     set_lexer_first_pass();
     
     yylineno = 1;

@@ -77,14 +77,16 @@ typedef struct {
 } ClassInfo;
 
 // Информация об элементе enum
+typedef struct EnumInfo EnumInfo;
 typedef struct {
     char *name;           // имя элемента
     int value;            // значение элемента
     int has_explicit_value; // был ли указан явно
+    EnumInfo *owner;      // владелец enum
 } EnumItemInfo;
 
 // Информация об enum
-typedef struct {
+typedef struct EnumInfo {
     char *name;           // имя enum (может быть NULL для анонимного)
     EnumItemInfo **items; // элементы enum
     int item_count;

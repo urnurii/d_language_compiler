@@ -328,6 +328,12 @@ static int CodegenAddMethodStub(jvmc_class *cls, const char *name, const char *d
     if (!jvmc_code_set_max_stack(code, 32)) {
         return 0;
     }
+    if (!jvmc_code_set_max_locals(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_stack(code, 32)) {
+        return 0;
+    }
     if (!jvmc_code_set_max_locals(code, (uint16_t)ComputeMaxLocals(NULL, NULL, is_static ? 0 : 1))) {
         return 0;
     }
@@ -964,7 +970,7 @@ static int IsRefType(const NType *type) {
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
         return 1;
     }
-    if (type->kind == TYPE_KIND_BASE_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_ENUM_ARRAY) {
         return 1;
     }
     if (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING) {
@@ -2068,6 +2074,7 @@ static int GetElementTypeFromArray(const NType *array_type, NType *out_elem) {
         out_elem->kind = TYPE_KIND_BASE;
         out_elem->base_type = array_type->base_type;
         out_elem->class_name = NULL;
+        out_elem->enum_name = NULL;
         out_elem->array_decl = NULL;
         return 1;
     }
@@ -2075,6 +2082,15 @@ static int GetElementTypeFromArray(const NType *array_type, NType *out_elem) {
         out_elem->kind = TYPE_KIND_CLASS;
         out_elem->base_type = TYPE_CLASS;
         out_elem->class_name = array_type->class_name;
+        out_elem->enum_name = NULL;
+        out_elem->array_decl = NULL;
+        return 1;
+    }
+    if (array_type->kind == TYPE_KIND_ENUM_ARRAY) {
+        out_elem->kind = TYPE_KIND_ENUM;
+        out_elem->base_type = TYPE_INT;
+        out_elem->class_name = NULL;
+        out_elem->enum_name = array_type->enum_name;
         out_elem->array_decl = NULL;
         return 1;
     }
@@ -2085,7 +2101,9 @@ static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *ty
     if (code == NULL || type == NULL) {
         return 0;
     }
-    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE_ARRAY ||
+        type->kind == TYPE_KIND_CLASS_ARRAY ||
+        type->kind == TYPE_KIND_ENUM_ARRAY) {
         char *desc = BuildJvmTypeDescriptor(type);
         jvmc_class_ref *cref;
         if (desc == NULL) {
@@ -2110,6 +2128,9 @@ static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *ty
             return 0;
         }
         return jvmc_code_newarray_ref(code, cref);
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_newarray_primitive(code, JVMC_NEWARRAY_INT);
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
@@ -2144,6 +2165,9 @@ static int EmitArrayStoreForType(jvmc_code *code, const NType *type) {
     if (type->kind == TYPE_KIND_CLASS || (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING)) {
         return jvmc_code_array_store_ref(code);
     }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_array_store_int(code);
+    }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_BOOL:
@@ -2166,6 +2190,9 @@ static int EmitArrayLoadForType(jvmc_code *code, const NType *type) {
     }
     if (type->kind == TYPE_KIND_CLASS || (type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING)) {
         return jvmc_code_array_load_ref(code);
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_array_load_int(code);
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
@@ -3254,6 +3281,9 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
         case EXPR_NAN:
             return EmitLiteralExpr(code, expr, type);
         case EXPR_IDENT:
+            if (expr->enum_value_is_set) {
+                return jvmc_code_push_int(code, expr->enum_value);
+            }
             if (ResolveVariableSlot(expr->value.ident_name, params, body, &slot, &type)) {
                 int is_ref = 0;
                 if (type == NULL) {
@@ -3470,7 +3500,8 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                     if (rhs->inferred_type != NULL &&
                         (rhs->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
-                         rhs->inferred_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                         rhs->inferred_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                         rhs->inferred_type->kind == TYPE_KIND_ENUM_ARRAY)) {
                         return EmitAppendArrayConcat(cls, code, arr, rhs, params, body, ctx);
                     }
                     return EmitAppendArrayElement(cls, code, arr, rhs, params, body, ctx);
@@ -3896,7 +3927,8 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             }
             if (obj != NULL && obj->inferred_type != NULL &&
                 (obj->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
-                 obj->inferred_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+                 obj->inferred_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                 obj->inferred_type->kind == TYPE_KIND_ENUM_ARRAY) &&
                 expr->value.member_access.member_name != NULL &&
                 strcmp(expr->value.member_access.member_name, "length") == 0) {
                 if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
@@ -3958,7 +3990,8 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
         case EXPR_NEW: {
             if (expr->inferred_type != NULL &&
                 (expr->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
-                 expr->inferred_type->kind == TYPE_KIND_CLASS_ARRAY)) {
+                 expr->inferred_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                 expr->inferred_type->kind == TYPE_KIND_ENUM_ARRAY)) {
                 NType elem_type;
                 if (expr->value.new_expr.init_count < 1) {
                     return 0;
@@ -5085,6 +5118,12 @@ static int CodegenEmitClinit(jvmc_class *cls, NProgram *root, SemanticContext *c
         }
         item = item->next;
     }
+    if (!jvmc_code_set_max_stack(code, 32)) {
+        return 0;
+    }
+    if (!jvmc_code_set_max_locals(code, 0)) {
+        return 0;
+    }
     return jvmc_code_return_void(code);
 }
 
@@ -5319,6 +5358,16 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
             jvmc_class_destroy(cls);
             return 1;
         }
+        if (!jvmc_code_set_max_stack(code, 32)) {
+            CodegenReportFail("CodegenEmitClassFromDef: <clinit> set max stack failed");
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        if (!jvmc_code_set_max_locals(code, 0)) {
+            CodegenReportFail("CodegenEmitClassFromDef: <clinit> set max locals failed");
+            jvmc_class_destroy(cls);
+            return 1;
+        }
         owner_internal = BuildJvmInternalName(class_def->class_name);
         if (owner_internal == NULL) {
             CodegenReportFail("CodegenEmitClassFromDef: BuildJvmInternalName(owner) failed");
@@ -5338,6 +5387,16 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
             member = member->next;
         }
         free(owner_internal);
+        if (!jvmc_code_set_max_stack(code, 32)) {
+            CodegenReportFail("CodegenEmitClassFromDef: <clinit> set max stack failed");
+            jvmc_class_destroy(cls);
+            return 1;
+        }
+        if (!jvmc_code_set_max_locals(code, 0)) {
+            CodegenReportFail("CodegenEmitClassFromDef: <clinit> set max locals failed");
+            jvmc_class_destroy(cls);
+            return 1;
+        }
         if (!jvmc_code_return_void(code)) {
             CodegenReportFail("CodegenEmitClassFromDef: <clinit> return failed");
             jvmc_class_destroy(cls);

@@ -7,6 +7,7 @@
 
 NType* CreateBaseType(BaseType base_type);
 NType* CreateClassType(char *class_name);
+NType* CreateEnumType(char *enum_name);
 NArrayDecl* CreateArrayDecl(int has_size, int size);
 NType* AddArrayToType(NType *type, NArrayDecl *array);
 

@@ -5,8 +5,11 @@ int JvmEmitLoadByType(jvmc_code *code, const NType *type, int slot) {
         return 0;
     }
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
-        type->kind == TYPE_KIND_BASE_ARRAY) {
+        type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_ENUM_ARRAY) {
         return jvmc_code_load_ref(code, (uint16_t)slot);
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_load_int(code, (uint16_t)slot);
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
@@ -33,8 +36,11 @@ int JvmEmitStoreByType(jvmc_code *code, const NType *type, int slot) {
         return 0;
     }
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
-        type->kind == TYPE_KIND_BASE_ARRAY) {
+        type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_ENUM_ARRAY) {
         return jvmc_code_store_ref(code, (uint16_t)slot);
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_store_int(code, (uint16_t)slot);
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
@@ -61,8 +67,11 @@ int JvmEmitReturnByType(jvmc_code *code, const NType *type) {
         return jvmc_code_return_void(code);
     }
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY ||
-        type->kind == TYPE_KIND_BASE_ARRAY) {
+        type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_ENUM_ARRAY) {
         return jvmc_code_return_ref(code);
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return jvmc_code_return_int(code);
     }
     if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
@@ -169,6 +178,12 @@ const char *JvmPrintDescriptorForType(const NType *type) {
         return "Ljava/lang/Object;";
     }
     if (type->kind == TYPE_KIND_CLASS || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return "Ljava/lang/Object;";
+    }
+    if (type->kind == TYPE_KIND_ENUM) {
+        return "I";
+    }
+    if (type->kind == TYPE_KIND_ENUM_ARRAY) {
         return "Ljava/lang/Object;";
     }
     if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {

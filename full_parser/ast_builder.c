@@ -31,6 +31,8 @@ static void InitExprAttrs(NExpr *expr) {
     expr->jvm_ref_key.member_name = NULL;
     expr->jvm_ref_key.member_descriptor = NULL;
     expr->jvm_ref_key.kind = JVM_REF_FIELD;
+    expr->enum_value = 0;
+    expr->enum_value_is_set = 0;
 }
 
 static void InitStmtAttrs(NStmt *stmt) {
@@ -74,6 +76,7 @@ NType* CreateBaseType(BaseType base_type) {
     type->kind = TYPE_KIND_BASE;
     type->base_type = base_type;
     type->class_name = NULL;
+    type->enum_name = NULL;
     type->array_decl = NULL;
     
     return type;
@@ -89,8 +92,25 @@ NType* CreateClassType(char *class_name) {
     type->kind = TYPE_KIND_CLASS;
     type->base_type = TYPE_INT;
     type->class_name = DuplicateString(class_name);
+    type->enum_name = NULL;
     type->array_decl = NULL;
     
+    return type;
+}
+
+NType* CreateEnumType(char *enum_name) {
+    NType *type = (NType *)malloc(sizeof(NType));
+    if (type == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+
+    type->kind = TYPE_KIND_ENUM;
+    type->base_type = TYPE_INT;
+    type->class_name = NULL;
+    type->enum_name = DuplicateString(enum_name);
+    type->array_decl = NULL;
+
     return type;
 }
 
@@ -116,6 +136,8 @@ NType* AddArrayToType(NType *type, NArrayDecl *array) {
         type->kind = TYPE_KIND_BASE_ARRAY;
     } else if (type->kind == TYPE_KIND_CLASS) {
         type->kind = TYPE_KIND_CLASS_ARRAY;
+    } else if (type->kind == TYPE_KIND_ENUM) {
+        type->kind = TYPE_KIND_ENUM_ARRAY;
     }
     
     return type;
