@@ -77,6 +77,12 @@ static char *BuildJvmParamDescriptor(const NParam *param) {
         return NULL;
     }
     if (param->is_ref) {
+        if (param->param_type != NULL &&
+            param->param_type->kind == TYPE_KIND_BASE &&
+            param->param_type->base_type == TYPE_CHAR) {
+            free(desc);
+            return DuplicateStringLocal("[I");
+        }
         return WrapDescriptorAsRefContainer(desc);
     }
     return desc;

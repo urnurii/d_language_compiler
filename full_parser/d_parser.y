@@ -254,9 +254,9 @@ decl
 
 param
     : type IDENT { $$ = CreateParam($1, $2, 0, NULL); }
-    | REF base_type IDENT { $$ = CreateParam($2, $3, 1, NULL); }
+    | REF type IDENT { $$ = CreateParam($2, $3, 1, NULL); }
     | type IDENT '=' expr { $$ = CreateParam($1, $2, 0, $4); }
-    | REF base_type IDENT '=' expr { $$ = CreateParam($2, $3, 1, $5); }
+    | REF type IDENT '=' expr { $$ = CreateParam($2, $3, 1, $5); }
     ;
 
 param_list

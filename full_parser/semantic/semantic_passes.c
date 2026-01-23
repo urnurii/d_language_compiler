@@ -2833,6 +2833,12 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 }
                 NType *obj_type = InferExpressionTypeSilent(obj, ctx);
                 if (obj_type != NULL &&
+                    (obj_type->kind == TYPE_KIND_BASE_ARRAY || obj_type->kind == TYPE_KIND_CLASS_ARRAY) &&
+                    expr->value.member_access.member_name != NULL &&
+                    strcmp(expr->value.member_access.member_name, "length") == 0) {
+                    break;
+                }
+                if (obj_type != NULL &&
                     (obj_type->kind == TYPE_KIND_CLASS || obj_type->kind == TYPE_KIND_CLASS_ARRAY)) {
                     if (obj_type->kind == TYPE_KIND_CLASS_ARRAY) {
                         if (ctx->errors != NULL) {

@@ -2066,6 +2066,19 @@ static int EmitNewArrayForType(jvmc_class *cls, jvmc_code *code, const NType *ty
     if (code == NULL || type == NULL) {
         return 0;
     }
+    if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        char *desc = BuildJvmTypeDescriptor(type);
+        jvmc_class_ref *cref;
+        if (desc == NULL) {
+            return 0;
+        }
+        cref = jvmc_class_get_or_create_class_ref(cls, desc);
+        free(desc);
+        if (cref == NULL) {
+            return 0;
+        }
+        return jvmc_code_newarray_ref(code, cref);
+    }
     if (type->kind == TYPE_KIND_CLASS) {
         char *internal = BuildJvmInternalName(type->class_name);
         jvmc_class_ref *cref;

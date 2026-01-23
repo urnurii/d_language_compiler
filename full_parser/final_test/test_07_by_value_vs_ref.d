@@ -1,57 +1,97 @@
-void mutateByValue(int i, string s, float f, bool b)
+class Box
 {
-    i = 111;
-    s = "changed";
-    f = 2.5;
-    b = !b;
+    int v;
 
-    writeln("Inside mutateByValue:");
-    writeln(i);
-    writeln(s);
-    writeln(f);
-    writeln(b);
+    this(int v)
+    {
+        this.v = v;
+    }
 }
 
-void mutateByRef(ref int i, ref string s, ref float f, ref bool b)
+void printState(string tag, int i, char c, string s, float f, bool b, int[] a, Box o)
 {
-    i = 222;
-    s = "ref_changed";
-    f = 3.5;
+    writeln("== ", tag, " ==");
+
+    writeln("i = ", i);
+    writeln("c = ", c);
+    writeln("s = ", s);
+    writeln("f = ", f);
+    writeln("b = ", b);
+
+    write("a = [");
+    for (int k = 0; k < a.length; k += 1)
+    {
+        if (k != 0) write(", ");
+        write(a[k]);
+    }
+    writeln("]");
+
+    writeln("o.v = ", o.v);
+    writeln("");
+}
+
+void mutateByValue(int i, char c, string s, float f, bool b, int[] a, Box o)
+{
+    i = 111;
+    c = 'Z';
+    s = "changed_value";
+    f = 2.5f;
     b = !b;
 
-    writeln("Inside mutateByRef:");
-    writeln(i);
-    writeln(s);
-    writeln(f);
-    writeln(b);
+    if (a.length > 0)
+        a[0] = 101;
+
+    int[] a1 = [9, 9, 9];
+
+    a = a1;
+
+    o.v = 501;
+
+    o = new Box(999);
+
+    printState("Inside mutateByValue", i, c, s, f, b, a, o);
+}
+
+void mutateByRef(ref int i, ref char c, ref string s, ref float f, ref bool b, ref int[] a, ref Box o)
+{
+    i = 222;
+    c = 'R';
+    s = "changed_ref";
+    f = 3.5f;
+    b = !b;
+
+    if (a.length > 1)
+        a[1] = 202;
+
+    int[] a1 = [7, 7, 7, 7];
+	
+    a = a1;
+
+    o.v = 777;
+
+    o = new Box(888);
+
+    printState("Inside mutateByRef", i, c, s, f, b, a, o);
 }
 
 void main()
 {
     int i = 1;
+    char c = 'A';
     string s = "orig";
-    float f = 1.5;
+    float f = 1.5f;
     bool b = true;
 
-    writeln("Initial:");
-    writeln(i);
-    writeln(s);
-    writeln(f);
-    writeln(b);
+    int[] a = [1, 2, 3];
+    Box o = new Box(10);
 
-    mutateByValue(i, s, f, b);
+    printState("Initial", i, c, s, f, b, a, o);
 
-    writeln("After mutateByValue:");
-    writeln(i);       // ожидается: 1
-    writeln(s);       // ожидается: "orig"
-    writeln(f);       // ожидается: 1.5
-    writeln(b);       // ожидается: true
+    mutateByValue(i, c, s, f, b, a, o);
 
-    mutateByRef(i, s, f, b);
+    printState("After mutateByValue", i, c, s, f, b, a, o);
 
-    writeln("After mutateByRef:");
-    writeln(i);       // ожидается: 222
-    writeln(s);       // ожидается: "ref_changed"
-    writeln(f);       // ожидается: 3.5
-    writeln(b);       // ожидается: false
+    mutateByRef(i, c, s, f, b, a, o);
+
+    printState("After mutateByRef", i, c, s, f, b, a, o);
 }
