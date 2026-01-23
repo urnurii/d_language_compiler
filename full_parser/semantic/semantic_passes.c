@@ -467,10 +467,34 @@ static int ValidateFormatArguments(const char *func_name, NExpr **args, int arg_
                 }
                 return 1;
             }
-            if (spec_count < (int)(sizeof(specs) / sizeof(specs[0]))) {
-                specs[spec_count++] = fmt[i + 1];
+            i++;
+            while (fmt[i] == '-' || fmt[i] == '+' || fmt[i] == ' ' ||
+                   fmt[i] == '0' || fmt[i] == '#') {
+                i++;
             }
-            i += 2;
+            while (fmt[i] >= '0' && fmt[i] <= '9') {
+                i++;
+            }
+            if (fmt[i] == '.') {
+                i++;
+                while (fmt[i] >= '0' && fmt[i] <= '9') {
+                    i++;
+                }
+            }
+            if (fmt[i] == '\0') {
+                if (ctx && ctx->errors) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "Incomplete format specifier",
+                                                          line,
+                                                          column);
+                    AddError(ctx->errors, &err);
+                }
+                return 1;
+            }
+            if (spec_count < (int)(sizeof(specs) / sizeof(specs[0]))) {
+                specs[spec_count++] = fmt[i];
+            }
+            i += 1;
             continue;
         }
         i += 1;
