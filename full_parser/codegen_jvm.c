@@ -722,6 +722,11 @@ static int EmitBoxIfNeeded(jvmc_class *cls, jvmc_code *code, const NType *type) 
                                                       "(Z)Ljava/lang/Boolean;");
             break;
         case TYPE_CHAR:
+            mref = jvmc_class_get_or_create_methodref(cls,
+                                                      "java/lang/Character",
+                                                      "valueOf",
+                                                      "(C)Ljava/lang/Character;");
+            break;
         case TYPE_INT:
             mref = jvmc_class_get_or_create_methodref(cls,
                                                       "java/lang/Integer",
@@ -4697,6 +4702,9 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     free(flow.break_labels);
     free(flow.continue_labels);
     if (!returned) {
+        if (!EmitMainDtorCleanup(cls, code, body, ctx)) {
+            CodegenReportFail("CodegenAddMethodWithBody: EmitMainDtorCleanup failed (skipping)");
+        }
         return CodegenEmitEmptyReturn(code, descriptor);
     }
     return 1;

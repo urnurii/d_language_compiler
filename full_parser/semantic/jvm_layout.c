@@ -120,7 +120,7 @@ char *BuildJvmInternalName(const char *name) {
 static const char *GetBaseDescriptor(BaseType base) {
     switch (base) {
         case TYPE_INT:    return "I";
-        case TYPE_CHAR:   return "I";
+        case TYPE_CHAR:   return "C";
         case TYPE_STRING: return "Ljava/lang/String;";
         case TYPE_BOOL:   return "Z";
         case TYPE_FLOAT:  return "F";
@@ -178,6 +178,9 @@ char *BuildJvmTypeDescriptor(const NType *type) {
     }
 
     if (type->kind == TYPE_KIND_BASE_ARRAY || type->kind == TYPE_KIND_CLASS_ARRAY) {
+        if (type->kind == TYPE_KIND_BASE_ARRAY && type->base_type == TYPE_CHAR) {
+            return DuplicateStringLocal("[I");
+        }
         elem_desc = BuildTypeDescriptorNoArray(type);
         if (elem_desc == NULL) {
             return NULL;
