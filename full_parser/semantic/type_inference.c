@@ -346,6 +346,23 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_SUPER:
             if (ctx != NULL && ctx->current_class != NULL &&
                 ctx->current_class->base_class != NULL) {
+                if (expr->value.ident_name != NULL) {
+                    ClassInfo *base_info = LookupClass(ctx, ctx->current_class->base_class);
+                    if (base_info != NULL) {
+                        FieldInfo *field = LookupClassFieldInHierarchy(ctx, base_info, expr->value.ident_name);
+                        if (field != NULL) {
+                            return CopyType(field->type, ctx);
+                        }
+                    }
+                    if (report_errors && ctx != NULL && ctx->errors != NULL) {
+                        SemanticError err = CreateFieldNotFoundError(expr->value.ident_name,
+                                                                    ctx->current_class->base_class,
+                                                                    expr->line,
+                                                                    expr->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    return NULL;
+                }
                 return CreateClassType(ctx->current_class->base_class);
             }
             return NULL;

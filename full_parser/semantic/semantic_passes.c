@@ -206,6 +206,80 @@ static int IsInsideExactClass(SemanticContext *ctx, const NExpr *obj, const char
     return strcmp(ctx->current_class->name, target_class) == 0;
 }
 
+static int AreParamListsEqual(const NParamList *a, const NParamList *b) {
+    int count_a = 0;
+    int count_b = 0;
+    if (a != NULL) {
+        count_a = a->count;
+    }
+    if (b != NULL) {
+        count_b = b->count;
+    }
+    if (count_a != count_b) {
+        return 0;
+    }
+    for (int i = 0; i < count_a; i++) {
+        NParam *pa = a->params[i];
+        NParam *pb = b->params[i];
+        if (pa == NULL || pb == NULL) {
+            return 0;
+        }
+        if (pa->is_ref != pb->is_ref) {
+            return 0;
+        }
+        if (!TypesEqual(pa->param_type, pb->param_type)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int MethodsHaveSameSignature(const MethodInfo *a, const MethodInfo *b) {
+    if (a == NULL || b == NULL || a->name == NULL || b->name == NULL) {
+        return 0;
+    }
+    if (strcmp(a->name, b->name) != 0) {
+        return 0;
+    }
+    return AreParamListsEqual(a->params, b->params);
+}
+
+static MethodInfo *FindMethodInClassBySignature(ClassInfo *class_info, const char *name,
+                                                const NParamList *params) {
+    if (class_info == NULL || name == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < class_info->method_count; i++) {
+        MethodInfo *method = class_info->methods[i];
+        if (method == NULL || method->name == NULL) {
+            continue;
+        }
+        if (strcmp(method->name, name) != 0) {
+            continue;
+        }
+        if (AreParamListsEqual(method->params, params)) {
+            return method;
+        }
+    }
+    return NULL;
+}
+
+static MethodInfo *FindMethodInHierarchyBySignature(SemanticContext *ctx, ClassInfo *class_info,
+                                                    const char *name, const NParamList *params) {
+    ClassInfo *current = class_info;
+    while (current != NULL) {
+        MethodInfo *method = FindMethodInClassBySignature(current, name, params);
+        if (method != NULL) {
+            return method;
+        }
+        if (current->base_class == NULL || ctx == NULL) {
+            break;
+        }
+        current = LookupClass(ctx, current->base_class);
+    }
+    return NULL;
+}
+
 static int AreCtorSignaturesCompatible(const NCtorDef *a, const NCtorDef *b) {
     int count_a = 0;
     int count_b = 0;
@@ -727,6 +801,9 @@ static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassIn
     int best_score = -1;
     int ambiguous = 0;
     ClassInfo *current = class_info;
+    MethodInfo **seen = NULL;
+    int seen_count = 0;
+    int seen_cap = 0;
 
     if (is_ambiguous != NULL) {
         *is_ambiguous = 0;
@@ -746,6 +823,30 @@ static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassIn
             }
             if (strcmp(method->name, method_name) != 0) {
                 continue;
+            }
+            {
+                int already_seen = 0;
+                for (int s = 0; s < seen_count; s++) {
+                    if (MethodsHaveSameSignature(method, seen[s])) {
+                        already_seen = 1;
+                        break;
+                    }
+                }
+                if (already_seen) {
+                    continue;
+                }
+                if (seen_count == seen_cap) {
+                    int new_cap = (seen_cap == 0) ? 4 : seen_cap * 2;
+                    MethodInfo **grown = (MethodInfo**)realloc(seen,
+                                                               sizeof(MethodInfo*) * (size_t)new_cap);
+                    if (grown == NULL) {
+                        free(seen);
+                        return NULL;
+                    }
+                    seen = grown;
+                    seen_cap = new_cap;
+                }
+                seen[seen_count++] = method;
             }
             {
                 int inside_class = IsInsideExactClass(ctx, obj_expr, current->name);
@@ -771,6 +872,7 @@ static MethodInfo *LookupMethodOverloadInHierarchy(SemanticContext *ctx, ClassIn
         }
         current = LookupClass(ctx, current->base_class);
     }
+    free(seen);
     if (is_ambiguous != NULL) {
         *is_ambiguous = ambiguous;
     }
@@ -1168,7 +1270,10 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
             }
             return 1;
         }
-        base_method = LookupClassMethod(base_info, method_def->method_name);
+        base_method = FindMethodInHierarchyBySignature(ctx,
+                                                       base_info,
+                                                       method_def->method_name,
+                                                       method_def->params);
         if (base_method == NULL) {
             if (ctx->errors != NULL) {
                 SemanticError err = CreateInvalidOverrideError(method_def->method_name,
@@ -1189,40 +1294,9 @@ int ProcessMethodDefinition(NMethodDef *method_def, AccessSpec access,
             }
             return 1;
         }
-        {
-            int base_params = base_method->params ? base_method->params->count : 0;
-            int this_params = method_def->params ? method_def->params->count : 0;
-            if (base_params != this_params) {
-                if (ctx->errors != NULL) {
-                    SemanticError err = CreateInvalidOverrideError(method_def->method_name,
-                                                                  "parameter count mismatch",
-                                                                  0,
-                                                                  0);
-                    AddError(ctx->errors, &err);
-                }
-                return 1;
-            }
-            for (int i = 0; i < this_params; i++) {
-                NParam *p = method_def->params->params[i];
-                NParam *bp = base_method->params->params[i];
-                if (p == NULL || bp == NULL) {
-                    continue;
-                }
-                if (!TypesEqual(p->param_type, bp->param_type)) {
-                    if (ctx->errors != NULL) {
-                        SemanticError err = CreateInvalidOverrideError(method_def->method_name,
-                                                                      "parameter type mismatch",
-                                                                      0,
-                                                                      0);
-                        AddError(ctx->errors, &err);
-                    }
-                    return 1;
-                }
-            }
-        }
     }
 
-    if (LookupClassMethod(class_info, method_def->method_name) != NULL) {
+    if (FindMethodInClassBySignature(class_info, method_def->method_name, method_def->params) != NULL) {
         if (ctx->errors != NULL) {
             SemanticError err = CreateDuplicateSymbolError(method_def->method_name,
                                                           0,
@@ -4017,7 +4091,14 @@ static int FillRefKeyForSuperMethod(NExpr *expr, SemanticContext *ctx) {
     if (base_info == NULL) {
         return 0;
     }
-    method = LookupClassMethodInHierarchy(ctx, base_info, expr->value.member_access.member_name);
+    method = LookupMethodOverloadInHierarchy(ctx,
+                                             base_info,
+                                             expr->value.member_access.member_name,
+                                             expr->value.member_access.args,
+                                             expr->value.member_access.arg_count,
+                                             NULL,
+                                             NULL,
+                                             NULL);
     if (method == NULL) {
         return 0;
     }
