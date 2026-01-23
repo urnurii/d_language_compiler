@@ -2367,6 +2367,30 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
             break;
         case EXPR_FUNC_CALL: {
             int ambiguous = 0;
+            if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "destroy") == 0) {
+                int ok = 1;
+                if (expr->value.func_call.arg_count != 1 || expr->value.func_call.args == NULL) {
+                    ok = 0;
+                } else {
+                    NExpr *arg = expr->value.func_call.args[0];
+                    NType *arg_type = InferExpressionTypeSilent(arg, ctx);
+                    if (arg_type == NULL ||
+                        arg_type->kind != TYPE_KIND_CLASS ||
+                        arg_type->class_name == NULL) {
+                        ok = 0;
+                    }
+                }
+                if (!ok && ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "destroy expects a class instance",
+                                                          expr->line,
+                                                          expr->column);
+                    AddError(ctx->errors, &err);
+                    had_error = 1;
+                }
+                return had_error;
+            }
             FunctionInfo *func = LookupFunctionOverload(ctx,
                                                         expr->value.func_call.func_name,
                                                         expr->value.func_call.args,

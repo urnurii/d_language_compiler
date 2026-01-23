@@ -3287,6 +3287,103 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
         case EXPR_FUNC_CALL: {
             const char *fname = expr->value.func_call.func_name;
             if (fname != NULL) {
+                if (strcmp(fname, "destroy") == 0 && expr->value.func_call.arg_count == 1) {
+                    NExpr *arg = expr->value.func_call.args[0];
+                    NType *arg_type = arg ? arg->inferred_type : NULL;
+                    jvmc_label *label_skip = NULL;
+                    jvmc_label *label_end = NULL;
+                    jvmc_methodref *mref = NULL;
+                    int can_store_null = 0;
+                    if (arg == NULL) {
+                        return 0;
+                    }
+                    if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                        return 0;
+                    }
+                    if (arg_type == NULL) {
+                        arg_type = InferExpressionTypeSilent(arg, ctx);
+                    }
+                    if (arg_type == NULL || arg_type->kind != TYPE_KIND_CLASS ||
+                        arg_type->class_name == NULL) {
+                        return 0;
+                    }
+                    if (arg->type == EXPR_IDENT ||
+                        arg->type == EXPR_MEMBER_ACCESS ||
+                        arg->type == EXPR_ARRAY_ACCESS ||
+                        arg->type == EXPR_SUPER) {
+                        can_store_null = 1;
+                    }
+                    {
+                        ClassInfo *class_info = (ctx != NULL)
+                                                    ? LookupClass(ctx, arg_type->class_name)
+                                                    : NULL;
+                        if (class_info != NULL && class_info->destructor == NULL) {
+                            if (!jvmc_code_pop(code)) {
+                                return 0;
+                            }
+                            if (can_store_null) {
+                                if (!jvmc_code_push_null(code)) {
+                                    return 0;
+                                }
+                                if (!EmitStoreLValue(cls, code, arg, arg_type, params, body, ctx)) {
+                                    return 0;
+                                }
+                            }
+                            return 1;
+                        }
+                    }
+                    label_skip = jvmc_code_label_create(code);
+                    label_end = jvmc_code_label_create(code);
+                    if (label_skip == NULL || label_end == NULL) {
+                        return 0;
+                    }
+                    if (!jvmc_code_dup(code)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_if_null(code, label_skip)) {
+                        return 0;
+                    }
+                    {
+                        char *owner_internal = BuildJvmInternalName(arg_type->class_name);
+                        if (owner_internal == NULL) {
+                            return 0;
+                        }
+                        mref = jvmc_class_get_or_create_methodref(cls, owner_internal, "__dtor", "()V");
+                        free(owner_internal);
+                        if (mref == NULL) {
+                            return 0;
+                        }
+                    }
+                    if (!jvmc_code_invokevirtual(code, mref)) {
+                        return 0;
+                    }
+                    if (can_store_null) {
+                        if (!jvmc_code_push_null(code)) {
+                            return 0;
+                        }
+                        if (!EmitStoreLValue(cls, code, arg, arg_type, params, body, ctx)) {
+                            return 0;
+                        }
+                    }
+                    if (!jvmc_code_goto(code, label_end)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_label_place(code, label_skip)) {
+                        return 0;
+                    }
+                    if (!jvmc_code_pop(code)) {
+                        return 0;
+                    }
+                    if (can_store_null) {
+                        if (!jvmc_code_push_null(code)) {
+                            return 0;
+                        }
+                        if (!EmitStoreLValue(cls, code, arg, arg_type, params, body, ctx)) {
+                            return 0;
+                        }
+                    }
+                    return jvmc_code_label_place(code, label_end);
+                }
                 if (strcmp(fname, "__len") == 0 && expr->value.func_call.arg_count == 1) {
                     if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
                         return CodegenReportExprFail("EXPR_FUNC_CALL: __len arg emit failed", expr);
@@ -3788,6 +3885,42 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 }
                 return jvmc_code_getfield(code, fref);
             }
+            if (obj != NULL && expr->value.member_access.member_name != NULL && ctx != NULL) {
+                NType *obj_type = obj->inferred_type;
+                if (obj_type == NULL) {
+                    obj_type = InferExpressionTypeSilent(obj, ctx);
+                }
+                if (obj_type != NULL && obj_type->kind == TYPE_KIND_CLASS &&
+                    obj_type->class_name != NULL) {
+                    ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+                    FieldInfo *field = NULL;
+                    if (class_info != NULL) {
+                        field = LookupClassFieldInHierarchy(ctx, class_info,
+                                                            expr->value.member_access.member_name);
+                    }
+                    if (field != NULL) {
+                        char *desc = BuildJvmTypeDescriptor(field->type);
+                        char *owner_internal = BuildJvmInternalName(obj_type->class_name);
+                        jvmc_fieldref *fref = NULL;
+                        if (desc == NULL || owner_internal == NULL) {
+                            free(desc);
+                            free(owner_internal);
+                            return 0;
+                        }
+                        fref = jvmc_class_get_or_create_fieldref(cls, owner_internal,
+                                                                 field->name, desc);
+                        free(desc);
+                        free(owner_internal);
+                        if (fref == NULL) {
+                            return 0;
+                        }
+                        if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
+                            return 0;
+                        }
+                        return jvmc_code_getfield(code, fref);
+                    }
+                }
+            }
             return 0;
         }
         case EXPR_NEW: {
@@ -3962,8 +4095,48 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 NExpr *lhs = expr->value.binary.left;
                 NExpr *rhs = expr->value.binary.right;
                 jvmc_fieldref *fref;
-                if (rhs == NULL || !lhs->jvm_ref_key.has_key ||
-                    lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                if (rhs == NULL) {
+                    return 0;
+                }
+                if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
+                    NExpr *obj = lhs->value.member_access.object;
+                    if (obj != NULL && lhs->value.member_access.member_name != NULL && ctx != NULL) {
+                        NType *obj_type = obj->inferred_type;
+                        if (obj_type == NULL) {
+                            obj_type = InferExpressionTypeSilent(obj, ctx);
+                        }
+                        if (obj_type != NULL && obj_type->kind == TYPE_KIND_CLASS &&
+                            obj_type->class_name != NULL) {
+                            ClassInfo *class_info = LookupClass(ctx, obj_type->class_name);
+                            FieldInfo *field = NULL;
+                            if (class_info != NULL) {
+                                field = LookupClassFieldInHierarchy(ctx, class_info,
+                                                                    lhs->value.member_access.member_name);
+                            }
+                            if (field != NULL) {
+                                char *desc = BuildJvmTypeDescriptor(field->type);
+                                char *owner_internal = BuildJvmInternalName(obj_type->class_name);
+                                if (desc == NULL || owner_internal == NULL) {
+                                    free(desc);
+                                    free(owner_internal);
+                                    return 0;
+                                }
+                                if (!SetJvmRefKey(&lhs->jvm_ref_key,
+                                                  owner_internal,
+                                                  field->name,
+                                                  desc,
+                                                  JVM_REF_FIELD)) {
+                                    free(owner_internal);
+                                    free(desc);
+                                    return 0;
+                                }
+                                free(owner_internal);
+                                free(desc);
+                            }
+                        }
+                    }
+                }
+                if (!lhs->jvm_ref_key.has_key || lhs->jvm_ref_key.kind != JVM_REF_FIELD) {
                     return 0;
                 }
                 fref = jvmc_class_get_or_create_fieldref(cls,
