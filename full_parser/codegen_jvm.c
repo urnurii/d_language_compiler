@@ -36,6 +36,9 @@ static char *BuildJvmArrayDescriptorForType(const NType *elem_type) {
     if (elem_type == NULL) {
         return NULL;
     }
+    if (elem_type->kind == TYPE_KIND_BASE && elem_type->base_type == TYPE_CHAR) {
+        return DuplicateStringLocal("[I");
+    }
     elem_desc = BuildJvmTypeDescriptor(elem_type);
     if (elem_desc == NULL) {
         return NULL;
