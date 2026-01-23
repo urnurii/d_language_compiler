@@ -1,6 +1,6 @@
 class Test
 {
-private string prop = "Private";
+protected string prop = "Private";
 }
 
 class Another : Test
@@ -16,4 +16,5 @@ void main()
 {
     Another obj = new Another();
     obj.call();
+    string x = obj.prop;
 }
