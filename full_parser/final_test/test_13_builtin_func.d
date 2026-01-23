@@ -18,6 +18,15 @@ void main()
     writeln(c);
     writeln(s);
 
+    write("WRITE: ");
+    write(i);
+    write(" ");
+    write(f);
+    write(" ");
+    write(c);
+    write(" ");
+    writeln(s);
+
     writef("FORMAT: i=%d f=%f c=%c s=%s\n", i, f, c, s);
     writeln("DONE");
 }
