@@ -1581,7 +1581,23 @@ static int MaxTempSlotsInExpr(NExpr *expr) {
                 }
             }
             if (expr->value.func_call.func_name != NULL &&
-                strcmp(expr->value.func_call.func_name, "readf") == 0) {
+                strcmp(expr->value.func_call.func_name, "__append") == 0) {
+                int needed = 6;
+                if (expr->value.func_call.arg_count >= 2) {
+                    NExpr *rhs = expr->value.func_call.args[1];
+                    NType *rhs_type = rhs ? rhs->inferred_type : NULL;
+                    if (rhs_type != NULL &&
+                        (rhs_type->kind == TYPE_KIND_BASE_ARRAY ||
+                         rhs_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                         rhs_type->kind == TYPE_KIND_ENUM_ARRAY)) {
+                        needed = 6;
+                    } else {
+                        needed = 4;
+                    }
+                }
+                local = needed;
+            } else if (expr->value.func_call.func_name != NULL &&
+                       strcmp(expr->value.func_call.func_name, "readf") == 0) {
                 local = 4;
             } else {
                 int refs = CountRefArgs(expr->resolved_arg_is_ref, expr->resolved_arg_count);
