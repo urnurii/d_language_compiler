@@ -282,6 +282,8 @@ stmt
     | RETURN e_expr ';' { $$ = CreateReturnStmt($2); }
     | BREAK ';' { $$ = CreateBreakStmt(); }
     | CONTINUE ';' { $$ = CreateContinueStmt(); }
+    | SUPER '(' arg_list ')' ';' { $$ = CreateSuperCtorCallStmt($3); }
+    | SUPER '(' ')' ';' { $$ = CreateSuperCtorCallStmt(NULL); }
     ;
 
 stmt_list

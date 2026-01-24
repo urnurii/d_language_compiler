@@ -4153,7 +4153,10 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                     return EmitStoreByType(code, type, slot);
                 }
-                return EmitGlobalStore(cls, code, ctx, name, &type);
+                if (EmitGlobalStore(cls, code, ctx, name, &type)) {
+                    return 1;
+                }
+                return EmitImplicitThisFieldStore(cls, code, ctx, name, type, params, body);
             }
             if (expr->value.binary.left != NULL &&
                 expr->value.binary.left->type == EXPR_MEMBER_ACCESS) {

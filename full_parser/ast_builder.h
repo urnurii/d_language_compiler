@@ -72,6 +72,7 @@ void FreeInitDeclList(NInitDeclList *list);
 // ----- Функции для операторов -----
 
 NStmt* CreateExprStmt(NExpr *expr);
+NStmt* CreateSuperCtorCallStmt(NExprList *args);
 NStmt* CreateDeclStmt(NType *decl_type, NInitDeclList *init_decls);
 NStmt* CreateCompoundStmt(NStmtList *stmt_list);
 NStmt* CreateReturnStmt(NExpr *return_expr);

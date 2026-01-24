@@ -243,6 +243,7 @@ typedef struct {
 // Типы операторов stmt
 typedef enum {
     STMT_EXPR,
+    STMT_SUPER_CTOR_CALL,
     STMT_DECL,
     STMT_COMPOUND,  // { ... } 
     STMT_IF,
@@ -265,6 +266,11 @@ typedef struct NStmt {
     
     union {
         NExpr *expr;  // STMT_EXPR, STMT_RETURN
+
+        // STMT_SUPER_CTOR_CALL
+        struct {
+            NExprList *args;  // NULL for super()
+        } super_ctor;
         
         // STMT_DECL
         struct {
