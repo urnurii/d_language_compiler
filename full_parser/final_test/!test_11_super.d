@@ -1,3 +1,5 @@
+module full_parser.final_test.!test_11_super;
+
 class Base
 {
     int value;
