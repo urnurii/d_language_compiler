@@ -1,5 +1,3 @@
-module full_parser.final_test.!test_07_by_value_vs_ref;
-
 class Box
 {
     int v;
