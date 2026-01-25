@@ -14,6 +14,7 @@ static int IsEnumType(const NType *type);
 static int IsEnumScalarType(const NType *type);
 static int IsArrayType(const NType *type);
 static int IsDynamicArrayType(const NType *type);
+static int IsStringType(const NType *type);
 static void BuildElementType(const NType *array_type, NType *out);
 static void ReportAppendAssignError(NType *left_type, NType *right_type,
                                     SemanticContext *ctx, int line, int column);
@@ -129,6 +130,22 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
             return InferUnaryOperationType(expr->value.unary.op, operand_type);
         case EXPR_FUNC_CALL: {
             int ambiguous = 0;
+            if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "__str_append") == 0) {
+                if (expr->value.func_call.arg_count == 2 &&
+                    expr->value.func_call.args != NULL) {
+                    NExpr *left = expr->value.func_call.args[0];
+                    NExpr *right = expr->value.func_call.args[1];
+                    NType *left_type = InferExpressionTypeInternal(left, ctx, report_errors);
+                    NType *right_type = InferExpressionTypeInternal(right, ctx, report_errors);
+                    if (left_type != NULL && right_type != NULL &&
+                        left_type->kind == TYPE_KIND_BASE && left_type->base_type == TYPE_STRING &&
+                        right_type->kind == TYPE_KIND_BASE && right_type->base_type == TYPE_STRING) {
+                        return CreateBaseType(TYPE_STRING);
+                    }
+                }
+                return NULL;
+            }
             if (expr->value.func_call.func_name != NULL &&
                 strcmp(expr->value.func_call.func_name, "destroy") == 0) {
                 if (expr->value.func_call.arg_count == 1 &&
@@ -863,6 +880,13 @@ static int IsDynamicArrayType(const NType *type) {
     return type->array_decl->has_size ? 0 : 1;
 }
 
+static int IsStringType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING;
+}
+
 static void BuildElementType(const NType *array_type, NType *out) {
     if (out == NULL) {
         return;
@@ -939,6 +963,13 @@ int CheckAppendAssignment(NType *left_type, NType *right_type,
 
     if (left_type == NULL || right_type == NULL) {
         return 0;
+    }
+    if (IsStringType(left_type)) {
+        if (!IsStringType(right_type)) {
+            ReportAppendAssignError(left_type, right_type, ctx, line, column);
+            return 0;
+        }
+        return 1;
     }
     if (!IsDynamicArrayType(left_type)) {
         ReportAppendAssignError(left_type, right_type, ctx, line, column);

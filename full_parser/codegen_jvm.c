@@ -1612,6 +1612,9 @@ static int MaxTempSlotsInExpr(NExpr *expr) {
                 }
                 local = needed;
             } else if (expr->value.func_call.func_name != NULL &&
+                       strcmp(expr->value.func_call.func_name, "__str_append") == 0) {
+                local = 2;
+            } else if (expr->value.func_call.func_name != NULL &&
                        strcmp(expr->value.func_call.func_name, "readf") == 0) {
                 local = 4;
             } else {
@@ -3524,6 +3527,131 @@ static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_
     return jvmc_code_load_ref(code, (uint16_t)slot_new);
 }
 
+static int EmitAppendString(jvmc_class *cls, jvmc_code *code, NExpr *left_expr, NExpr *right_expr,
+                            NParamList *params, NStmt *body, SemanticContext *ctx) {
+    int base = GetTempBase(params, body);
+    int slot_left = base++;
+    int slot_right = base++;
+    jvmc_class_ref *cref;
+    jvmc_methodref *mref_init;
+    jvmc_methodref *mref_append;
+    jvmc_methodref *mref_to_string;
+    jvmc_label *label_left_null = jvmc_code_label_create(code);
+    jvmc_label *label_left_done = jvmc_code_label_create(code);
+    jvmc_label *label_right_null = jvmc_code_label_create(code);
+    jvmc_label *label_right_done = jvmc_code_label_create(code);
+
+    if (cls == NULL || code == NULL) {
+        return 0;
+    }
+    if (left_expr == NULL || right_expr == NULL) {
+        return 0;
+    }
+    if (label_left_null == NULL || label_left_done == NULL ||
+        label_right_null == NULL || label_right_done == NULL) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, left_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_left)) {
+        return 0;
+    }
+    if (!CodegenEmitExpr(cls, code, right_expr, params, body, ctx)) {
+        return 0;
+    }
+    if (!jvmc_code_store_ref(code, (uint16_t)slot_right)) {
+        return 0;
+    }
+
+    cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/StringBuilder");
+    if (cref == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_new(code, cref)) {
+        return 0;
+    }
+    if (!jvmc_code_dup(code)) {
+        return 0;
+    }
+    mref_init = jvmc_class_get_or_create_methodref(cls,
+                                                   "java/lang/StringBuilder",
+                                                   "<init>",
+                                                   "()V");
+    if (mref_init == NULL) {
+        return 0;
+    }
+    if (!jvmc_code_invokespecial(code, mref_init)) {
+        return 0;
+    }
+    mref_append = jvmc_class_get_or_create_methodref(cls,
+                                                     "java/lang/StringBuilder",
+                                                     "append",
+                                                     "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
+    if (mref_append == NULL) {
+        return 0;
+    }
+
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_left)) {
+        return 0;
+    }
+    if (!jvmc_code_if_null(code, label_left_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_left)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_left_done)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_left_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_string(code, "")) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_left_done)) {
+        return 0;
+    }
+    if (!jvmc_code_invokevirtual(code, mref_append)) {
+        return 0;
+    }
+
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
+        return 0;
+    }
+    if (!jvmc_code_if_null(code, label_right_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_right_done)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_right_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_string(code, "")) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_right_done)) {
+        return 0;
+    }
+    if (!jvmc_code_invokevirtual(code, mref_append)) {
+        return 0;
+    }
+
+    mref_to_string = jvmc_class_get_or_create_methodref(cls,
+                                                        "java/lang/StringBuilder",
+                                                        "toString",
+                                                        "()Ljava/lang/String;");
+    if (mref_to_string == NULL) {
+        return 0;
+    }
+    return jvmc_code_invokevirtual(code, mref_to_string);
+}
+
 static int EmitNewClassExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params,
                             NStmt *body, SemanticContext *ctx) {
     char *owner_internal = NULL;
@@ -4273,6 +4401,17 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                     return EmitAppendArrayElement(cls, code, arr, rhs, params, body, ctx);
                 }
+                if (strcmp(fname, "__str_append") == 0 && expr->value.func_call.arg_count == 2) {
+                    NExpr *left = expr->value.func_call.args[0];
+                    NExpr *right = expr->value.func_call.args[1];
+                    if (left == NULL || right == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __str_append args missing", expr);
+                    }
+                    if (!EmitAppendString(cls, code, left, right, params, body, ctx)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __str_append emit failed", expr);
+                    }
+                    return 1;
+                }
                 if (strcmp(fname, "readf") == 0) {
                     int arg_count = expr->value.func_call.arg_count;
                     int extra_count = arg_count - 1;
@@ -4918,23 +5057,32 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 const char *name = expr->value.binary.left->value.ident_name;
                 NExpr *right = expr->value.binary.right;
                 if (right == NULL) {
-                    return 0;
+                    return CodegenReportExprFail("EXPR_ASSIGN: missing right expr", expr);
                 }
                 if (!CodegenEmitExpr(cls, code, right, params, body, ctx)) {
-                    return 0;
+                    return CodegenReportExprFail("EXPR_ASSIGN: right emit failed", expr);
                 }
                 if (ResolveVariableSlot(name, params, body, &slot, &type)) {
                     int is_ref = 0;
                     LookupCodegenVar(name, NULL, NULL, &is_ref);
                     if (is_ref) {
-                        return EmitStoreRefParamValue(code, type, slot, params, body);
+                        if (!EmitStoreRefParamValue(code, type, slot, params, body)) {
+                            return CodegenReportExprFail("EXPR_ASSIGN: ref store failed", expr);
+                        }
+                        return 1;
                     }
-                    return EmitStoreByType(code, type, slot);
+                    if (!EmitStoreByType(code, type, slot)) {
+                        return CodegenReportExprFail("EXPR_ASSIGN: local store failed", expr);
+                    }
+                    return 1;
                 }
                 if (EmitGlobalStore(cls, code, ctx, name, &type)) {
                     return 1;
                 }
-                return EmitImplicitThisFieldStore(cls, code, ctx, name, type, params, body);
+                if (EmitImplicitThisFieldStore(cls, code, ctx, name, type, params, body)) {
+                    return 1;
+                }
+                return CodegenReportExprFail("EXPR_ASSIGN: unresolved lhs ident", expr);
             }
             if (expr->value.binary.left != NULL &&
                 expr->value.binary.left->type == EXPR_MEMBER_ACCESS) {

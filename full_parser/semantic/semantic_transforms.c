@@ -26,6 +26,7 @@ static int PrepareLValueRValue(NExpr *lhs, NExpr *rhs, SemanticContext *ctx);
 static int TryInsertImplicitCast(NExpr **expr_ptr, const NType *target_type, SemanticContext *ctx);
 static NExpr *CloneLValueExpr(const NExpr *expr);
 static int IsArrayType(const NType *type);
+static int IsStringType(const NType *type);
 static NExpr *CloneExpr(const NExpr *expr);
 static int ExpandDefaultArgsForFuncCall(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForMethodCall(NExpr *expr, SemanticContext *ctx);
@@ -708,15 +709,22 @@ static int TransformAssignment(NExpr *expr, SemanticContext *ctx) {
     TransformExpression(expr->value.binary.right, ctx);
     if (expr->value.binary.op != OP_ASSIGN) {
         if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
-            lhs_type = InferExpressionTypeSilent(expr->value.binary.left, ctx);
-            is_array = IsArrayType(lhs_type);
+            lhs_type = expr->value.binary.left ? expr->value.binary.left->inferred_type : NULL;
+            if (lhs_type == NULL) {
+                lhs_type = InferExpressionTypeSilent(expr->value.binary.left, ctx);
+            }
             args = CreateExprList();
             AddExprToList(args, CloneLValueExpr(expr->value.binary.left));
             AddExprToList(args, expr->value.binary.right);
-            new_right = CreateFuncCallExpr("__append", args->elements, args->count);
+            if (IsStringType(lhs_type)) {
+                new_right = CreateFuncCallExpr("__str_append", args->elements, args->count);
+            } else {
+                is_array = IsArrayType(lhs_type);
+                new_right = CreateFuncCallExpr("__append", args->elements, args->count);
+                (void)is_array;
+            }
             expr->value.binary.op = OP_ASSIGN;
             expr->value.binary.right = new_right;
-            (void)is_array;
         } else {
             OpType base_op = OP_PLUS;
             switch (expr->value.binary.op) {
@@ -872,6 +880,13 @@ static int IsArrayType(const NType *type) {
     return type->kind == TYPE_KIND_BASE_ARRAY ||
            type->kind == TYPE_KIND_CLASS_ARRAY ||
            type->kind == TYPE_KIND_ENUM_ARRAY;
+}
+
+static int IsStringType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING;
 }
 
 static NExpr *CloneLValueExpr(const NExpr *expr) {
