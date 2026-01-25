@@ -997,6 +997,13 @@ static int IsStringType(const NType *type) {
     return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_STRING;
 }
 
+static int IsCharType(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE && type->base_type == TYPE_CHAR;
+}
+
 typedef struct {
     const NType *type;
     int slot;
@@ -3534,12 +3541,14 @@ static int EmitAppendString(jvmc_class *cls, jvmc_code *code, NExpr *left_expr, 
     int slot_right = base++;
     jvmc_class_ref *cref;
     jvmc_methodref *mref_init;
-    jvmc_methodref *mref_append;
+    jvmc_methodref *mref_append_left;
+    jvmc_methodref *mref_append_right;
     jvmc_methodref *mref_to_string;
     jvmc_label *label_left_null = jvmc_code_label_create(code);
     jvmc_label *label_left_done = jvmc_code_label_create(code);
     jvmc_label *label_right_null = jvmc_code_label_create(code);
     jvmc_label *label_right_done = jvmc_code_label_create(code);
+    NType *right_type = NULL;
 
     if (cls == NULL || code == NULL) {
         return 0;
@@ -3560,8 +3569,18 @@ static int EmitAppendString(jvmc_class *cls, jvmc_code *code, NExpr *left_expr, 
     if (!CodegenEmitExpr(cls, code, right_expr, params, body, ctx)) {
         return 0;
     }
-    if (!jvmc_code_store_ref(code, (uint16_t)slot_right)) {
-        return 0;
+    right_type = right_expr->inferred_type;
+    if (right_type == NULL) {
+        right_type = InferExpressionTypeSilent(right_expr, ctx);
+    }
+    if (IsCharType(right_type)) {
+        if (!jvmc_code_store_int(code, (uint16_t)slot_right)) {
+            return 0;
+        }
+    } else {
+        if (!jvmc_code_store_ref(code, (uint16_t)slot_right)) {
+            return 0;
+        }
     }
 
     cref = jvmc_class_get_or_create_class_ref(cls, "java/lang/StringBuilder");
@@ -3584,11 +3603,25 @@ static int EmitAppendString(jvmc_class *cls, jvmc_code *code, NExpr *left_expr, 
     if (!jvmc_code_invokespecial(code, mref_init)) {
         return 0;
     }
-    mref_append = jvmc_class_get_or_create_methodref(cls,
-                                                     "java/lang/StringBuilder",
-                                                     "append",
-                                                     "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
-    if (mref_append == NULL) {
+    mref_append_left = jvmc_class_get_or_create_methodref(cls,
+                                                          "java/lang/StringBuilder",
+                                                          "append",
+                                                          "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
+    if (mref_append_left == NULL) {
+        return 0;
+    }
+    if (IsCharType(right_type)) {
+        mref_append_right = jvmc_class_get_or_create_methodref(cls,
+                                                               "java/lang/StringBuilder",
+                                                               "append",
+                                                               "(C)Ljava/lang/StringBuilder;");
+    } else {
+        mref_append_right = jvmc_class_get_or_create_methodref(cls,
+                                                               "java/lang/StringBuilder",
+                                                               "append",
+                                                               "(Ljava/lang/String;)Ljava/lang/StringBuilder;");
+    }
+    if (mref_append_right == NULL) {
         return 0;
     }
 
@@ -3613,32 +3646,38 @@ static int EmitAppendString(jvmc_class *cls, jvmc_code *code, NExpr *left_expr, 
     if (!jvmc_code_label_place(code, label_left_done)) {
         return 0;
     }
-    if (!jvmc_code_invokevirtual(code, mref_append)) {
+    if (!jvmc_code_invokevirtual(code, mref_append_left)) {
         return 0;
     }
 
-    if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
-        return 0;
+    if (IsCharType(right_type)) {
+        if (!jvmc_code_load_int(code, (uint16_t)slot_right)) {
+            return 0;
+        }
+    } else {
+        if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
+            return 0;
+        }
+        if (!jvmc_code_if_null(code, label_right_null)) {
+            return 0;
+        }
+        if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
+            return 0;
+        }
+        if (!jvmc_code_goto(code, label_right_done)) {
+            return 0;
+        }
+        if (!jvmc_code_label_place(code, label_right_null)) {
+            return 0;
+        }
+        if (!jvmc_code_push_string(code, "")) {
+            return 0;
+        }
+        if (!jvmc_code_label_place(code, label_right_done)) {
+            return 0;
+        }
     }
-    if (!jvmc_code_if_null(code, label_right_null)) {
-        return 0;
-    }
-    if (!jvmc_code_load_ref(code, (uint16_t)slot_right)) {
-        return 0;
-    }
-    if (!jvmc_code_goto(code, label_right_done)) {
-        return 0;
-    }
-    if (!jvmc_code_label_place(code, label_right_null)) {
-        return 0;
-    }
-    if (!jvmc_code_push_string(code, "")) {
-        return 0;
-    }
-    if (!jvmc_code_label_place(code, label_right_done)) {
-        return 0;
-    }
-    if (!jvmc_code_invokevirtual(code, mref_append)) {
+    if (!jvmc_code_invokevirtual(code, mref_append_right)) {
         return 0;
     }
 

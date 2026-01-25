@@ -441,10 +441,18 @@ void PrintError(const SemanticError *error) {
         error->context.signature || error->context.details) {
         fprintf(stderr, "  Context:\n");
         if (error->context.expected) {
-            fprintf(stderr, "    expected: %s\n", error->context.expected);
+            if (error->kind == SEMANTIC_ERROR_INVALID_OPERANDS) {
+                fprintf(stderr, "    left: %s\n", error->context.expected);
+            } else {
+                fprintf(stderr, "    expected: %s\n", error->context.expected);
+            }
         }
         if (error->context.actual) {
-            fprintf(stderr, "    actual: %s\n", error->context.actual);
+            if (error->kind == SEMANTIC_ERROR_INVALID_OPERANDS) {
+                fprintf(stderr, "    right: %s\n", error->context.actual);
+            } else {
+                fprintf(stderr, "    actual: %s\n", error->context.actual);
+            }
         }
         if (error->context.name) {
             fprintf(stderr, "    name: %s\n", error->context.name);

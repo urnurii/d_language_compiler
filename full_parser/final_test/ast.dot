@@ -40,9 +40,9 @@ digraph AST {
     node_18 [label="attrs: type=string", shape=note, fontsize=9];
     node_17 -> node_18 [style=dashed, label="attrs"];
     node_16 -> node_17 [label="arg_0"];
-    node_19 [label="string_lit"];
-    node_19 [label="string: \"cd\""];
-    node_20 [label="attrs: type=string", shape=note, fontsize=9];
+    node_19 [label="char_lit"];
+    node_19 [label="char: 'X'"];
+    node_20 [label="attrs: type=char", shape=note, fontsize=9];
     node_19 -> node_20 [style=dashed, label="attrs"];
     node_16 -> node_19 [label="arg_1"];
     node_21 [label="attrs: type=string", shape=note, fontsize=9];

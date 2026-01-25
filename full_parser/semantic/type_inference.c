@@ -140,7 +140,8 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
                     NType *right_type = InferExpressionTypeInternal(right, ctx, report_errors);
                     if (left_type != NULL && right_type != NULL &&
                         left_type->kind == TYPE_KIND_BASE && left_type->base_type == TYPE_STRING &&
-                        right_type->kind == TYPE_KIND_BASE && right_type->base_type == TYPE_STRING) {
+                        right_type->kind == TYPE_KIND_BASE &&
+                        (right_type->base_type == TYPE_STRING || right_type->base_type == TYPE_CHAR)) {
                         return CreateBaseType(TYPE_STRING);
                     }
                 }
@@ -965,7 +966,8 @@ int CheckAppendAssignment(NType *left_type, NType *right_type,
         return 0;
     }
     if (IsStringType(left_type)) {
-        if (!IsStringType(right_type)) {
+        if (!IsStringType(right_type) &&
+            !(right_type->kind == TYPE_KIND_BASE && right_type->base_type == TYPE_CHAR)) {
             ReportAppendAssignError(left_type, right_type, ctx, line, column);
             return 0;
         }
