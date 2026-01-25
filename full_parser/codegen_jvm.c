@@ -5845,7 +5845,10 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 CodegenReportFail("STMT_FOREACH: collection is NULL");
                 return 0;
             }
-            coll_type = InferExpressionTypeSilent(collection, ctx);
+            coll_type = collection->inferred_type;
+            if (coll_type == NULL) {
+                coll_type = InferExpressionTypeSilent(collection, ctx);
+            }
             if (coll_type == NULL || !GetElementTypeFromArray(coll_type, &elem_type)) {
                 if (collection->type == EXPR_IDENT) {
                     NType *resolved = NULL;

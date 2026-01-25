@@ -101,4 +101,14 @@ void main()
     }
     write("NESTED(expected 36)=");
     writeln(nested); 
+
+
+    int[] arr2 = [1, 2, 3, 4, 5];
+    int foreachSum2 = 0;
+    foreach (x; arr2[1..4])
+    {
+        foreachSum2 += x;
+    }
+    write("FOREACH_SUM(expected 9)=");
+    writeln(foreachSum2);
 }
