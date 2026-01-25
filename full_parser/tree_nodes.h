@@ -244,6 +244,7 @@ typedef struct {
 typedef enum {
     STMT_EXPR,
     STMT_SUPER_CTOR_CALL,
+    STMT_THIS_CTOR_CALL,
     STMT_DECL,
     STMT_COMPOUND,  // { ... } 
     STMT_IF,
@@ -271,6 +272,11 @@ typedef struct NStmt {
         struct {
             NExprList *args;  // NULL for super()
         } super_ctor;
+
+        // STMT_THIS_CTOR_CALL
+        struct {
+            NExprList *args;  // NULL for this()
+        } this_ctor;
         
         // STMT_DECL
         struct {

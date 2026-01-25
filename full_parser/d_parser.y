@@ -284,6 +284,8 @@ stmt
     | CONTINUE ';' { $$ = CreateContinueStmt(); }
     | SUPER '(' arg_list ')' ';' { $$ = CreateSuperCtorCallStmt($3); }
     | SUPER '(' ')' ';' { $$ = CreateSuperCtorCallStmt(NULL); }
+    | THIS '(' arg_list ')' ';' { $$ = CreateThisCtorCallStmt($3); }
+    | THIS '(' ')' ';' { $$ = CreateThisCtorCallStmt(NULL); }
     ;
 
 stmt_list

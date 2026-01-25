@@ -319,6 +319,7 @@ static const char* StmtTypeToString(StmtType type) {
     switch (type) {
         case STMT_EXPR:       return "expr_stmt";
         case STMT_SUPER_CTOR_CALL: return "super_ctor";
+        case STMT_THIS_CTOR_CALL: return "this_ctor";
         case STMT_DECL:       return "decl";
         case STMT_COMPOUND:   return "compound";
         case STMT_IF:         return "if";
@@ -624,6 +625,18 @@ static long VisualizeStmt(NStmt *stmt) {
             if (stmt->value.super_ctor.args) {
                 for (int i = 0; i < stmt->value.super_ctor.args->count; i++) {
                     long arg_id = VisualizeExpr(stmt->value.super_ctor.args->elements[i]);
+                    if (arg_id >= 0) {
+                        DotPrintf("    node_%ld -> node_%ld [label=\"arg_%d\"];\n",
+                                  node_id, arg_id, i);
+                    }
+                }
+            }
+            break;
+        }
+        case STMT_THIS_CTOR_CALL: {
+            if (stmt->value.this_ctor.args) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    long arg_id = VisualizeExpr(stmt->value.this_ctor.args->elements[i]);
                     if (arg_id >= 0) {
                         DotPrintf("    node_%ld -> node_%ld [label=\"arg_%d\"];\n",
                                   node_id, arg_id, i);

@@ -31,6 +31,7 @@ static int ExpandDefaultArgsForFuncCall(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForMethodCall(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForSuperMethod(NExpr *expr, SemanticContext *ctx);
 static int ExpandDefaultArgsForSuperCtorCall(NStmt *stmt, SemanticContext *ctx);
+static int ExpandDefaultArgsForThisCtorCall(NStmt *stmt, SemanticContext *ctx);
 static int GetNumericRankLocal(const NType *type, int *rank_out);
 static BaseType RankToBaseTypeLocal(int rank);
 static int BuildNumericPromotionType(const NType *left, const NType *right, NType *out);
@@ -174,6 +175,14 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
             if (stmt->value.super_ctor.args != NULL) {
                 for (int i = 0; i < stmt->value.super_ctor.args->count; i++) {
                     TransformExpression(stmt->value.super_ctor.args->elements[i], ctx);
+                }
+            }
+            break;
+        case STMT_THIS_CTOR_CALL:
+            ExpandDefaultArgsForThisCtorCall(stmt, ctx);
+            if (stmt->value.this_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    TransformExpression(stmt->value.this_ctor.args->elements[i], ctx);
                 }
             }
             break;
@@ -1282,6 +1291,64 @@ static int ExpandDefaultArgsForSuperCtorCall(NStmt *stmt, SemanticContext *ctx) 
                 return 1;
             }
             stmt->value.super_ctor.args = args_list;
+        }
+        args_list->elements = new_args;
+        args_list->count = expected;
+        args_list->capacity = expected;
+    }
+    return 1;
+}
+
+static int ExpandDefaultArgsForThisCtorCall(NStmt *stmt, SemanticContext *ctx) {
+    ClassInfo *cls;
+    NCtorDef *ctor;
+    NExprList *args_list;
+    NExpr **args;
+    int expected;
+    int count;
+    int ambiguous = 0;
+
+    if (stmt == NULL || stmt->type != STMT_THIS_CTOR_CALL || ctx == NULL || ctx->current_class == NULL) {
+        return 0;
+    }
+    cls = ctx->current_class;
+    if (cls == NULL || cls->constructor_count <= 0) {
+        return 0;
+    }
+    args_list = stmt->value.this_ctor.args;
+    args = args_list ? args_list->elements : NULL;
+    count = args_list ? args_list->count : 0;
+    ctor = LookupCtorOverloadInTransform(cls, args, count, ctx, &ambiguous);
+    if (ctor == NULL || ctor->params == NULL) {
+        return 0;
+    }
+    expected = ctor->params->count;
+    if (count >= expected) {
+        return 0;
+    }
+    {
+        NExpr **new_args = (NExpr **)malloc(sizeof(NExpr *) * (size_t)expected);
+        if (new_args == NULL) {
+            return 1;
+        }
+        for (int i = 0; i < count; i++) {
+            new_args[i] = args[i];
+        }
+        for (int i = count; i < expected; i++) {
+            NParam *param = ctor->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                free(new_args);
+                return 0;
+            }
+            new_args[i] = CloneExpr(param->default_value);
+        }
+        if (args_list == NULL) {
+            args_list = CreateExprList();
+            if (args_list == NULL) {
+                free(new_args);
+                return 1;
+            }
+            stmt->value.this_ctor.args = args_list;
         }
         args_list->elements = new_args;
         args_list->count = expected;

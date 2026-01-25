@@ -477,17 +477,21 @@ static NCtorDef *LookupConstructorOverload(ClassInfo *class_info, NExpr **args, 
     return best;
 }
 
-static NStmt *FindNestedSuperCtorCall(NStmt *stmt) {
+static NStmt *FindNestedCtorCall(NStmt *stmt, StmtType target_type) {
     if (stmt == NULL) {
         return NULL;
     }
     switch (stmt->type) {
         case STMT_SUPER_CTOR_CALL:
-            return stmt;
+        case STMT_THIS_CTOR_CALL:
+            if (stmt->type == target_type) {
+                return stmt;
+            }
+            return NULL;
         case STMT_COMPOUND: {
             NStmt *cur = stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL;
             while (cur != NULL) {
-                NStmt *found = FindNestedSuperCtorCall(cur);
+                NStmt *found = FindNestedCtorCall(cur, target_type);
                 if (found != NULL) {
                     return found;
                 }
@@ -496,25 +500,25 @@ static NStmt *FindNestedSuperCtorCall(NStmt *stmt) {
             break;
         }
         case STMT_IF: {
-            NStmt *found = FindNestedSuperCtorCall(stmt->value.if_stmt.then_stmt);
+            NStmt *found = FindNestedCtorCall(stmt->value.if_stmt.then_stmt, target_type);
             if (found != NULL) {
                 return found;
             }
-            return FindNestedSuperCtorCall(stmt->value.if_stmt.else_stmt);
+            return FindNestedCtorCall(stmt->value.if_stmt.else_stmt, target_type);
         }
         case STMT_WHILE:
-            return FindNestedSuperCtorCall(stmt->value.while_stmt.body);
+            return FindNestedCtorCall(stmt->value.while_stmt.body, target_type);
         case STMT_DO_WHILE:
-            return FindNestedSuperCtorCall(stmt->value.do_while_stmt.body);
+            return FindNestedCtorCall(stmt->value.do_while_stmt.body, target_type);
         case STMT_FOR:
-            return FindNestedSuperCtorCall(stmt->value.for_stmt.body);
+            return FindNestedCtorCall(stmt->value.for_stmt.body, target_type);
         case STMT_FOREACH:
-            return FindNestedSuperCtorCall(stmt->value.foreach_stmt.body);
+            return FindNestedCtorCall(stmt->value.foreach_stmt.body, target_type);
         case STMT_SWITCH:
             for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
                 NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
                 if (item != NULL && item->stmts != NULL) {
-                    NStmt *found = FindNestedSuperCtorCall(item->stmts->first);
+                    NStmt *found = FindNestedCtorCall(item->stmts->first, target_type);
                     if (found != NULL) {
                         return found;
                     }
@@ -534,9 +538,12 @@ static NStmt *FindNestedSuperCtorCall(NStmt *stmt) {
 static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
     int had_error = 0;
     int top_super_count = 0;
-    int had_nested = 0;
+    int top_this_count = 0;
+    int had_nested_super = 0;
+    int had_nested_this = 0;
     NStmt *first_stmt = NULL;
     NStmt *first_super = NULL;
+    NStmt *first_this = NULL;
     ClassInfo *current_class;
     const char *base_name;
     ClassInfo *base_info;
@@ -569,15 +576,40 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
                 AddError(ctx->errors, &err);
                 had_error = 1;
             }
+        } else if (cur->type == STMT_THIS_CTOR_CALL) {
+            top_this_count += 1;
+            if (first_this == NULL) {
+                first_this = cur;
+            }
+            if (cur != first_stmt && ctx->errors != NULL) {
+                SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                      "this() must be the first statement in constructor",
+                                                      cur->line,
+                                                      cur->column);
+                AddError(ctx->errors, &err);
+                had_error = 1;
+            }
         } else {
-            NStmt *nested = FindNestedSuperCtorCall(cur);
-            if (nested != NULL) {
-                had_nested = 1;
+            NStmt *nested_super = FindNestedCtorCall(cur, STMT_SUPER_CTOR_CALL);
+            if (nested_super != NULL) {
+                had_nested_super = 1;
                 if (ctx->errors != NULL) {
                     SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
                                                           "super() call must be at top level in constructor",
-                                                          nested->line,
-                                                          nested->column);
+                                                          nested_super->line,
+                                                          nested_super->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+            }
+            NStmt *nested_this = FindNestedCtorCall(cur, STMT_THIS_CTOR_CALL);
+            if (nested_this != NULL) {
+                had_nested_this = 1;
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "this() call must be at top level in constructor",
+                                                          nested_this->line,
+                                                          nested_this->column);
                     AddError(ctx->errors, &err);
                 }
                 had_error = 1;
@@ -593,9 +625,25 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
         AddError(ctx->errors, &err);
         had_error = 1;
     }
+    if (top_this_count > 1 && ctx->errors != NULL) {
+        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                              "this() called more than once in constructor",
+                                              first_this ? first_this->line : ctor->body->line,
+                                              first_this ? first_this->column : ctor->body->column);
+        AddError(ctx->errors, &err);
+        had_error = 1;
+    }
+    if (top_super_count > 0 && top_this_count > 0 && ctx->errors != NULL) {
+        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                              "Constructor cannot call both this() and super()",
+                                              first_super ? first_super->line : ctor->body->line,
+                                              first_super ? first_super->column : ctor->body->column);
+        AddError(ctx->errors, &err);
+        had_error = 1;
+    }
 
     if (base_name == NULL) {
-        if ((top_super_count > 0 || had_nested) && ctx->errors != NULL) {
+        if ((top_super_count > 0 || had_nested_super) && ctx->errors != NULL) {
             SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
                                                   "super() used in class without base class",
                                                   first_super ? first_super->line : ctor->body->line,
@@ -607,6 +655,10 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
     }
 
     if (base_info == NULL) {
+        return had_error;
+    }
+
+    if (first_this != NULL || top_this_count > 0 || had_nested_this) {
         return had_error;
     }
 
@@ -1995,6 +2047,74 @@ int CheckStatement(NStmt *stmt, SemanticContext *ctx, NType *expected_return_typ
                     if (CheckExpressions(stmt->value.super_ctor.args->elements[i], ctx) != 0) {
                         had_error = 1;
                     }
+                }
+            }
+            break;
+        }
+        case STMT_THIS_CTOR_CALL: {
+            if (!ctx->in_constructor) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "this() constructor call outside of constructor",
+                                                          stmt->line,
+                                                          stmt->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+                break;
+            }
+            if (ctx->current_class == NULL) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "this() used outside of class",
+                                                          stmt->line,
+                                                          stmt->column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+                break;
+            }
+            if (stmt->value.this_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    if (CheckExpressions(stmt->value.this_ctor.args->elements[i], ctx) != 0) {
+                        had_error = 1;
+                    }
+                }
+            }
+            {
+                ClassInfo *class_info = ctx->current_class;
+                NExprList *args_list = stmt->value.this_ctor.args;
+                NExpr **args = args_list ? args_list->elements : NULL;
+                int actual = args_list ? args_list->count : 0;
+                if (class_info != NULL && class_info->constructor_count > 0) {
+                    int ambiguous = 0;
+                    NCtorDef *ctor = LookupConstructorOverload(class_info,
+                                                               args,
+                                                               actual,
+                                                               ctx,
+                                                               &ambiguous);
+                    if (ctor == NULL) {
+                        if (ctx->errors != NULL) {
+                            SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                                  ambiguous
+                                                                      ? "Ambiguous constructor call"
+                                                                      : "No matching constructor for class",
+                                                                  stmt->line,
+                                                                  stmt->column);
+                            AddError(ctx->errors, &err);
+                        }
+                        had_error = 1;
+                    }
+                } else if (actual > 0) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateWrongArgCountError("constructor",
+                                                                     0,
+                                                                     actual,
+                                                                     stmt->line,
+                                                                     stmt->column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
                 }
             }
             break;

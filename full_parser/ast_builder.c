@@ -751,6 +751,23 @@ NStmt* CreateSuperCtorCallStmt(NExprList *args) {
     return stmt;
 }
 
+NStmt* CreateThisCtorCallStmt(NExprList *args) {
+    NStmt *stmt = (NStmt *)malloc(sizeof(NStmt));
+    if (stmt == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed at line %d\n", yylineno);
+        exit(1);
+    }
+
+    stmt->type = STMT_THIS_CTOR_CALL;
+    stmt->line = yylineno;
+    stmt->column = 0;
+    InitStmtAttrs(stmt);
+    stmt->value.this_ctor.args = args;
+    stmt->next = NULL;
+
+    return stmt;
+}
+
 NStmt* CreateDeclStmt(NType *decl_type, NInitDeclList *init_decls) {
     NStmt *stmt = (NStmt *)malloc(sizeof(NStmt));
     if (stmt == NULL) {

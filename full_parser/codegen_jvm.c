@@ -1750,6 +1750,16 @@ static int MaxTempSlotsInStmt(NStmt *stmt) {
                 }
             }
             return max;
+        case STMT_THIS_CTOR_CALL:
+            if (stmt->value.this_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    int e = MaxTempSlotsInExpr(stmt->value.this_ctor.args->elements[i]);
+                    if (e > max) {
+                        max = e;
+                    }
+                }
+            }
+            return max;
         case STMT_BREAK:
         case STMT_CONTINUE:
             return 0;
@@ -2228,6 +2238,22 @@ static NStmt *FindTopLevelSuperCtorStmt(NStmt *body) {
     return NULL;
 }
 
+static NStmt *FindTopLevelThisCtorStmt(NStmt *body) {
+    if (body == NULL) {
+        return NULL;
+    }
+    if (body->type == STMT_THIS_CTOR_CALL) {
+        return body;
+    }
+    if (body->type == STMT_COMPOUND) {
+        NStmt *first = body->value.stmt_list ? body->value.stmt_list->first : NULL;
+        if (first != NULL && first->type == STMT_THIS_CTOR_CALL) {
+            return first;
+        }
+    }
+    return NULL;
+}
+
 static int EmitSuperCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_def,
                              NStmt *super_stmt, NParamList *params, NStmt *body,
                              SemanticContext *ctx) {
@@ -2423,6 +2449,191 @@ static int EmitSuperCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_
     return 1;
 }
 
+static int EmitThisCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_def,
+                            NStmt *this_stmt, NParamList *params, NStmt *body,
+                            SemanticContext *ctx) {
+    ClassInfo *class_info;
+    char *owner_internal = NULL;
+    const char *ctor_desc = NULL;
+    char *owned_desc = NULL;
+    jvmc_methodref *mref;
+    NExprList *args_list;
+    NExpr **args;
+    int arg_count;
+    int *ref_slots = NULL;
+    int temp_base;
+    NCtorDef *match = NULL;
+
+    if (cls == NULL || code == NULL || class_def == NULL || this_stmt == NULL || ctx == NULL) {
+        return 0;
+    }
+    class_info = LookupClass(ctx, class_def->class_name);
+    if (class_info == NULL || class_info->constructor_count <= 0) {
+        return 0;
+    }
+
+    args_list = this_stmt->value.this_ctor.args;
+    args = args_list ? args_list->elements : NULL;
+    arg_count = args_list ? args_list->count : 0;
+
+    {
+        int ambiguous = 0;
+        match = LookupCtorOverloadForArgs(class_info, args, arg_count, ctx, &ambiguous);
+        if (match == NULL || match->params == NULL) {
+            return 0;
+        }
+        if (match->params->count != arg_count) {
+            return 0;
+        }
+        owned_desc = BuildJvmMethodDescriptor(NULL, match->params);
+        if (owned_desc == NULL) {
+            return 0;
+        }
+        ctor_desc = owned_desc;
+    }
+
+    owner_internal = BuildJvmInternalName(class_def->class_name);
+    if (owner_internal == NULL) {
+        free(owned_desc);
+        return 0;
+    }
+
+    if (!jvmc_code_load_ref(code, 0)) {
+        free(owner_internal);
+        free(owned_desc);
+        return 0;
+    }
+
+    temp_base = FindMaxSlot(params, body) + 1;
+    if (arg_count > 0) {
+        ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
+        if (ref_slots == NULL) {
+            free(owner_internal);
+            free(owned_desc);
+            return 0;
+        }
+        for (int i = 0; i < arg_count; i++) {
+            ref_slots[i] = -1;
+        }
+    }
+
+    for (int i = 0; i < arg_count; i++) {
+        NExpr *arg = args[i];
+        int is_ref = 0;
+        if (match != NULL && match->params != NULL && i < match->params->count) {
+            NParam *param = match->params->params[i];
+            is_ref = (param != NULL && param->is_ref) ? 1 : 0;
+        }
+        if (is_ref) {
+            int temp_slot = temp_base++;
+            if (!jvmc_code_push_int(code, 1)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_store_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitLoadLValue(cls, code, arg, params, body, ctx, NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitArrayStoreForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+            ref_slots[i] = temp_slot;
+        } else {
+            if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                free(ref_slots);
+                free(owner_internal);
+                free(owned_desc);
+                return 0;
+            }
+        }
+    }
+
+    mref = jvmc_class_get_or_create_methodref(cls, owner_internal, "<init>", ctor_desc);
+    free(owner_internal);
+    if (mref == NULL) {
+        free(ref_slots);
+        free(owned_desc);
+        return 0;
+    }
+    if (!jvmc_code_invokespecial(code, mref)) {
+        free(ref_slots);
+        free(owned_desc);
+        return 0;
+    }
+
+    for (int i = 0; i < arg_count; i++) {
+        int is_ref = 0;
+        if (match != NULL && match->params != NULL && i < match->params->count) {
+            NParam *param = match->params->params[i];
+            is_ref = (param != NULL && param->is_ref) ? 1 : 0;
+        }
+        if (is_ref && ref_slots && ref_slots[i] >= 0) {
+            NExpr *arg = args[i];
+            if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitStoreLValue(cls, code, arg, arg ? arg->inferred_type : NULL, params, body, ctx)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+        }
+    }
+
+    free(ref_slots);
+    free(owned_desc);
+    return 1;
+}
+
 static int CountSuperCtorRefTemps(NStmt *body, NClassDef *class_def, SemanticContext *ctx) {
     ClassInfo *base_info;
     NStmt *super_stmt;
@@ -2448,6 +2659,44 @@ static int CountSuperCtorRefTemps(NStmt *body, NClassDef *class_def, SemanticCon
     arg_count = args_list ? args_list->count : 0;
     {
         NCtorDef *match = LookupCtorOverloadForArgs(base_info, args, arg_count, ctx, &ambiguous);
+        if (match == NULL || match->params == NULL) {
+            return 0;
+        }
+        for (int i = 0; i < match->params->count; i++) {
+            NParam *param = match->params->params[i];
+            if (param != NULL && param->is_ref) {
+                count += 1;
+            }
+        }
+    }
+    return count;
+}
+
+static int CountThisCtorRefTemps(NStmt *body, NClassDef *class_def, SemanticContext *ctx) {
+    ClassInfo *class_info;
+    NStmt *this_stmt;
+    NExprList *args_list;
+    NExpr **args;
+    int arg_count;
+    int ambiguous = 0;
+    int count = 0;
+
+    if (body == NULL || class_def == NULL || ctx == NULL) {
+        return 0;
+    }
+    this_stmt = FindTopLevelThisCtorStmt(body);
+    if (this_stmt == NULL) {
+        return 0;
+    }
+    class_info = LookupClass(ctx, class_def->class_name);
+    if (class_info == NULL || class_info->constructor_count <= 0) {
+        return 0;
+    }
+    args_list = this_stmt->value.this_ctor.args;
+    args = args_list ? args_list->elements : NULL;
+    arg_count = args_list ? args_list->count : 0;
+    {
+        NCtorDef *match = LookupCtorOverloadForArgs(class_info, args, arg_count, ctx, &ambiguous);
         if (match == NULL || match->params == NULL) {
             return 0;
         }
@@ -3525,38 +3774,46 @@ static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code 
     FlowContext flow;
     NStmt *prev_body = g_current_body;
     NStmt *super_stmt = NULL;
+    NStmt *this_stmt = NULL;
     memset(&flow, 0, sizeof(flow));
 
     if (cls == NULL || class_def == NULL || code == NULL) {
         return 0;
     }
-    super_stmt = FindTopLevelSuperCtorStmt(body);
-    if (super_stmt != NULL) {
-        if (!EmitSuperCtorCall(cls, code, class_def, super_stmt, params, body, ctx)) {
+    this_stmt = FindTopLevelThisCtorStmt(body);
+    if (this_stmt != NULL) {
+        if (!EmitThisCtorCall(cls, code, class_def, this_stmt, params, body, ctx)) {
             return 0;
         }
     } else {
-        if (!jvmc_code_load_ref(code, 0)) {
+        super_stmt = FindTopLevelSuperCtorStmt(body);
+        if (super_stmt != NULL) {
+            if (!EmitSuperCtorCall(cls, code, class_def, super_stmt, params, body, ctx)) {
+                return 0;
+            }
+        } else {
+            if (!jvmc_code_load_ref(code, 0)) {
+                return 0;
+            }
+            base_internal = BuildJvmInternalName(class_def->base_class_name ? class_def->base_class_name
+                                                                            : "java/lang/Object");
+            if (base_internal == NULL) {
+                return 0;
+            }
+            mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", "()V");
+            free(base_internal);
+            if (mref == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_invokespecial(code, mref)) {
+                return 0;
+            }
+        }
+        if (!EmitInstanceFieldInitializers(cls, class_def, ctx, code, params, body)) {
+            free(flow.break_labels);
+            free(flow.continue_labels);
             return 0;
         }
-        base_internal = BuildJvmInternalName(class_def->base_class_name ? class_def->base_class_name
-                                                                        : "java/lang/Object");
-        if (base_internal == NULL) {
-            return 0;
-        }
-        mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", "()V");
-        free(base_internal);
-        if (mref == NULL) {
-            return 0;
-        }
-        if (!jvmc_code_invokespecial(code, mref)) {
-            return 0;
-        }
-    }
-    if (!EmitInstanceFieldInitializers(cls, class_def, ctx, code, params, body)) {
-        free(flow.break_labels);
-        free(flow.continue_labels);
-        return 0;
     }
     if (body != NULL) {
         g_current_body = body;
@@ -3620,6 +3877,7 @@ static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor
     }
     extra_slots = CountArrayFieldInitTemps(class_def);
     extra_slots += CountSuperCtorRefTemps(ctor->body, class_def, ctx);
+    extra_slots += CountThisCtorRefTemps(ctor->body, class_def, ctx);
     if (base_slot + extra_slots > max_locals) {
         max_locals = base_slot + extra_slots;
     }
@@ -4776,6 +5034,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 }
             }
         } else if (stmt->type == STMT_SUPER_CTOR_CALL) {
+            /* handled in constructor prologue */
+        } else if (stmt->type == STMT_THIS_CTOR_CALL) {
             /* handled in constructor prologue */
         } else if (stmt->type == STMT_EXPR) {
             if (stmt->value.expr != NULL) {

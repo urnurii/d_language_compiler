@@ -73,6 +73,7 @@ void FreeInitDeclList(NInitDeclList *list);
 
 NStmt* CreateExprStmt(NExpr *expr);
 NStmt* CreateSuperCtorCallStmt(NExprList *args);
+NStmt* CreateThisCtorCallStmt(NExprList *args);
 NStmt* CreateDeclStmt(NType *decl_type, NInitDeclList *init_decls);
 NStmt* CreateCompoundStmt(NStmtList *stmt_list);
 NStmt* CreateReturnStmt(NExpr *return_expr);
