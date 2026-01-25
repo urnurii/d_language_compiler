@@ -95,6 +95,206 @@ static int IsValidLValueExpr(NExpr *expr) {
     }
 }
 
+static ClassInfo *FindFieldOwnerInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
+                                            const char *field_name);
+
+static int ExprUsesThis(SemanticContext *ctx, NExpr *expr, int *line_out, int *column_out) {
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_THIS:
+        case EXPR_SUPER:
+        case EXPR_SUPER_METHOD:
+            if (line_out) *line_out = expr->line;
+            if (column_out) *column_out = expr->column;
+            return 1;
+        case EXPR_IDENT: {
+            Symbol *sym = (ctx != NULL) ? LookupSymbol(ctx, expr->value.ident_name) : NULL;
+            if (sym == NULL && ctx != NULL && ctx->current_class != NULL) {
+                ClassInfo *owner = FindFieldOwnerInHierarchy(ctx,
+                                                             ctx->current_class,
+                                                             expr->value.ident_name);
+                if (owner != NULL) {
+                    if (line_out) *line_out = expr->line;
+                    if (column_out) *column_out = expr->column;
+                    return 1;
+                }
+            }
+            return 0;
+        }
+        case EXPR_MEMBER_ACCESS:
+        case EXPR_METHOD_CALL:
+            if (ExprUsesThis(ctx, expr->value.member_access.object, line_out, column_out)) {
+                return 1;
+            }
+            if (expr->type == EXPR_METHOD_CALL && expr->value.member_access.args != NULL) {
+                for (int i = 0; i < expr->value.member_access.arg_count; i++) {
+                    if (ExprUsesThis(ctx, expr->value.member_access.args[i], line_out, column_out)) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        case EXPR_ARRAY_ACCESS:
+            if (ExprUsesThis(ctx, expr->value.array_access.array, line_out, column_out)) {
+                return 1;
+            }
+            if (ExprUsesThis(ctx, expr->value.array_access.index, line_out, column_out)) {
+                return 1;
+            }
+            return ExprUsesThis(ctx, expr->value.array_access.index_end, line_out, column_out);
+        case EXPR_CAST:
+            return ExprUsesThis(ctx, expr->value.cast.expr, line_out, column_out);
+        case EXPR_PAREN:
+            return ExprUsesThis(ctx, expr->value.inner_expr, line_out, column_out);
+        case EXPR_UNARY_OP:
+            return ExprUsesThis(ctx, expr->value.unary.operand, line_out, column_out);
+        case EXPR_BINARY_OP:
+        case EXPR_ASSIGN:
+            if (ExprUsesThis(ctx, expr->value.binary.left, line_out, column_out)) {
+                return 1;
+            }
+            return ExprUsesThis(ctx, expr->value.binary.right, line_out, column_out);
+        case EXPR_FUNC_CALL:
+            if (expr->value.func_call.args != NULL) {
+                for (int i = 0; i < expr->value.func_call.arg_count; i++) {
+                    if (ExprUsesThis(ctx, expr->value.func_call.args[i], line_out, column_out)) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        case EXPR_NEW:
+            if (expr->value.new_expr.init_exprs != NULL) {
+                for (int i = 0; i < expr->value.new_expr.init_count; i++) {
+                    if (ExprUsesThis(ctx, expr->value.new_expr.init_exprs[i], line_out, column_out)) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        case EXPR_INT:
+        case EXPR_FLOAT:
+        case EXPR_CHAR:
+        case EXPR_STRING:
+        case EXPR_BOOL:
+        case EXPR_NULL:
+        case EXPR_NAN:
+            return 0;
+        default:
+            return 0;
+    }
+}
+
+static int StmtUsesThis(SemanticContext *ctx, NStmt *stmt, int *line_out, int *column_out) {
+    if (stmt == NULL) {
+        return 0;
+    }
+    switch (stmt->type) {
+        case STMT_EXPR:
+        case STMT_RETURN:
+            return ExprUsesThis(ctx, stmt->value.expr, line_out, column_out);
+        case STMT_DECL:
+            if (stmt->value.decl.init_decls != NULL) {
+                for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
+                    if (decl && decl->initializer) {
+                        if (decl->initializer->is_array) {
+                            for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                                if (ExprUsesThis(ctx,
+                                                 decl->initializer->array_init.elements[j],
+                                                 line_out,
+                                                 column_out)) {
+                                    return 1;
+                                }
+                            }
+                        } else if (ExprUsesThis(ctx, decl->initializer->expr, line_out, column_out)) {
+                            return 1;
+                        }
+                    }
+                }
+            }
+            return 0;
+        case STMT_COMPOUND: {
+            NStmt *cur = stmt->value.stmt_list ? stmt->value.stmt_list->first : NULL;
+            while (cur != NULL) {
+                if (StmtUsesThis(ctx, cur, line_out, column_out)) {
+                    return 1;
+                }
+                cur = cur->next;
+            }
+            return 0;
+        }
+        case STMT_IF:
+            if (ExprUsesThis(ctx, stmt->value.if_stmt.condition, line_out, column_out)) {
+                return 1;
+            }
+            if (StmtUsesThis(ctx, stmt->value.if_stmt.then_stmt, line_out, column_out)) {
+                return 1;
+            }
+            return StmtUsesThis(ctx, stmt->value.if_stmt.else_stmt, line_out, column_out);
+        case STMT_WHILE:
+            if (ExprUsesThis(ctx, stmt->value.while_stmt.condition, line_out, column_out)) {
+                return 1;
+            }
+            return StmtUsesThis(ctx, stmt->value.while_stmt.body, line_out, column_out);
+        case STMT_DO_WHILE:
+            if (StmtUsesThis(ctx, stmt->value.do_while_stmt.body, line_out, column_out)) {
+                return 1;
+            }
+            return ExprUsesThis(ctx, stmt->value.do_while_stmt.condition, line_out, column_out);
+        case STMT_FOR:
+            if (ExprUsesThis(ctx, stmt->value.for_stmt.init_expr, line_out, column_out)) {
+                return 1;
+            }
+            if (ExprUsesThis(ctx, stmt->value.for_stmt.cond_expr, line_out, column_out)) {
+                return 1;
+            }
+            if (ExprUsesThis(ctx, stmt->value.for_stmt.iter_expr, line_out, column_out)) {
+                return 1;
+            }
+            if (stmt->value.for_stmt.init_decls != NULL) {
+                for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
+                    NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
+                    if (decl && decl->initializer && !decl->initializer->is_array) {
+                        if (ExprUsesThis(ctx, decl->initializer->expr, line_out, column_out)) {
+                            return 1;
+                        }
+                    }
+                }
+            }
+            return StmtUsesThis(ctx, stmt->value.for_stmt.body, line_out, column_out);
+        case STMT_FOREACH:
+            if (ExprUsesThis(ctx, stmt->value.foreach_stmt.collection, line_out, column_out)) {
+                return 1;
+            }
+            return StmtUsesThis(ctx, stmt->value.foreach_stmt.body, line_out, column_out);
+        case STMT_SWITCH:
+            if (ExprUsesThis(ctx, stmt->value.switch_stmt.expr, line_out, column_out)) {
+                return 1;
+            }
+            for (int i = 0; i < stmt->value.switch_stmt.cases.count; i++) {
+                NCaseItem *item = stmt->value.switch_stmt.cases.items[i];
+                if (item && ExprUsesThis(ctx, item->case_expr, line_out, column_out)) {
+                    return 1;
+                }
+                if (item && item->stmts) {
+                    if (StmtUsesThis(ctx, item->stmts->first, line_out, column_out)) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        case STMT_SUPER_CTOR_CALL:
+        case STMT_THIS_CTOR_CALL:
+        case STMT_BREAK:
+        case STMT_CONTINUE:
+            return 0;
+    }
+    return 0;
+}
+
 static int IsSameOrBaseClass(SemanticContext *ctx, const char *current_class, const char *target_class) {
     ClassInfo *cls;
 
@@ -547,6 +747,7 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
     ClassInfo *current_class;
     const char *base_name;
     ClassInfo *base_info;
+    int pushed_scope = 0;
 
     if (ctor == NULL || ctx == NULL || ctx->current_class == NULL || ctor->body == NULL) {
         return 0;
@@ -560,6 +761,35 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
         first_stmt = ctor->body->value.stmt_list ? ctor->body->value.stmt_list->first : NULL;
     } else {
         first_stmt = ctor->body;
+    }
+
+    if (PushScope(ctx, "ctor_check") == 0) {
+        pushed_scope = 1;
+        if (ctor->params != NULL) {
+            for (int i = 0; i < ctor->params->count; i++) {
+                NParam *param = ctor->params->params[i];
+                VariableInfo *var;
+                if (param == NULL || param->param_name == NULL) {
+                    continue;
+                }
+                var = (VariableInfo*)malloc(sizeof(VariableInfo));
+                if (var == NULL) {
+                    had_error = ReportOutOfMemory(ctx);
+                    continue;
+                }
+                memset(var, 0, sizeof(VariableInfo));
+                var->name = param->param_name;
+                var->type = param->param_type;
+                var->is_initialized = 1;
+                var->is_param = 1;
+                var->is_ref = param->is_ref;
+                var->line = 0;
+                var->column = 0;
+                if (AddLocalVariable(ctx, var) != 0) {
+                    had_error = 1;
+                }
+            }
+        }
     }
 
     for (NStmt *cur = first_stmt; cur != NULL; cur = cur->next) {
@@ -635,7 +865,7 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
     }
     if (top_super_count > 0 && top_this_count > 0 && ctx->errors != NULL) {
         SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                              "Constructor cannot call both this() and super()",
+                                              "Multiple constructor calls in constructor",
                                               first_super ? first_super->line : ctor->body->line,
                                               first_super ? first_super->column : ctor->body->column);
         AddError(ctx->errors, &err);
@@ -701,6 +931,28 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
         }
     }
 
+    if (first_stmt != NULL) {
+        NStmt *limit = first_super ? first_super : first_this;
+        for (NStmt *cur = first_stmt; cur != NULL && cur != limit; cur = cur->next) {
+            int line = 0;
+            int column = 0;
+            if (StmtUsesThis(ctx, cur, &line, &column)) {
+                if (ctx->errors != NULL) {
+                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                          "this used before constructor call",
+                                                          line,
+                                                          column);
+                    AddError(ctx->errors, &err);
+                }
+                had_error = 1;
+                break;
+            }
+        }
+    }
+
+    if (pushed_scope) {
+        PopScope(ctx);
+    }
     return had_error;
 }
 
@@ -4070,6 +4322,20 @@ static int AttributeStatement(NStmt *stmt, SemanticContext *ctx) {
                 }
             }
             break;
+        case STMT_SUPER_CTOR_CALL:
+            if (stmt->value.super_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.super_ctor.args->count; i++) {
+                    AttributeExpressions(stmt->value.super_ctor.args->elements[i], ctx);
+                }
+            }
+            break;
+        case STMT_THIS_CTOR_CALL:
+            if (stmt->value.this_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    AttributeExpressions(stmt->value.this_ctor.args->elements[i], ctx);
+                }
+            }
+            break;
         case STMT_BREAK:
         case STMT_CONTINUE:
             break;
@@ -4212,6 +4478,20 @@ static int AttributeJvmRefKeysInStmt(NStmt *stmt, SemanticContext *ctx) {
                 }
                 if (item && item->stmts) {
                     AttributeJvmRefKeysInStmtList(item->stmts->first, ctx);
+                }
+            }
+            break;
+        case STMT_SUPER_CTOR_CALL:
+            if (stmt->value.super_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.super_ctor.args->count; i++) {
+                    AttributeJvmRefKeysInExpr(stmt->value.super_ctor.args->elements[i], ctx);
+                }
+            }
+            break;
+        case STMT_THIS_CTOR_CALL:
+            if (stmt->value.this_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.this_ctor.args->count; i++) {
+                    AttributeJvmRefKeysInExpr(stmt->value.this_ctor.args->elements[i], ctx);
                 }
             }
             break;

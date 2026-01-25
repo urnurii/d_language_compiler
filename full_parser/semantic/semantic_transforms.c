@@ -607,6 +607,8 @@ static void PurgeBreaksInStmt(NStmt *stmt, int loop_depth, int switch_depth) {
         case STMT_RETURN:
         case STMT_BREAK:
         case STMT_CONTINUE:
+        case STMT_SUPER_CTOR_CALL:
+        case STMT_THIS_CTOR_CALL:
             break;
     }
 }

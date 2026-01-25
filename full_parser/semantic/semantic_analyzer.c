@@ -516,6 +516,9 @@ static int AssignSlotsInStatements(NStmt *stmts, JvmSlotAllocator *alloc) {
                     }
                 }
                 break;
+            case STMT_SUPER_CTOR_CALL:
+            case STMT_THIS_CTOR_CALL:
+                break;
             case STMT_EXPR:
             case STMT_RETURN:
             case STMT_BREAK:
