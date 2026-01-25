@@ -933,19 +933,21 @@ static int ValidateCtorSuperCalls(NCtorDef *ctor, SemanticContext *ctx) {
 
     if (first_stmt != NULL) {
         NStmt *limit = first_super ? first_super : first_this;
-        for (NStmt *cur = first_stmt; cur != NULL && cur != limit; cur = cur->next) {
-            int line = 0;
-            int column = 0;
-            if (StmtUsesThis(ctx, cur, &line, &column)) {
-                if (ctx->errors != NULL) {
-                    SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
-                                                          "this used before constructor call",
-                                                          line,
-                                                          column);
-                    AddError(ctx->errors, &err);
+        if (limit != NULL) {
+            for (NStmt *cur = first_stmt; cur != NULL && cur != limit; cur = cur->next) {
+                int line = 0;
+                int column = 0;
+                if (StmtUsesThis(ctx, cur, &line, &column)) {
+                    if (ctx->errors != NULL) {
+                        SemanticError err = CreateCustomError(SEMANTIC_ERROR_OTHER,
+                                                              "this used before constructor call",
+                                                              line,
+                                                              column);
+                        AddError(ctx->errors, &err);
+                    }
+                    had_error = 1;
+                    break;
                 }
-                had_error = 1;
-                break;
             }
         }
     }
