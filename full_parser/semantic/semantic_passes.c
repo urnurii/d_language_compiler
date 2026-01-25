@@ -95,6 +95,31 @@ static int IsValidLValueExpr(NExpr *expr) {
     }
 }
 
+static int IsArrayTypeLocal(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE_ARRAY ||
+           type->kind == TYPE_KIND_CLASS_ARRAY ||
+           type->kind == TYPE_KIND_ENUM_ARRAY;
+}
+
+static void FreeTypeLocal(NType *type) {
+    if (type == NULL) {
+        return;
+    }
+    if (type->class_name != NULL) {
+        free(type->class_name);
+    }
+    if (type->enum_name != NULL) {
+        free(type->enum_name);
+    }
+    if (type->array_decl != NULL) {
+        free(type->array_decl);
+    }
+    free(type);
+}
+
 static ClassInfo *FindFieldOwnerInHierarchy(SemanticContext *ctx, ClassInfo *class_info,
                                             const char *field_name);
 
@@ -3691,11 +3716,17 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
         case EXPR_ASSIGN: {
             NExpr *left = expr->value.binary.left;
             NExpr *right = expr->value.binary.right;
+            int is_slice_assign = 0;
             if (CheckExpression(left, ctx) != 0) {
                 had_error = 1;
             }
             if (CheckExpression(right, ctx) != 0) {
                 had_error = 1;
+            }
+            if (left != NULL &&
+                left->type == EXPR_ARRAY_ACCESS &&
+                left->value.array_access.index_end != NULL) {
+                is_slice_assign = 1;
             }
             if (!IsValidLValueExpr(left)) {
                 if (ctx->errors != NULL) {
@@ -3712,7 +3743,32 @@ int CheckExpression(NExpr *expr, SemanticContext *ctx) {
                 NType *left_type = InferExpressionTypeSilent(left, ctx);
                 NType *right_type = InferExpressionTypeSilent(right, ctx);
                 if (left_type != NULL && right_type != NULL) {
-                    if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
+                    if (is_slice_assign) {
+                        NType *left_elem = GetForeachElementType(left_type);
+                        NType *right_elem = GetForeachElementType(right_type);
+                        if (!IsArrayTypeLocal(right_type) || left_elem == NULL || right_elem == NULL) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateCustomError(SEMANTIC_ERROR_INVALID_OPERANDS,
+                                                                      "Slice assignment expects array rhs",
+                                                                      expr->line,
+                                                                      expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        } else if (!CanAssign(left_elem, right_elem)) {
+                            if (ctx->errors != NULL) {
+                                SemanticError err = CreateTypeMismatchError(TypeToString(left_elem),
+                                                                            TypeToString(right_elem),
+                                                                            "in slice assignment",
+                                                                            expr->line,
+                                                                            expr->column);
+                                AddError(ctx->errors, &err);
+                            }
+                            had_error = 1;
+                        }
+                        FreeTypeLocal(left_elem);
+                        FreeTypeLocal(right_elem);
+                    } else if (expr->value.binary.op == OP_BITWISE_NOT_ASSIGN) {
                         if (!CheckAppendAssignment(left_type, right_type, ctx, expr->line, expr->column)) {
                             had_error = 1;
                         }

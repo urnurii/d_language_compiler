@@ -11,7 +11,7 @@ static void NormalizeArrayType(NType *type);
 static NType *CreateElementTypeFromArrayType(const NType *array_type);
 static void FreeTypeLocal(NType *type);
 static void TryCastArrayInitElements(NType *decl_type, NInitializer *init, SemanticContext *ctx);
-static int ReplaceSliceWithFuncCall(NExpr *expr);
+static int ReplaceSliceWithFuncCall(NExpr *expr, SemanticContext *ctx);
 static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx);
 static char *MakeTempName(const char *prefix, int id);
 static int TransformSwitchToIfChain(NStmt *stmt, SemanticContext *ctx);
@@ -288,7 +288,7 @@ static int TransformExpression(NExpr *expr, SemanticContext *ctx) {
             break;
         case EXPR_ARRAY_ACCESS:
             if (expr->value.array_access.index_end != NULL) {
-                ReplaceSliceWithFuncCall(expr);
+                ReplaceSliceWithFuncCall(expr, ctx);
                 TransformExpression(expr, ctx);
                 return 0;
             }
@@ -478,11 +478,14 @@ static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls)
     return 0;
 }
 
-static int ReplaceSliceWithFuncCall(NExpr *expr) {
+static int ReplaceSliceWithFuncCall(NExpr *expr, SemanticContext *ctx) {
     NExprList *list;
     NExpr *array_expr;
     NExpr *index_expr;
     NExpr *index_end_expr;
+    NType *array_type;
+    int type_tag = 0;
+    const char *class_name = NULL;
 
     if (expr == NULL || expr->type != EXPR_ARRAY_ACCESS) {
         return 0;
@@ -495,13 +498,54 @@ static int ReplaceSliceWithFuncCall(NExpr *expr) {
     index_expr = expr->value.array_access.index;
     index_end_expr = expr->value.array_access.index_end;
 
+    array_type = InferExpressionTypeSilent(array_expr, ctx);
+    if (array_type != NULL) {
+        expr->inferred_type = CopyType(array_type, ctx);
+    }
+    if (array_type != NULL) {
+        switch (array_type->kind) {
+            case TYPE_KIND_BASE_ARRAY:
+                switch (array_type->base_type) {
+                    case TYPE_BOOL: type_tag = 1; break;
+                    case TYPE_INT:
+                    case TYPE_CHAR: type_tag = 2; break;
+                    case TYPE_FLOAT: type_tag = 3; break;
+                    case TYPE_DOUBLE:
+                    case TYPE_REAL: type_tag = 4; break;
+                    case TYPE_STRING:
+                        type_tag = 5;
+                        class_name = "java/lang/String";
+                        break;
+                    default:
+                        type_tag = 2;
+                        break;
+                }
+                break;
+            case TYPE_KIND_CLASS_ARRAY:
+                type_tag = 6;
+                class_name = array_type->class_name;
+                break;
+            case TYPE_KIND_ENUM_ARRAY:
+                type_tag = 7;
+                break;
+            default:
+                break;
+        }
+    }
+
     list = CreateExprList();
     AddExprToList(list, array_expr);
     AddExprToList(list, index_expr);
     AddExprToList(list, index_end_expr);
+    AddExprToList(list, CreateIntExpr(type_tag));
+    if (class_name != NULL) {
+        AddExprToList(list, CreateStringExpr(class_name));
+    } else {
+        AddExprToList(list, CreateNullExpr());
+    }
 
     expr->type = EXPR_FUNC_CALL;
-    expr->value.func_call.func_name = DuplicateString("__slice");
+    expr->value.func_call.func_name = DuplicateString("__slice_typed");
     expr->value.func_call.args = list->elements;
     expr->value.func_call.arg_count = list->count;
     return 1;
@@ -810,6 +854,35 @@ static int TransformAssignment(NExpr *expr, SemanticContext *ctx) {
     NType *lhs_type;
     int is_array;
     if (expr == NULL || expr->type != EXPR_ASSIGN) {
+        return 0;
+    }
+    if (expr->value.binary.op == OP_ASSIGN &&
+        expr->value.binary.left != NULL &&
+        expr->value.binary.left->type == EXPR_ARRAY_ACCESS &&
+        expr->value.binary.left->value.array_access.index_end != NULL) {
+        NExpr *lhs = expr->value.binary.left;
+        NExpr *arr = lhs->value.array_access.array;
+        NExpr *idx = lhs->value.array_access.index;
+        NExpr *idx_end = lhs->value.array_access.index_end;
+        if (arr != NULL) {
+            TransformExpression(arr, ctx);
+        }
+        if (idx != NULL) {
+            TransformExpression(idx, ctx);
+        }
+        if (idx_end != NULL) {
+            TransformExpression(idx_end, ctx);
+        }
+        TransformExpression(expr->value.binary.right, ctx);
+        args = CreateExprList();
+        AddExprToList(args, arr);
+        AddExprToList(args, idx);
+        AddExprToList(args, idx_end);
+        AddExprToList(args, expr->value.binary.right);
+        expr->type = EXPR_FUNC_CALL;
+        expr->value.func_call.func_name = DuplicateString("__slice_assign");
+        expr->value.func_call.args = args->elements;
+        expr->value.func_call.arg_count = args->count;
         return 0;
     }
     TransformExpression(expr->value.binary.left, ctx);

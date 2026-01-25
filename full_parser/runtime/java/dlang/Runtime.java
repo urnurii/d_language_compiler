@@ -146,26 +146,113 @@ public final class Runtime {
         }
     }
 
+    private static RuntimeException sliceError(String msg) {
+        return new RuntimeException(msg);
+    }
+
+    private static Object newEmptyArrayByTag(int typeTag, String className) {
+        switch (typeTag) {
+            case 1:
+                return new boolean[0];
+            case 2:
+                return new int[0];
+            case 3:
+                return new float[0];
+            case 4:
+                return new double[0];
+            case 5:
+                return new String[0];
+            case 6: {
+                if (className == null) {
+                    return new Object[0];
+                }
+                try {
+                    String binary = className.replace('/', '.');
+                    Class<?> cls = Class.forName(binary);
+                    return java.lang.reflect.Array.newInstance(cls, 0);
+                } catch (ClassNotFoundException ex) {
+                    throw sliceError("Slice error: class not found: " + className);
+                }
+            }
+            case 7:
+                return new int[0];
+            default:
+                return new Object[0];
+        }
+    }
+
     public static Object __slice(Object arr, int start, int end) {
         if (arr == null) {
-            return null;
+            if (start == 0 && end == 0) {
+                return null;
+            }
+            throw sliceError("Slice error: null array");
         }
         Class<?> cls = arr.getClass();
         if (!cls.isArray()) {
-            return null;
+            throw sliceError("Slice error: not an array");
         }
         int len = java.lang.reflect.Array.getLength(arr);
-        int s = start;
-        int e = end;
-        if (s < 0) s = 0;
-        if (e > len) e = len;
-        if (e < s) e = s;
-        int outLen = e - s;
+        if (start < 0 || end < 0 || start > end || end > len) {
+            throw sliceError("Slice error: bounds start=" + start + " end=" + end + " len=" + len);
+        }
+        int outLen = end - start;
         Object out = java.lang.reflect.Array.newInstance(cls.getComponentType(), outLen);
         if (outLen > 0) {
-            System.arraycopy(arr, s, out, 0, outLen);
+            System.arraycopy(arr, start, out, 0, outLen);
         }
         return out;
+    }
+
+    public static Object __slice_typed(Object arr, int start, int end, int typeTag, String className) {
+        if (arr == null) {
+            if (start == 0 && end == 0) {
+                return newEmptyArrayByTag(typeTag, className);
+            }
+            throw sliceError("Slice error: null array");
+        }
+        Class<?> cls = arr.getClass();
+        if (!cls.isArray()) {
+            throw sliceError("Slice error: not an array");
+        }
+        int len = java.lang.reflect.Array.getLength(arr);
+        if (start < 0 || end < 0 || start > end || end > len) {
+            throw sliceError("Slice error: bounds start=" + start + " end=" + end + " len=" + len);
+        }
+        int outLen = end - start;
+        Object out = java.lang.reflect.Array.newInstance(cls.getComponentType(), outLen);
+        if (outLen > 0) {
+            System.arraycopy(arr, start, out, 0, outLen);
+        }
+        return out;
+    }
+
+    public static void __slice_assign(Object arr, int start, int end, Object rhs) {
+        if (arr == null) {
+            throw sliceError("Slice assign error: null array");
+        }
+        if (rhs == null) {
+            throw sliceError("Slice assign error: null rhs");
+        }
+        Class<?> cls = arr.getClass();
+        if (!cls.isArray() || !rhs.getClass().isArray()) {
+            throw sliceError("Slice assign error: not an array");
+        }
+        int len = java.lang.reflect.Array.getLength(arr);
+        if (start < 0 || end < 0 || start > end || end > len) {
+            throw sliceError("Slice assign error: bounds start=" + start + " end=" + end + " len=" + len);
+        }
+        if (rhs.getClass() != arr.getClass()) {
+            throw sliceError("Slice assign error: incompatible array types");
+        }
+        int rhsLen = java.lang.reflect.Array.getLength(rhs);
+        int outLen = end - start;
+        if (rhsLen != outLen) {
+            throw sliceError("Slice assign error: length mismatch");
+        }
+        if (outLen > 0) {
+            System.arraycopy(rhs, 0, arr, start, outLen);
+        }
     }
 
     public static int readf(String fmt, Object... args) {

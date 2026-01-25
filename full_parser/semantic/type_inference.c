@@ -131,6 +131,25 @@ static NType* InferExpressionTypeInternal(NExpr *expr, SemanticContext *ctx, int
         case EXPR_FUNC_CALL: {
             int ambiguous = 0;
             if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "__slice_typed") == 0) {
+                if (expr->value.func_call.arg_count == 5 &&
+                    expr->value.func_call.args != NULL) {
+                    NExpr *arr = expr->value.func_call.args[0];
+                    NType *arr_type = InferExpressionTypeInternal(arr, ctx, report_errors);
+                    if (arr_type != NULL) {
+                        return CopyType(arr_type, ctx);
+                    }
+                }
+                return NULL;
+            }
+            if (expr->value.func_call.func_name != NULL &&
+                strcmp(expr->value.func_call.func_name, "__slice_assign") == 0) {
+                if (expr->value.func_call.arg_count == 4) {
+                    return CreateBaseType(TYPE_VOID);
+                }
+                return NULL;
+            }
+            if (expr->value.func_call.func_name != NULL &&
                 strcmp(expr->value.func_call.func_name, "__str_append") == 0) {
                 if (expr->value.func_call.arg_count == 2 &&
                     expr->value.func_call.args != NULL) {

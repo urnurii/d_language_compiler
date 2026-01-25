@@ -4450,45 +4450,208 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     }
                     return jvmc_code_label_place(code, label_done);
                 }
-                if (strcmp(fname, "__slice") == 0 && expr->value.func_call.arg_count == 3) {
+                if (strcmp(fname, "__slice_typed") == 0 && expr->value.func_call.arg_count == 5) {
                     NExpr *arr = expr->value.func_call.args[0];
                     NExpr *start = expr->value.func_call.args[1];
                     NExpr *end = expr->value.func_call.args[2];
+                    NExpr *tag = expr->value.func_call.args[3];
+                    NExpr *class_name = expr->value.func_call.args[4];
+                    int tag_override = -1;
+                    const char *class_override = NULL;
                     char *arr_desc = NULL;
                     jvmc_methodref *mref = NULL;
                     jvmc_class_ref *cref = NULL;
-                    if (arr == NULL || start == NULL || end == NULL) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice args missing", expr);
+                    if (arr == NULL || start == NULL || end == NULL || tag == NULL || class_name == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed args missing", expr);
+                    }
+                    if (tag->type == EXPR_INT && tag->value.int_value == 0 &&
+                        class_name->type == EXPR_NULL) {
+                        NType *arr_type = arr->inferred_type;
+                        if (arr_type == NULL) {
+                            arr_type = InferExpressionTypeSilent(arr, ctx);
+                        }
+                        if (arr_type == NULL && arr->type == EXPR_IDENT) {
+                            NType *resolved = NULL;
+                            if (ResolveVariableSlot(arr->value.ident_name, params, body, NULL, &resolved)) {
+                                arr_type = resolved;
+                            }
+                        }
+                        if (arr_type != NULL) {
+                            if (arr_type->kind == TYPE_KIND_BASE_ARRAY) {
+                                switch (arr_type->base_type) {
+                                    case TYPE_BOOL: tag_override = 1; break;
+                                    case TYPE_INT:
+                                    case TYPE_CHAR: tag_override = 2; break;
+                                    case TYPE_FLOAT: tag_override = 3; break;
+                                    case TYPE_DOUBLE:
+                                    case TYPE_REAL: tag_override = 4; break;
+                                    case TYPE_STRING:
+                                        tag_override = 5;
+                                        class_override = "java/lang/String";
+                                        break;
+                                    default:
+                                        tag_override = 2;
+                                        break;
+                                }
+                            } else if (arr_type->kind == TYPE_KIND_CLASS_ARRAY) {
+                                tag_override = 6;
+                                class_override = arr_type->class_name;
+                            } else if (arr_type->kind == TYPE_KIND_ENUM_ARRAY) {
+                                tag_override = 7;
+                            }
+                        }
                     }
                     if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice array emit failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed array emit failed", expr);
                     }
                     if (!CodegenEmitExpr(cls, code, start, params, body, ctx)) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice start emit failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed start emit failed", expr);
                     }
                     if (!CodegenEmitExpr(cls, code, end, params, body, ctx)) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice end emit failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed end emit failed", expr);
+                    }
+                    if (tag_override > 0) {
+                        if (!jvmc_code_push_int(code, tag_override)) {
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed tag override failed", expr);
+                        }
+                        if (class_override != NULL) {
+                            if (!jvmc_code_push_string(code, class_override)) {
+                                return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed class override failed", expr);
+                            }
+                        } else {
+                            if (!jvmc_code_push_null(code)) {
+                                return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed class null failed", expr);
+                            }
+                        }
+                    } else {
+                        if (!CodegenEmitExpr(cls, code, tag, params, body, ctx)) {
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed tag emit failed", expr);
+                        }
+                        if (!CodegenEmitExpr(cls, code, class_name, params, body, ctx)) {
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed class emit failed", expr);
+                        }
                     }
                     mref = jvmc_class_get_or_create_methodref(cls,
                                                               "dlang/Runtime",
-                                                              "__slice",
-                                                              "(Ljava/lang/Object;II)Ljava/lang/Object;");
+                                                              "__slice_typed",
+                                                              "(Ljava/lang/Object;IIILjava/lang/String;)Ljava/lang/Object;");
                     if (mref == NULL) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice methodref failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed methodref failed", expr);
                     }
                     if (!jvmc_code_invokestatic(code, mref)) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice invoke failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed invoke failed", expr);
                     }
-                    arr_desc = BuildJvmTypeDescriptor(arr->inferred_type);
+                    if (tag->type == EXPR_INT) {
+                        int tag_value = tag->value.int_value;
+                        const char *cls_name = (class_name->type == EXPR_STRING)
+                                                   ? class_name->value.string_value
+                                                   : NULL;
+                        switch (tag_value) {
+                            case 1:
+                                arr_desc = DuplicateStringLocal("[Z");
+                                break;
+                            case 2:
+                                arr_desc = DuplicateStringLocal("[I");
+                                break;
+                            case 3:
+                                arr_desc = DuplicateStringLocal("[F");
+                                break;
+                            case 4:
+                                arr_desc = DuplicateStringLocal("[D");
+                                break;
+                            case 5:
+                                arr_desc = DuplicateStringLocal("[Ljava/lang/String;");
+                                break;
+                            case 6:
+                                if (cls_name == NULL) {
+                                    return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed class name missing", expr);
+                                }
+                                {
+                                    size_t len = strlen(cls_name);
+                                    arr_desc = (char *)malloc(len + 4);
+                                    if (arr_desc == NULL) {
+                                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed desc alloc failed", expr);
+                                    }
+                                    arr_desc[0] = '[';
+                                    arr_desc[1] = 'L';
+                                    memcpy(arr_desc + 2, cls_name, len);
+                                    arr_desc[len + 2] = ';';
+                                    arr_desc[len + 3] = '\0';
+                                }
+                                break;
+                            case 7:
+                                arr_desc = DuplicateStringLocal("[I");
+                                break;
+                            default:
+                                break;
+                        }
+                    }
                     if (arr_desc == NULL) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice desc failed", expr);
+                        if (expr->inferred_type == NULL) {
+                            expr->inferred_type = InferExpressionTypeSilent(expr, ctx);
+                        }
+                        if (arr->inferred_type == NULL) {
+                            arr->inferred_type = InferExpressionTypeSilent(arr, ctx);
+                        }
+                        if (arr->inferred_type == NULL && arr->type == EXPR_IDENT) {
+                            NType *resolved = NULL;
+                            if (ResolveVariableSlot(arr->value.ident_name, params, body, NULL, &resolved)) {
+                                arr->inferred_type = resolved;
+                            }
+                        }
+                        if (expr->inferred_type != NULL &&
+                            (expr->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
+                             expr->inferred_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                             expr->inferred_type->kind == TYPE_KIND_ENUM_ARRAY)) {
+                            arr_desc = BuildJvmTypeDescriptor(expr->inferred_type);
+                        } else if (arr->inferred_type != NULL &&
+                                   (arr->inferred_type->kind == TYPE_KIND_BASE_ARRAY ||
+                                    arr->inferred_type->kind == TYPE_KIND_CLASS_ARRAY ||
+                                    arr->inferred_type->kind == TYPE_KIND_ENUM_ARRAY)) {
+                            arr_desc = BuildJvmTypeDescriptor(arr->inferred_type);
+                        } else {
+                            return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed array type unknown", expr);
+                        }
+                    }
+                    if (arr_desc == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed desc failed", expr);
                     }
                     cref = jvmc_class_get_or_create_class_ref(cls, arr_desc);
                     free(arr_desc);
                     if (cref == NULL) {
-                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice cast failed", expr);
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_typed cast failed", expr);
                     }
                     return jvmc_code_checkcast(code, cref);
+                }
+                if (strcmp(fname, "__slice_assign") == 0 && expr->value.func_call.arg_count == 4) {
+                    NExpr *arr = expr->value.func_call.args[0];
+                    NExpr *start = expr->value.func_call.args[1];
+                    NExpr *end = expr->value.func_call.args[2];
+                    NExpr *rhs = expr->value.func_call.args[3];
+                    jvmc_methodref *mref = NULL;
+                    if (arr == NULL || start == NULL || end == NULL || rhs == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign args missing", expr);
+                    }
+                    if (!CodegenEmitExpr(cls, code, arr, params, body, ctx)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign array emit failed", expr);
+                    }
+                    if (!CodegenEmitExpr(cls, code, start, params, body, ctx)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign start emit failed", expr);
+                    }
+                    if (!CodegenEmitExpr(cls, code, end, params, body, ctx)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign end emit failed", expr);
+                    }
+                    if (!CodegenEmitExpr(cls, code, rhs, params, body, ctx)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign rhs emit failed", expr);
+                    }
+                    mref = jvmc_class_get_or_create_methodref(cls,
+                                                              "dlang/Runtime",
+                                                              "__slice_assign",
+                                                              "(Ljava/lang/Object;IILjava/lang/Object;)V");
+                    if (mref == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __slice_assign methodref failed", expr);
+                    }
+                    return jvmc_code_invokestatic(code, mref);
                 }
                 if (strcmp(fname, "__append") == 0 && expr->value.func_call.arg_count == 2) {
                     NExpr *arr = expr->value.func_call.args[0];
@@ -5744,6 +5907,18 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 CodegenReportFail("STMT_FOREACH: place cond label failed");
                 return 0;
             }
+            if (!jvmc_code_load_ref(code, (uint16_t)arr_slot)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: load array failed");
+                return 0;
+            }
+            if (!jvmc_code_if_null(code, label_end)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: null array check failed");
+                return 0;
+            }
             if (!jvmc_code_load_int(code, (uint16_t)idx_slot)) {
                 g_temp_base_override = prev_temp_base;
                 PopCodegenScope();
@@ -5753,7 +5928,7 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             if (!jvmc_code_load_ref(code, (uint16_t)arr_slot)) {
                 g_temp_base_override = prev_temp_base;
                 PopCodegenScope();
-                CodegenReportFail("STMT_FOREACH: load array failed");
+                CodegenReportFail("STMT_FOREACH: load array(0) failed");
                 return 0;
             }
             if (!jvmc_code_array_length(code)) {
