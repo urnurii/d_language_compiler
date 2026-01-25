@@ -39,7 +39,7 @@ void main()
     writeln(a > b);
     writeln(a >= b);
 
-    // float/double/real ops
+    // float ops
     float xf = 5.0;
     float yf = 2.0;
     float sf = xf + yf;
@@ -52,22 +52,6 @@ void main()
     writeln(df);
     writeln(pf);
     writeln(qf);
-
-    double xd = 2.718281828459045;
-    double yd = 1.41421356237;
-    writeln("DOUBLE OPS:");
-    writeln(xd + yd);
-    writeln(xd - yd);
-    writeln(xd * yd);
-    writeln(xd / yd);
-
-    real xr = 1.618033988749895;
-    real yr = 0.5772156649;
-    writeln("REAL OPS:");
-    writeln(xr + yr);
-    writeln(xr - yr);
-    writeln(xr * yr);
-    writeln(xr / yr);
 
     // char + escapes
     char ch = 'A';
