@@ -1,6 +1,6 @@
 class Test
 {
-protected string prop = "Private";
+private string prop = "Private";
 }
 
 class Another : Test
