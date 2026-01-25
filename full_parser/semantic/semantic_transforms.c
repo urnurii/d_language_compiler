@@ -9,6 +9,8 @@ static int NormalizeStaticArrayDecl(NType *decl_type, NInitDeclList *init_decls)
 static int NormalizeArrayTypeInParams(NParamList *params);
 static void NormalizeArrayType(NType *type);
 static NType *CreateElementTypeFromArrayType(const NType *array_type);
+static void FreeTypeLocal(NType *type);
+static void TryCastArrayInitElements(NType *decl_type, NInitializer *init, SemanticContext *ctx);
 static int ReplaceSliceWithFuncCall(NExpr *expr);
 static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx);
 static char *MakeTempName(const char *prefix, int id);
@@ -70,6 +72,25 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
                 while (member != NULL) {
                     if (member->type == CLASS_MEMBER_FIELD) {
                         NormalizeStaticArrayDecl(member->value.field.field_type, member->value.field.init_decls);
+                        if (member->value.field.init_decls) {
+                            for (int i = 0; i < member->value.field.init_decls->count; i++) {
+                                NInitDecl *decl = member->value.field.init_decls->decls[i];
+                                if (decl && decl->initializer && decl->initializer->expr) {
+                                    TransformExpression(decl->initializer->expr, ctx);
+                                    TryInsertImplicitCast(&decl->initializer->expr,
+                                                          member->value.field.field_type,
+                                                          ctx);
+                                }
+                                if (decl && decl->initializer && decl->initializer->is_array) {
+                                    for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                                        TransformExpression(decl->initializer->array_init.elements[j], ctx);
+                                    }
+                                    TryCastArrayInitElements(member->value.field.field_type,
+                                                             decl->initializer,
+                                                             ctx);
+                                }
+                            }
+                        }
                     } else if (member->type == CLASS_MEMBER_METHOD && member->value.method) {
                         NormalizeArrayType(member->value.method->return_type);
                         NormalizeArrayTypeInParams(member->value.method->params);
@@ -94,6 +115,25 @@ static int TransformSourceItems(NSourceItem *items, SemanticContext *ctx) {
             }
             case SOURCE_ITEM_DECL:
                 NormalizeStaticArrayDecl(item->value.decl.item_type, item->value.decl.init_decls);
+                if (item->value.decl.init_decls) {
+                    for (int i = 0; i < item->value.decl.init_decls->count; i++) {
+                        NInitDecl *decl = item->value.decl.init_decls->decls[i];
+                        if (decl && decl->initializer && decl->initializer->expr) {
+                            TransformExpression(decl->initializer->expr, ctx);
+                            TryInsertImplicitCast(&decl->initializer->expr,
+                                                  item->value.decl.item_type,
+                                                  ctx);
+                        }
+                        if (decl && decl->initializer && decl->initializer->is_array) {
+                            for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                                TransformExpression(decl->initializer->array_init.elements[j], ctx);
+                            }
+                            TryCastArrayInitElements(item->value.decl.item_type,
+                                                     decl->initializer,
+                                                     ctx);
+                        }
+                    }
+                }
                 break;
             case SOURCE_ITEM_ENUM:
                 break;
@@ -137,6 +177,12 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
                                               stmt->value.decl.decl_type,
                                               ctx);
                     }
+                    if (decl && decl->initializer && decl->initializer->is_array) {
+                        for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                            TransformExpression(decl->initializer->array_init.elements[j], ctx);
+                        }
+                        TryCastArrayInitElements(stmt->value.decl.decl_type, decl->initializer, ctx);
+                    }
                 }
             }
             break;
@@ -167,6 +213,12 @@ static int TransformStatement(NStmt *stmt, SemanticContext *ctx) {
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
                     if (decl && decl->initializer && decl->initializer->expr) {
                         TransformExpression(decl->initializer->expr, ctx);
+                    }
+                    if (decl && decl->initializer && decl->initializer->is_array) {
+                        for (int j = 0; j < decl->initializer->array_init.count; j++) {
+                            TransformExpression(decl->initializer->array_init.elements[j], ctx);
+                        }
+                        TryCastArrayInitElements(stmt->value.for_stmt.init_decl_type, decl->initializer, ctx);
                     }
                 }
             }
@@ -341,6 +393,40 @@ static int NormalizeArrayTypeInParams(NParamList *params) {
     return 0;
 }
 
+static void FreeTypeLocal(NType *type) {
+    if (type == NULL) {
+        return;
+    }
+    if (type->class_name != NULL) {
+        free(type->class_name);
+    }
+    if (type->enum_name != NULL) {
+        free(type->enum_name);
+    }
+    if (type->array_decl != NULL) {
+        free(type->array_decl);
+    }
+    free(type);
+}
+
+static void TryCastArrayInitElements(NType *decl_type, NInitializer *init, SemanticContext *ctx) {
+    NType *elem_type;
+    if (decl_type == NULL || init == NULL || ctx == NULL) {
+        return;
+    }
+    if (!init->is_array) {
+        return;
+    }
+    elem_type = CreateElementTypeFromArrayType(decl_type);
+    if (elem_type == NULL) {
+        return;
+    }
+    for (int i = 0; i < init->array_init.count; i++) {
+        TryInsertImplicitCast(&init->array_init.elements[i], elem_type, ctx);
+    }
+    FreeTypeLocal(elem_type);
+}
+
 static NType *CreateElementTypeFromArrayType(const NType *array_type) {
     if (array_type == NULL) {
         return NULL;
@@ -433,6 +519,7 @@ static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
     NExpr *collection;
     NType *collection_type;
     NType *element_type;
+    NType *collection_elem_type;
     NType *array_decl_type;
     char *arr_name;
     char *idx_name;
@@ -473,6 +560,8 @@ static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
         collection_type->kind != TYPE_KIND_ENUM_ARRAY) {
         return 0;
     }
+
+    collection_elem_type = CreateElementTypeFromArrayType(collection_type);
 
     element_type = stmt->value.foreach_stmt.is_typed
         ? stmt->value.foreach_stmt.var_type
@@ -521,9 +610,27 @@ static int TransformForeachToFor(NStmt *stmt, SemanticContext *ctx) {
         return 0;
     }
     {
+        NExpr *var_init_expr = element_access;
+        if (stmt->value.foreach_stmt.is_typed &&
+            stmt->value.foreach_stmt.var_type != NULL &&
+            collection_elem_type != NULL &&
+            !TypesEqual(stmt->value.foreach_stmt.var_type, collection_elem_type) &&
+            IsNumericType(stmt->value.foreach_stmt.var_type) &&
+            IsNumericType(collection_elem_type)) {
+            int src_rank = 0;
+            int tgt_rank = 0;
+            if (GetNumericRankLocal(collection_elem_type, &src_rank) &&
+                GetNumericRankLocal(stmt->value.foreach_stmt.var_type, &tgt_rank) &&
+                tgt_rank >= src_rank) {
+                NType *cast_type = CopyTypeNoContext(stmt->value.foreach_stmt.var_type);
+                if (cast_type != NULL) {
+                    var_init_expr = CreateCastExpr(cast_type, element_access);
+                }
+            }
+        }
         NInitDeclList *var_init = CreateInitDeclList();
         AddInitDeclToList(var_init, CreateInitDecl(stmt->value.foreach_stmt.var_name,
-                                                  CreateExprInitializer(element_access)));
+                                                  CreateExprInitializer(var_init_expr)));
         var_decl_stmt = CreateDeclStmt(var_decl_type, var_init);
     }
 

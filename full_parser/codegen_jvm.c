@@ -201,6 +201,7 @@ static void UpdateMaxLocalsFromStmt(NStmt *stmt, int *max_out) {
 static int MaxTempSlotsInExpr(NExpr *expr);
 static int MaxTempSlotsInStmt(NStmt *stmt);
 static int MaxTempSlotsInStmtList(NStmt *stmts);
+static int GetElementTypeFromArray(const NType *array_type, NType *out_elem);
 static int FindMaxSlot(NParamList *params, NStmt *body);
 static int GetTempBase(NParamList *params, NStmt *body);
 static int EmitPopForType(jvmc_code *code, const NType *type);
@@ -1740,10 +1741,24 @@ static int MaxTempSlotsInStmt(NStmt *stmt) {
             int a = MaxTempSlotsInExpr(stmt->value.foreach_stmt.collection);
             int b = MaxTempSlotsInStmt(stmt->value.foreach_stmt.body);
             int max_local = (a > b) ? a : b;
-            if (max_local < 3) {
-                max_local = 3;
+            int elem_width = 1;
+            if (stmt->value.foreach_stmt.collection != NULL &&
+                stmt->value.foreach_stmt.collection->inferred_type != NULL) {
+                NType elem_type;
+                if (GetElementTypeFromArray(stmt->value.foreach_stmt.collection->inferred_type, &elem_type)) {
+                    elem_width = GetJvmSlotWidthForType(&elem_type);
+                    if (elem_width <= 0) {
+                        elem_width = 1;
+                    }
+                }
             }
-            return max_local;
+            {
+                int base_slots = 2 + elem_width;
+                if (max_local < 0) {
+                    max_local = 0;
+                }
+                return base_slots + max_local;
+            }
         }
         case STMT_SWITCH: {
             int a = MaxTempSlotsInExpr(stmt->value.switch_stmt.expr);
@@ -1813,10 +1828,17 @@ static int FindMaxSlotInStmt(NStmt *stmt) {
     switch (stmt->type) {
         case STMT_DECL:
             if (stmt->value.decl.init_decls) {
+                int width = GetJvmSlotWidthForType(stmt->value.decl.decl_type);
+                if (width <= 0) {
+                    width = 1;
+                }
                 for (int i = 0; i < stmt->value.decl.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.decl.init_decls->decls[i];
-                    if (decl && decl->jvm_slot_index > max) {
-                        max = decl->jvm_slot_index;
+                    if (decl && decl->jvm_slot_index >= 0) {
+                        int last = decl->jvm_slot_index + width - 1;
+                        if (last > max) {
+                            max = last;
+                        }
                     }
                 }
             }
@@ -1843,10 +1865,17 @@ static int FindMaxSlotInStmt(NStmt *stmt) {
             break;
         case STMT_FOR:
             if (stmt->value.for_stmt.init_decls) {
+                int width = GetJvmSlotWidthForType(stmt->value.for_stmt.init_decl_type);
+                if (width <= 0) {
+                    width = 1;
+                }
                 for (int i = 0; i < stmt->value.for_stmt.init_decls->count; i++) {
                     NInitDecl *decl = stmt->value.for_stmt.init_decls->decls[i];
-                    if (decl && decl->jvm_slot_index > max) {
-                        max = decl->jvm_slot_index;
+                    if (decl && decl->jvm_slot_index >= 0) {
+                        int last = decl->jvm_slot_index + width - 1;
+                        if (last > max) {
+                            max = last;
+                        }
                     }
                 }
             }
@@ -1899,8 +1928,17 @@ static int FindMaxSlot(NParamList *params, NStmt *body) {
     if (params != NULL) {
         for (int i = 0; i < params->count; i++) {
             NParam *param = params->params[i];
-            if (param && param->jvm_slot_index > max) {
-                max = param->jvm_slot_index;
+            if (param && param->jvm_slot_index >= 0) {
+                int width = GetJvmSlotWidthForType(param->param_type);
+                if (width <= 0) {
+                    width = 1;
+                }
+                {
+                    int last = param->jvm_slot_index + width - 1;
+                    if (last > max) {
+                        max = last;
+                    }
+                }
             }
         }
     }
@@ -4381,10 +4419,36 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     return jvmc_code_label_place(code, label_end);
                 }
                 if (strcmp(fname, "__len") == 0 && expr->value.func_call.arg_count == 1) {
+                    jvmc_label *label_null = jvmc_code_label_create(code);
+                    jvmc_label *label_done = jvmc_code_label_create(code);
+                    if (label_null == NULL || label_done == NULL) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len label create failed", expr);
+                    }
                     if (!CodegenEmitExpr(cls, code, expr->value.func_call.args[0], params, body, ctx)) {
                         return CodegenReportExprFail("EXPR_FUNC_CALL: __len arg emit failed", expr);
                     }
-                    return jvmc_code_array_length(code);
+                    if (!jvmc_code_dup(code)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len dup failed", expr);
+                    }
+                    if (!jvmc_code_if_null(code, label_null)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len ifnull failed", expr);
+                    }
+                    if (!jvmc_code_array_length(code)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len arraylength failed", expr);
+                    }
+                    if (!jvmc_code_goto(code, label_done)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len goto failed", expr);
+                    }
+                    if (!jvmc_code_label_place(code, label_null)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len label null failed", expr);
+                    }
+                    if (!jvmc_code_pop(code)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len pop failed", expr);
+                    }
+                    if (!jvmc_code_push_int(code, 0)) {
+                        return CodegenReportExprFail("EXPR_FUNC_CALL: __len push 0 failed", expr);
+                    }
+                    return jvmc_code_label_place(code, label_done);
                 }
                 if (strcmp(fname, "__slice") == 0 && expr->value.func_call.arg_count == 3) {
                     NExpr *arr = expr->value.func_call.args[0];
@@ -4887,10 +4951,36 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                  obj->inferred_type->kind == TYPE_KIND_ENUM_ARRAY) &&
                 expr->value.member_access.member_name != NULL &&
                 strcmp(expr->value.member_access.member_name, "length") == 0) {
+                jvmc_label *label_null = jvmc_code_label_create(code);
+                jvmc_label *label_done = jvmc_code_label_create(code);
+                if (label_null == NULL || label_done == NULL) {
+                    return 0;
+                }
                 if (!CodegenEmitExpr(cls, code, obj, params, body, ctx)) {
                     return 0;
                 }
-                return jvmc_code_array_length(code);
+                if (!jvmc_code_dup(code)) {
+                    return 0;
+                }
+                if (!jvmc_code_if_null(code, label_null)) {
+                    return 0;
+                }
+                if (!jvmc_code_array_length(code)) {
+                    return 0;
+                }
+                if (!jvmc_code_goto(code, label_done)) {
+                    return 0;
+                }
+                if (!jvmc_code_label_place(code, label_null)) {
+                    return 0;
+                }
+                if (!jvmc_code_pop(code)) {
+                    return 0;
+                }
+                if (!jvmc_code_push_int(code, 0)) {
+                    return 0;
+                }
+                return jvmc_code_label_place(code, label_done);
             }
             if (expr->jvm_ref_key.has_key && expr->jvm_ref_key.kind == JVM_REF_FIELD) {
                 jvmc_fieldref *fref = jvmc_class_get_or_create_fieldref(cls,
@@ -5577,12 +5667,14 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             int arr_slot;
             int idx_slot;
             int var_slot;
+            int elem_width;
             int prev_temp_base = g_temp_base_override;
             jvmc_label *label_cond = jvmc_code_label_create(code);
+            jvmc_label *label_iter = jvmc_code_label_create(code);
             jvmc_label *label_end = jvmc_code_label_create(code);
             int local_return = 0;
 
-            if (label_cond == NULL || label_end == NULL) {
+            if (label_cond == NULL || label_iter == NULL || label_end == NULL) {
                 CodegenReportFail("STMT_FOREACH: label create failed");
                 return 0;
             }
@@ -5609,7 +5701,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
             arr_slot = temp_base;
             idx_slot = temp_base + 1;
             var_slot = temp_base + 2;
-            g_temp_base_override = temp_base + 3;
+            elem_width = GetJvmSlotWidthForType(&elem_type);
+            g_temp_base_override = var_slot + (elem_width > 0 ? elem_width : 1);
 
             if (!PushCodegenScope()) {
                 g_temp_base_override = prev_temp_base;
@@ -5699,13 +5792,27 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                 CodegenReportFail("STMT_FOREACH: store var failed");
                 return 0;
             }
+            if (!FlowPushLoop(flow, label_end, label_iter)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: flow push failed");
+                return 0;
+            }
             if (stmt->value.foreach_stmt.body) {
                 if (!CodegenEmitStmtList(cls, code, stmt->value.foreach_stmt.body, params, &local_return, ctx, flow)) {
+                    FlowPopLoop(flow);
                     g_temp_base_override = prev_temp_base;
                     PopCodegenScope();
                     CodegenReportFail("STMT_FOREACH: body failed");
                     return 0;
                 }
+            }
+            FlowPopLoop(flow);
+            if (!jvmc_code_label_place(code, label_iter)) {
+                g_temp_base_override = prev_temp_base;
+                PopCodegenScope();
+                CodegenReportFail("STMT_FOREACH: place iter label failed");
+                return 0;
             }
             if (!jvmc_code_load_int(code, (uint16_t)idx_slot)) {
                 g_temp_base_override = prev_temp_base;
