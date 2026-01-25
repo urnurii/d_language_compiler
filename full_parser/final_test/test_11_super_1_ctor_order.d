@@ -17,7 +17,7 @@ class Derived : Base
 
 void main()
 {
-    auto d = new Derived(1);
+    Derived d = new Derived(1);
 
     // ожидается:
     // Base.ctor
