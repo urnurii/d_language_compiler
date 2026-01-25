@@ -211,6 +211,7 @@ typedef struct {
     JvmLayoutContext *jvm;        // JVM-attribution (descriptors/slots/RefKey)
     int has_errors;               // была ли хоть одна ошибка
     ClassInfo *current_class;     // текущий класс (для this/super)
+    int in_constructor;           // находимся ли сейчас в конструкторе
     int loop_depth;               // loop depth
     int switch_depth;             // switch depth
     // Таблицы для быстрого поиска

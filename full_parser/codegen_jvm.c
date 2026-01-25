@@ -1740,6 +1740,16 @@ static int MaxTempSlotsInStmt(NStmt *stmt) {
             }
             return max;
         }
+        case STMT_SUPER_CTOR_CALL:
+            if (stmt->value.super_ctor.args != NULL) {
+                for (int i = 0; i < stmt->value.super_ctor.args->count; i++) {
+                    int e = MaxTempSlotsInExpr(stmt->value.super_ctor.args->elements[i]);
+                    if (e > max) {
+                        max = e;
+                    }
+                }
+            }
+            return max;
         case STMT_BREAK:
         case STMT_CONTINUE:
             return 0;
@@ -2080,6 +2090,375 @@ static void AddParamsToScope(NParamList *params) {
                           param->is_ref ? 1 : 0);
         }
     }
+}
+
+static int IsValidLValueForCtorRef(const NExpr *expr) {
+    if (expr == NULL) {
+        return 0;
+    }
+    switch (expr->type) {
+        case EXPR_IDENT:
+            return expr->enum_value_is_set ? 0 : 1;
+        case EXPR_MEMBER_ACCESS:
+            return expr->enum_value_is_set ? 0 : 1;
+        case EXPR_ARRAY_ACCESS:
+            return 1;
+        case EXPR_PAREN:
+            return IsValidLValueForCtorRef(expr->value.inner_expr);
+        default:
+            return 0;
+    }
+}
+
+static int CanMatchCtorForArgs(const NCtorDef *ctor, NExpr **args, int arg_count,
+                               SemanticContext *ctx, int *score_out) {
+    int expected;
+    int count;
+    int score = 0;
+
+    if (ctor == NULL) {
+        return 0;
+    }
+
+    expected = (ctor->params != NULL) ? ctor->params->count : 0;
+
+    if (arg_count > expected) {
+        return 0;
+    }
+    if (arg_count < expected && ctor->params != NULL) {
+        for (int i = arg_count; i < expected; i++) {
+            NParam *param = ctor->params->params[i];
+            if (param == NULL || param->default_value == NULL) {
+                return 0;
+            }
+        }
+    }
+
+    if (ctor->params == NULL) {
+        if (score_out != NULL) {
+            *score_out = score;
+        }
+        return 1;
+    }
+
+    count = expected < arg_count ? expected : arg_count;
+    for (int i = 0; i < count; i++) {
+        NParam *param = ctor->params->params[i];
+        NExpr *arg = (args != NULL) ? args[i] : NULL;
+        NType *arg_type;
+        if (param == NULL || arg == NULL || param->param_type == NULL) {
+            return 0;
+        }
+        if (param->is_ref && !IsValidLValueForCtorRef(arg)) {
+            return 0;
+        }
+        arg_type = InferExpressionTypeSilent(arg, ctx);
+        if (arg_type == NULL) {
+            return 0;
+        }
+        if (!IsArgumentCompatibleWithParameter(param->param_type, arg_type, param->is_ref)) {
+            return 0;
+        }
+        if (TypesEqual(param->param_type, arg_type)) {
+            score += 2;
+        } else {
+            score += 1;
+        }
+    }
+
+    if (score_out != NULL) {
+        *score_out = score;
+    }
+    return 1;
+}
+
+static NCtorDef *LookupCtorOverloadForArgs(ClassInfo *class_info, NExpr **args, int arg_count,
+                                           SemanticContext *ctx, int *is_ambiguous) {
+    NCtorDef *best = NULL;
+    int best_score = -1;
+    int ambiguous = 0;
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = 0;
+    }
+    if (class_info == NULL || class_info->constructors == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < class_info->constructor_count; i++) {
+        NCtorDef *ctor = class_info->constructors[i];
+        int score = 0;
+        if (ctor == NULL) {
+            continue;
+        }
+        if (!CanMatchCtorForArgs(ctor, args, arg_count, ctx, &score)) {
+            continue;
+        }
+        if (score > best_score) {
+            best = ctor;
+            best_score = score;
+            ambiguous = 0;
+        } else if (score == best_score) {
+            ambiguous = 1;
+        }
+    }
+
+    if (is_ambiguous != NULL) {
+        *is_ambiguous = ambiguous;
+    }
+    if (ambiguous) {
+        return NULL;
+    }
+    return best;
+}
+
+static NStmt *FindTopLevelSuperCtorStmt(NStmt *body) {
+    if (body == NULL) {
+        return NULL;
+    }
+    if (body->type == STMT_SUPER_CTOR_CALL) {
+        return body;
+    }
+    if (body->type == STMT_COMPOUND) {
+        NStmt *first = body->value.stmt_list ? body->value.stmt_list->first : NULL;
+        if (first != NULL && first->type == STMT_SUPER_CTOR_CALL) {
+            return first;
+        }
+    }
+    return NULL;
+}
+
+static int EmitSuperCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_def,
+                             NStmt *super_stmt, NParamList *params, NStmt *body,
+                             SemanticContext *ctx) {
+    ClassInfo *base_info;
+    const char *base_name;
+    char *base_internal = NULL;
+    const char *ctor_desc = NULL;
+    char *owned_desc = NULL;
+    jvmc_methodref *mref;
+    NExprList *args_list;
+    NExpr **args;
+    int arg_count;
+    int *ref_slots = NULL;
+    int temp_base;
+    NCtorDef *match = NULL;
+
+    if (cls == NULL || code == NULL || class_def == NULL || super_stmt == NULL || ctx == NULL) {
+        return 0;
+    }
+    base_name = class_def->base_class_name;
+    if (base_name == NULL) {
+        return 0;
+    }
+    base_info = LookupClass(ctx, base_name);
+    if (base_info == NULL) {
+        return 0;
+    }
+
+    args_list = super_stmt->value.super_ctor.args;
+    args = args_list ? args_list->elements : NULL;
+    arg_count = args_list ? args_list->count : 0;
+
+    if (base_info->constructor_count > 0) {
+        int ambiguous = 0;
+        match = LookupCtorOverloadForArgs(base_info, args, arg_count, ctx, &ambiguous);
+        if (match == NULL || match->params == NULL) {
+            return 0;
+        }
+        if (match->params->count != arg_count) {
+            return 0;
+        }
+        owned_desc = BuildJvmMethodDescriptor(NULL, match->params);
+        if (owned_desc == NULL) {
+            return 0;
+        }
+        ctor_desc = owned_desc;
+    } else {
+        if (arg_count > 0) {
+            return 0;
+        }
+        ctor_desc = "()V";
+    }
+
+    base_internal = BuildJvmInternalName(base_name);
+    if (base_internal == NULL) {
+        free(owned_desc);
+        return 0;
+    }
+
+    if (!jvmc_code_load_ref(code, 0)) {
+        free(base_internal);
+        free(owned_desc);
+        return 0;
+    }
+
+    temp_base = FindMaxSlot(params, body) + 1;
+    if (arg_count > 0) {
+        ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
+        if (ref_slots == NULL) {
+            free(base_internal);
+            free(owned_desc);
+            return 0;
+        }
+        for (int i = 0; i < arg_count; i++) {
+            ref_slots[i] = -1;
+        }
+    }
+
+    for (int i = 0; i < arg_count; i++) {
+        NExpr *arg = args[i];
+        int is_ref = 0;
+        if (match != NULL && match->params != NULL && i < match->params->count) {
+            NParam *param = match->params->params[i];
+            is_ref = (param != NULL && param->is_ref) ? 1 : 0;
+        }
+        if (is_ref) {
+            int temp_slot = temp_base++;
+            if (!jvmc_code_push_int(code, 1)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitNewArrayForType(cls, code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_store_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitLoadLValue(cls, code, arg, params, body, ctx, NULL)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitArrayStoreForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_load_ref(code, (uint16_t)temp_slot)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+            ref_slots[i] = temp_slot;
+        } else {
+            if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
+                free(ref_slots);
+                free(base_internal);
+                free(owned_desc);
+                return 0;
+            }
+        }
+    }
+
+    mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", ctor_desc);
+    free(base_internal);
+    if (mref == NULL) {
+        free(ref_slots);
+        free(owned_desc);
+        return 0;
+    }
+    if (!jvmc_code_invokespecial(code, mref)) {
+        free(ref_slots);
+        free(owned_desc);
+        return 0;
+    }
+
+    for (int i = 0; i < arg_count; i++) {
+        int is_ref = 0;
+        if (match != NULL && match->params != NULL && i < match->params->count) {
+            NParam *param = match->params->params[i];
+            is_ref = (param != NULL && param->is_ref) ? 1 : 0;
+        }
+        if (is_ref && ref_slots && ref_slots[i] >= 0) {
+            NExpr *arg = args[i];
+            if (!jvmc_code_load_ref(code, (uint16_t)ref_slots[i])) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!jvmc_code_push_int(code, 0)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitArrayLoadForType(code, arg ? arg->inferred_type : NULL)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+            if (!EmitStoreLValue(cls, code, arg, arg ? arg->inferred_type : NULL, params, body, ctx)) {
+                free(ref_slots);
+                free(owned_desc);
+                return 0;
+            }
+        }
+    }
+
+    free(ref_slots);
+    free(owned_desc);
+    return 1;
+}
+
+static int CountSuperCtorRefTemps(NStmt *body, NClassDef *class_def, SemanticContext *ctx) {
+    ClassInfo *base_info;
+    NStmt *super_stmt;
+    NExprList *args_list;
+    NExpr **args;
+    int arg_count;
+    int ambiguous = 0;
+    int count = 0;
+
+    if (body == NULL || class_def == NULL || ctx == NULL || class_def->base_class_name == NULL) {
+        return 0;
+    }
+    super_stmt = FindTopLevelSuperCtorStmt(body);
+    if (super_stmt == NULL) {
+        return 0;
+    }
+    base_info = LookupClass(ctx, class_def->base_class_name);
+    if (base_info == NULL || base_info->constructor_count <= 0) {
+        return 0;
+    }
+    args_list = super_stmt->value.super_ctor.args;
+    args = args_list ? args_list->elements : NULL;
+    arg_count = args_list ? args_list->count : 0;
+    {
+        NCtorDef *match = LookupCtorOverloadForArgs(base_info, args, arg_count, ctx, &ambiguous);
+        if (match == NULL || match->params == NULL) {
+            return 0;
+        }
+        for (int i = 0; i < match->params->count; i++) {
+            NParam *param = match->params->params[i];
+            if (param != NULL && param->is_ref) {
+                count += 1;
+            }
+        }
+    }
+    return count;
 }
 
 static int GetElementTypeFromArray(const NType *array_type, NType *out_elem) {
@@ -3145,26 +3524,34 @@ static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code 
     int returned = 0;
     FlowContext flow;
     NStmt *prev_body = g_current_body;
+    NStmt *super_stmt = NULL;
     memset(&flow, 0, sizeof(flow));
 
     if (cls == NULL || class_def == NULL || code == NULL) {
         return 0;
     }
-    if (!jvmc_code_load_ref(code, 0)) {
-        return 0;
-    }
-    base_internal = BuildJvmInternalName(class_def->base_class_name ? class_def->base_class_name
-                                                                    : "java/lang/Object");
-    if (base_internal == NULL) {
-        return 0;
-    }
-    mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", "()V");
-    free(base_internal);
-    if (mref == NULL) {
-        return 0;
-    }
-    if (!jvmc_code_invokespecial(code, mref)) {
-        return 0;
+    super_stmt = FindTopLevelSuperCtorStmt(body);
+    if (super_stmt != NULL) {
+        if (!EmitSuperCtorCall(cls, code, class_def, super_stmt, params, body, ctx)) {
+            return 0;
+        }
+    } else {
+        if (!jvmc_code_load_ref(code, 0)) {
+            return 0;
+        }
+        base_internal = BuildJvmInternalName(class_def->base_class_name ? class_def->base_class_name
+                                                                        : "java/lang/Object");
+        if (base_internal == NULL) {
+            return 0;
+        }
+        mref = jvmc_class_get_or_create_methodref(cls, base_internal, "<init>", "()V");
+        free(base_internal);
+        if (mref == NULL) {
+            return 0;
+        }
+        if (!jvmc_code_invokespecial(code, mref)) {
+            return 0;
+        }
     }
     if (!EmitInstanceFieldInitializers(cls, class_def, ctx, code, params, body)) {
         free(flow.break_labels);
@@ -3232,6 +3619,7 @@ static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor
         base_slot = 1;
     }
     extra_slots = CountArrayFieldInitTemps(class_def);
+    extra_slots += CountSuperCtorRefTemps(ctor->body, class_def, ctx);
     if (base_slot + extra_slots > max_locals) {
         max_locals = base_slot + extra_slots;
     }
@@ -4387,6 +4775,8 @@ static int CodegenEmitStmtList(jvmc_class *cls, jvmc_code *code, NStmt *stmts, N
                     }
                 }
             }
+        } else if (stmt->type == STMT_SUPER_CTOR_CALL) {
+            /* handled in constructor prologue */
         } else if (stmt->type == STMT_EXPR) {
             if (stmt->value.expr != NULL) {
                 if (!CodegenEmitExpr(cls, code, stmt->value.expr, params, stmts, ctx)) {
