@@ -637,6 +637,12 @@ int CanAssign(NType *target_type, NType *source_type) {
         return 0;
     }
 
+    if (IsNullClassType(source_type)) {
+        if (IsDynamicArrayType(target_type)) {
+            return 1;
+        }
+    }
+
     if (TypesEqual(target_type, source_type)) {
         return 1;
     }

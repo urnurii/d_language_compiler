@@ -3165,8 +3165,10 @@ static int EmitAppendArrayElement(jvmc_class *cls, jvmc_code *code, NExpr *array
     int slot_idx = base++;
     jvmc_label *label_loop = jvmc_code_label_create(code);
     jvmc_label *label_done = jvmc_code_label_create(code);
+    jvmc_label *label_arr_null = jvmc_code_label_create(code);
+    jvmc_label *label_len_done = jvmc_code_label_create(code);
 
-    if (label_loop == NULL || label_done == NULL) {
+    if (label_loop == NULL || label_done == NULL || label_arr_null == NULL || label_len_done == NULL) {
         return 0;
     }
     if (!GetElementTypeFromArray(array_expr ? array_expr->inferred_type : NULL, &elem_type)) {
@@ -3181,10 +3183,31 @@ static int EmitAppendArrayElement(jvmc_class *cls, jvmc_code *code, NExpr *array
     if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
         return 0;
     }
+    if (!jvmc_code_if_null(code, label_arr_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
     if (!jvmc_code_array_length(code)) {
         return 0;
     }
     if (!jvmc_code_store_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_len_done)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_arr_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_len_done)) {
         return 0;
     }
     if (!jvmc_code_load_int(code, (uint16_t)slot_len)) {
@@ -3285,8 +3308,13 @@ static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_
     jvmc_label *label_done1 = jvmc_code_label_create(code);
     jvmc_label *label_loop2 = jvmc_code_label_create(code);
     jvmc_label *label_done2 = jvmc_code_label_create(code);
+    jvmc_label *label_arr_null = jvmc_code_label_create(code);
+    jvmc_label *label_len1_done = jvmc_code_label_create(code);
+    jvmc_label *label_rhs_null = jvmc_code_label_create(code);
+    jvmc_label *label_len2_done = jvmc_code_label_create(code);
 
-    if (label_loop1 == NULL || label_done1 == NULL || label_loop2 == NULL || label_done2 == NULL) {
+    if (label_loop1 == NULL || label_done1 == NULL || label_loop2 == NULL || label_done2 == NULL ||
+        label_arr_null == NULL || label_len1_done == NULL || label_rhs_null == NULL || label_len2_done == NULL) {
         return 0;
     }
     if (!GetElementTypeFromArray(array_expr ? array_expr->inferred_type : NULL, &elem_type)) {
@@ -3307,10 +3335,37 @@ static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_
     if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
         return 0;
     }
+    if (!jvmc_code_if_null(code, label_arr_null)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_arr)) {
+        return 0;
+    }
     if (!jvmc_code_array_length(code)) {
         return 0;
     }
     if (!jvmc_code_store_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_len1_done)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_arr_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len1)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_len1_done)) {
+        return 0;
+    }
+    if (!jvmc_code_load_ref(code, (uint16_t)slot_rhs)) {
+        return 0;
+    }
+    if (!jvmc_code_if_null(code, label_rhs_null)) {
         return 0;
     }
     if (!jvmc_code_load_ref(code, (uint16_t)slot_rhs)) {
@@ -3320,6 +3375,21 @@ static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_
         return 0;
     }
     if (!jvmc_code_store_int(code, (uint16_t)slot_len2)) {
+        return 0;
+    }
+    if (!jvmc_code_goto(code, label_len2_done)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_rhs_null)) {
+        return 0;
+    }
+    if (!jvmc_code_push_int(code, 0)) {
+        return 0;
+    }
+    if (!jvmc_code_store_int(code, (uint16_t)slot_len2)) {
+        return 0;
+    }
+    if (!jvmc_code_label_place(code, label_len2_done)) {
         return 0;
     }
     if (!jvmc_code_load_int(code, (uint16_t)slot_len1)) {
