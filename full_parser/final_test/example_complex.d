@@ -79,7 +79,7 @@ class Dog : Animal
 
 void main()
 {
-    writeln("=== BASIC I/O ===");
+    writeln("BASIC I/O:");
     writeln("Enter a line:");
     string line = readln();
     writeln("Line: ", line);
@@ -94,20 +94,20 @@ void main()
 
     writef("readf: i1=%d i2=%d f1=%f ch=%c word=%s\n", i1, i2, f1, ch, word);
     writeln(greet());
-    writeln(greet("Codex"));
+    writeln(greet("Yasya"));
 
-    writeln("=== OVERLOADS ===");
+    writeln("OVERLOADS:");
     writeln("sum(int): ", sum(i1, i2));
     writeln("sum(float): ", sum(f1, 2.5));
 
-    writeln("=== REF PARAM ===");
+    writeln("REF PARAM:");
     inc(i1);
     writeln("after inc: ", i1);
 
-    writeln("=== RECURSION ===");
+    writeln("RECURSION;");
     writeln("fact(5) = ", fact(5));
 
-    writeln("=== ARRAYS ===");
+    writeln("ARRAYS:");
     int[3] arrStatic = [1, 2, 3];
     writeln("arrStatic = ", arrStatic);
     writeln("arrStatic[0..2] = ", arrStatic[0..2]);
@@ -119,9 +119,8 @@ void main()
     writeln("arr.length = ", arr.length);
     writeln("arr[1..4] = ", arr[1..4]);
     writeln("arr[0..0] = ", arr[0..0]);
-    writeln("arr[3..1] = ", arr[3..1]);
+    //writeln("arr[3..1] = ", arr[3..1]);
 
-    writeln("=== FOREACH ===");
     int sumArr = 0;
     foreach (x; arr)
     {
@@ -129,7 +128,7 @@ void main()
     }
     writeln("foreach sum = ", sumArr);
 
-    writeln("=== LOOPS ===");
+    writeln("LOOPS:");
     int forSum = 0;
     for (int k = 0; k < 5; k += 1)
     {
@@ -156,7 +155,7 @@ void main()
     } while (d < 3);
     writeln("doSum = ", doSum);
 
-    writeln("=== SWITCH ===");
+    writeln("SWITCH:");
     Color c = Color.Green;
     switch (c)
     {
@@ -171,12 +170,12 @@ void main()
             break;
     }
 
-    writeln("=== CLASSES ===");
+    writeln("CLASSES:");
     Dog d1 = new Dog("Rex", "Shepherd");
     d1.speak();
     destroy(d1);
 
-    writeln("=== LOGIC ===");
+    writeln("LOGIC:");
     bool ok = (i1 > 0 && i2 > 0) || (i1 == 0);
     if (!ok)
     {
