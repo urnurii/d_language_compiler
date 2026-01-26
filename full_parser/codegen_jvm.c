@@ -31,6 +31,7 @@ static int CodegenReportExprFail(const char *where, const NExpr *expr);
 static void CodegenReportFail(const char *where);
 static NStmt *g_current_body = NULL;
 static int g_temp_base_override = -1;
+static int g_instance_slots_base = 0;
 typedef struct {
     const char *name;
     int slot;
@@ -582,10 +583,45 @@ static const char *PrintDescriptorForType(const NType *type) {
     return JvmPrintDescriptorForType(type);
 }
 
+static int IsArrayTypeForPrint(const NType *type) {
+    if (type == NULL) {
+        return 0;
+    }
+    return type->kind == TYPE_KIND_BASE_ARRAY ||
+           type->kind == TYPE_KIND_CLASS_ARRAY ||
+           type->kind == TYPE_KIND_ENUM_ARRAY;
+}
+
+static const char *ArraysToStringDescriptorForType(const NType *type) {
+    if (type == NULL) {
+        return "([Ljava/lang/Object;)Ljava/lang/String;";
+    }
+    if (type->kind == TYPE_KIND_ENUM_ARRAY) {
+        return "([I)Ljava/lang/String;";
+    }
+    if (type->kind == TYPE_KIND_BASE_ARRAY) {
+        switch (type->base_type) {
+            case TYPE_BOOL:   return "([Z)Ljava/lang/String;";
+            case TYPE_CHAR:   return "([C)Ljava/lang/String;";
+            case TYPE_INT:    return "([I)Ljava/lang/String;";
+            case TYPE_FLOAT:  return "([F)Ljava/lang/String;";
+            case TYPE_DOUBLE:
+            case TYPE_REAL:   return "([D)Ljava/lang/String;";
+            case TYPE_STRING: return "([Ljava/lang/Object;)Ljava/lang/String;";
+            default:          return "([Ljava/lang/Object;)Ljava/lang/String;";
+        }
+    }
+    if (type->kind == TYPE_KIND_CLASS_ARRAY) {
+        return "([Ljava/lang/Object;)Ljava/lang/String;";
+    }
+    return "([Ljava/lang/Object;)Ljava/lang/String;";
+}
+
 static int EmitPrintCall(jvmc_class *cls, jvmc_code *code, NExpr *arg, int is_last, int is_writeln,
                          NParamList *params, NStmt *body, SemanticContext *ctx) {
     jvmc_fieldref *out_ref = NULL;
     jvmc_methodref *print_ref = NULL;
+    jvmc_methodref *to_string_ref = NULL;
     const char *owner = "java/io/PrintStream";
     const char *method = "print";
     const char *desc_part = NULL;
@@ -609,6 +645,30 @@ static int EmitPrintCall(jvmc_class *cls, jvmc_code *code, NExpr *arg, int is_la
     if (arg != NULL) {
         if (!CodegenEmitExpr(cls, code, arg, params, body, ctx)) {
             return 0;
+        }
+        if (IsArrayTypeForPrint(arg->inferred_type)) {
+            const char *array_desc = ArraysToStringDescriptorForType(arg->inferred_type);
+            to_string_ref = jvmc_class_get_or_create_methodref(cls,
+                                                               "java/util/Arrays",
+                                                               "toString",
+                                                               array_desc);
+            if (to_string_ref == NULL) {
+                return 0;
+            }
+            if (!jvmc_code_invokestatic(code, to_string_ref)) {
+                return 0;
+            }
+            if (is_writeln && is_last) {
+                method = "println";
+            }
+            print_ref = jvmc_class_get_or_create_methodref(cls,
+                                                           owner,
+                                                           method,
+                                                           "(Ljava/lang/String;)V");
+            if (print_ref == NULL) {
+                return 0;
+            }
+            return jvmc_code_invokevirtual(code, print_ref);
         }
         if (is_writeln && is_last) {
             method = "println";
@@ -1192,7 +1252,7 @@ static int EmitStringEqualsResult(jvmc_class *cls, jvmc_code *code, NExpr *left,
         return 0;
     }
 
-    temp_base = FindMaxSlot(params, body) + 1;
+    temp_base = GetTempBase(params, body);
     left_slot = temp_base;
     right_slot = temp_base + 1;
 
@@ -1959,8 +2019,14 @@ static int FindMaxSlot(NParamList *params, NStmt *body) {
 
 static int GetTempBase(NParamList *params, NStmt *body) {
     int base = FindMaxSlot(params, body) + 1;
+    if (base < 0) {
+        base = 0;
+    }
     if (g_temp_base_override > base) {
         base = g_temp_base_override;
+    }
+    if (g_instance_slots_base > 0 && base < g_instance_slots_base) {
+        base = g_instance_slots_base;
     }
     return base;
 }
@@ -2393,7 +2459,7 @@ static int EmitSuperCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_
         return 0;
     }
 
-    temp_base = FindMaxSlot(params, body) + 1;
+    temp_base = GetTempBase(params, body);
     if (arg_count > 0) {
         ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
         if (ref_slots == NULL) {
@@ -2585,7 +2651,7 @@ static int EmitThisCtorCall(jvmc_class *cls, jvmc_code *code, NClassDef *class_d
         return 0;
     }
 
-    temp_base = FindMaxSlot(params, body) + 1;
+    temp_base = GetTempBase(params, body);
     if (arg_count > 0) {
         ref_slots = (int *)malloc(sizeof(int) * (size_t)arg_count);
         if (ref_slots == NULL) {
@@ -3206,7 +3272,7 @@ static int EmitArrayLiteral(jvmc_class *cls, jvmc_code *code, const NType *decl_
 static int EmitAppendArrayElement(jvmc_class *cls, jvmc_code *code, NExpr *array_expr, NExpr *value_expr,
                                   NParamList *params, NStmt *body, SemanticContext *ctx) {
     NType elem_type;
-    int base = FindMaxSlot(params, body) + 1;
+    int base = GetTempBase(params, body);
     int slot_arr = base++;
     int slot_len = base++;
     int slot_new = base++;
@@ -3345,7 +3411,7 @@ static int EmitAppendArrayElement(jvmc_class *cls, jvmc_code *code, NExpr *array
 static int EmitAppendArrayConcat(jvmc_class *cls, jvmc_code *code, NExpr *array_expr, NExpr *rhs_expr,
                                  NParamList *params, NStmt *body, SemanticContext *ctx) {
     NType elem_type;
-    int base = FindMaxSlot(params, body) + 1;
+    int base = GetTempBase(params, body);
     int slot_arr = base++;
     int slot_rhs = base++;
     int slot_len1 = base++;
@@ -3763,7 +3829,7 @@ static int EmitNewClassExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NPara
         free(owner_internal);
         return 0;
     }
-    temp_base = FindMaxSlot(params, body) + 1;
+    temp_base = GetTempBase(params, body);
     temp_obj = temp_base++;
     if (!jvmc_code_store_ref(code, (uint16_t)temp_obj)) {
         free(owner_internal);
@@ -3964,7 +4030,7 @@ static int EmitInstanceFieldInitializers(jvmc_class *cls, NClassDef *class_def, 
     if (owner_internal == NULL) {
         return 0;
     }
-    temp_base = FindMaxSlot(params, body) + 1;
+    temp_base = GetTempBase(params, body);
     member = class_def->members.first;
     while (member != NULL) {
         if (member->type == CLASS_MEMBER_FIELD && member->value.field.init_decls) {
@@ -4082,6 +4148,7 @@ static int CodegenEmitCtorBody(jvmc_class *cls, NClassDef *class_def, jvmc_code 
     char *base_internal;
     int returned = 0;
     FlowContext flow;
+    int prev_instance = g_instance_slots_base;
     NStmt *prev_body = g_current_body;
     NStmt *super_stmt = NULL;
     NStmt *this_stmt = NULL;
@@ -4194,7 +4261,14 @@ static int CodegenEmitCtor(jvmc_class *cls, NClassDef *class_def, NCtorDef *ctor
     if (!jvmc_code_set_max_locals(code, (uint16_t)max_locals)) {
         return 0;
     }
-    return CodegenEmitCtorBody(cls, class_def, code, ctor->body, ctor->params, ctx);
+    {
+        int prev_instance = g_instance_slots_base;
+        int ok;
+        g_instance_slots_base = 1;
+        ok = CodegenEmitCtorBody(cls, class_def, code, ctor->body, ctor->params, ctx);
+        g_instance_slots_base = prev_instance;
+        return ok;
+    }
 }
 
 static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, SemanticContext *ctx) {
@@ -4232,7 +4306,14 @@ static int CodegenEmitDefaultCtor(jvmc_class *cls, NClassDef *class_def, Semanti
     if (!jvmc_code_set_max_locals(code, (uint16_t)max_locals)) {
         return 0;
     }
-    return CodegenEmitCtorBody(cls, class_def, code, NULL, NULL, ctx);
+    {
+        int prev_instance = g_instance_slots_base;
+        int ok;
+        g_instance_slots_base = 1;
+        ok = CodegenEmitCtorBody(cls, class_def, code, NULL, NULL, ctx);
+        g_instance_slots_base = prev_instance;
+        return ok;
+    }
 }
 
 static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParamList *params, NStmt *body,
@@ -4257,6 +4338,9 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 return jvmc_code_push_int(code, expr->enum_value);
             }
             if (ResolveVariableSlot(expr->value.ident_name, params, body, &slot, &type)) {
+                if (g_instance_slots_base > 0 && slot == 0) {
+                    return EmitImplicitThisFieldLoad(cls, code, ctx, expr->value.ident_name, &type);
+                }
                 int is_ref = 0;
                 if (type == NULL) {
                     type = expr->inferred_type;
@@ -4870,7 +4954,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                 int is_instance_call = 0;
                 int arg_count = expr->value.func_call.arg_count;
                 int *ref_slots = NULL;
-                int temp_base = FindMaxSlot(params, body) + 1;
+                int temp_base = GetTempBase(params, body);
                 int temp_ret = -1;
                 int ret_width = TypeSlotWidth(expr->inferred_type);
                 if (ctx != NULL && ctx->current_class != NULL && expr->resolved_owner_internal != NULL) {
@@ -4995,7 +5079,7 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
             {
                 int arg_count = expr->value.member_access.arg_count;
                 int *ref_slots = NULL;
-                int temp_base = FindMaxSlot(params, body) + 1;
+                int temp_base = GetTempBase(params, body);
                 int temp_ret = -1;
                 int ret_width = TypeSlotWidth(expr->inferred_type);
                 if (arg_count > 0) {
@@ -5355,18 +5439,24 @@ static int CodegenEmitExpr(jvmc_class *cls, jvmc_code *code, NExpr *expr, NParam
                     return CodegenReportExprFail("EXPR_ASSIGN: right emit failed", expr);
                 }
                 if (ResolveVariableSlot(name, params, body, &slot, &type)) {
-                    int is_ref = 0;
-                    LookupCodegenVar(name, NULL, NULL, &is_ref);
-                    if (is_ref) {
-                        if (!EmitStoreRefParamValue(code, type, slot, params, body)) {
-                            return CodegenReportExprFail("EXPR_ASSIGN: ref store failed", expr);
+                    if (g_instance_slots_base > 0 && slot == 0) {
+                        if (EmitImplicitThisFieldStore(cls, code, ctx, name, type, params, body)) {
+                            return 1;
+                        }
+                    } else {
+                        int is_ref = 0;
+                        LookupCodegenVar(name, NULL, NULL, &is_ref);
+                        if (is_ref) {
+                            if (!EmitStoreRefParamValue(code, type, slot, params, body)) {
+                                return CodegenReportExprFail("EXPR_ASSIGN: ref store failed", expr);
+                            }
+                            return 1;
+                        }
+                        if (!EmitStoreByType(code, type, slot)) {
+                            return CodegenReportExprFail("EXPR_ASSIGN: local store failed", expr);
                         }
                         return 1;
                     }
-                    if (!EmitStoreByType(code, type, slot)) {
-                        return CodegenReportExprFail("EXPR_ASSIGN: local store failed", expr);
-                    }
-                    return 1;
                 }
                 if (EmitGlobalStore(cls, code, ctx, name, &type)) {
                     return 1;
@@ -6151,6 +6241,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     jvmc_code *code = NULL;
     int returned = 0;
     NStmt *prev_body = g_current_body;
+    int prev_instance = g_instance_slots_base;
 
     if (cls == NULL || name == NULL || descriptor == NULL) {
         return 0;
@@ -6179,6 +6270,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     }
     FlowContext flow;
     memset(&flow, 0, sizeof(flow));
+    g_instance_slots_base = is_static ? 0 : 1;
     ResetCodegenScope();
     PushCodegenScope();
     AddParamsToScope(params);
@@ -6189,6 +6281,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
         g_current_body = prev_body;
         free(flow.break_labels);
         free(flow.continue_labels);
+        g_instance_slots_base = prev_instance;
         return 0;
     }
     PopCodegenScope();
@@ -6196,6 +6289,7 @@ static int CodegenAddMethodWithBody(jvmc_class *cls, const char *name, const cha
     g_current_body = prev_body;
     free(flow.break_labels);
     free(flow.continue_labels);
+    g_instance_slots_base = prev_instance;
     if (!returned) {
         if (!EmitMainDtorCleanup(cls, code, body, ctx)) {
             CodegenReportFail("CodegenAddMethodWithBody: EmitMainDtorCleanup failed (skipping)");
@@ -6227,6 +6321,7 @@ static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticCo
     int returned = 0;
     FlowContext flow;
     NStmt *prev_body = g_current_body;
+    int prev_instance = g_instance_slots_base;
     memset(&flow, 0, sizeof(flow));
 
     if (cls == NULL || func == NULL || func->jvm_descriptor == NULL) {
@@ -6256,6 +6351,7 @@ static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticCo
         CodegenReportFail("CodegenAddMainWithCleanup: set_max_locals failed");
         return 0;
     }
+    g_instance_slots_base = 0;
     g_current_body = func->body;
     ResetCodegenScope();
     PushCodegenScope();
@@ -6267,6 +6363,7 @@ static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticCo
         CodegenReportFail("CodegenAddMainWithCleanup: emit stmt list failed");
         free(flow.break_labels);
         free(flow.continue_labels);
+        g_instance_slots_base = prev_instance;
         return 0;
     }
     PopCodegenScope();
@@ -6274,6 +6371,7 @@ static int CodegenAddMainWithCleanup(jvmc_class *cls, NFuncDef *func, SemanticCo
     g_current_body = prev_body;
     free(flow.break_labels);
     free(flow.continue_labels);
+    g_instance_slots_base = prev_instance;
     if (!returned) {
         if (!EmitMainDtorCleanup(cls, code, func->body, ctx)) {
             CodegenReportFail("CodegenAddMainWithCleanup: EmitMainDtorCleanup failed (skipping)");
@@ -6679,6 +6777,9 @@ static int CodegenEmitClassFromDef(NClassDef *class_def, SemanticContext *ctx) {
     }
     free(out_file);
     jvmc_class_destroy(cls);
+    if (ctx != NULL) {
+        ctx->current_class = prev_class;
+    }
     return 0;
 }
 

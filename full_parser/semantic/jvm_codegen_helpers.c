@@ -186,7 +186,10 @@ const char *JvmPrintDescriptorForType(const NType *type) {
     if (type->kind == TYPE_KIND_ENUM_ARRAY) {
         return "Ljava/lang/Object;";
     }
-    if (type->kind == TYPE_KIND_BASE || type->kind == TYPE_KIND_BASE_ARRAY) {
+    if (type->kind == TYPE_KIND_BASE_ARRAY) {
+        return "Ljava/lang/Object;";
+    }
+    if (type->kind == TYPE_KIND_BASE) {
         switch (type->base_type) {
             case TYPE_BOOL: return "Z";
             case TYPE_CHAR: return "C";
